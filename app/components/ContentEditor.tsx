@@ -11,6 +11,15 @@ interface ContentEditorProps {
   isNew: boolean;
 }
 
+function isValidUrl(text: string): boolean {
+  try {
+    const url = new URL(text);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export function ContentEditor({
   content,
   onChange,
@@ -39,6 +48,39 @@ export function ContentEditor({
     textareaRef.current?.focus();
   }, []);
 
+  function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const selectionStart = textarea.selectionStart;
+    const selectionEnd = textarea.selectionEnd;
+    const hasSelection = selectionStart !== selectionEnd;
+
+    if (!hasSelection) return;
+
+    const pastedText = e.clipboardData.getData("text/plain").trim();
+    if (!isValidUrl(pastedText)) return;
+
+    e.preventDefault();
+
+    const selectedText = content.substring(selectionStart, selectionEnd);
+    const linkMarkdown = `[${selectedText}](${pastedText})`;
+
+    const newContent =
+      content.substring(0, selectionStart) +
+      linkMarkdown +
+      content.substring(selectionEnd);
+
+    onChange(newContent);
+
+    // Set cursor position after the inserted link
+    setTimeout(() => {
+      const newPosition = selectionStart + linkMarkdown.length;
+      textarea.setSelectionRange(newPosition, newPosition);
+      textarea.focus();
+    }, 0);
+  }
+
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-4">
@@ -66,6 +108,7 @@ export function ContentEditor({
         ref={textareaRef}
         value={content}
         onChange={(e) => onChange(e.target.value)}
+        onPaste={handlePaste}
         placeholder="Enter your markdown content here..."
         disabled={isSaving}
         className="w-full min-h-[400px] px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:focus:ring-zinc-400 resize-y"

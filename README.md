@@ -1,36 +1,105 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Marker
+
+A private markdown notes application with secret key-based access. Store and edit your notes securely using a simple key system.
+
+## Features
+
+- **Secret Key Access**: Access your notes using a private key
+- **Markdown Support**: Write and view notes with full markdown rendering (including GitHub Flavored Markdown)
+- **View & Edit Modes**: Toggle between viewing rendered markdown and editing raw content
+- **Dark Mode**: Automatic dark mode support
+- **Scroll Actions**: Quick navigation buttons to scroll to top or bottom
+- **Redis Storage**: Persistent storage using Upstash Redis
+
+## Tech Stack
+
+- **Next.js 16** - React framework
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Styling
+- **Upstash Redis** - Data storage
+- **react-markdown** - Markdown rendering
+- **remark-gfm** - GitHub Flavored Markdown support
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
+- Node.js 18+ 
+- An Upstash Redis instance (or compatible Redis)
+
+### Installation
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <repository-url>
+cd marker
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create a `.env.local` file in the root directory:
 
-## Learn More
+```env
+KV_REST_API_URL=your_upstash_redis_url
+KV_REST_API_TOKEN=your_upstash_redis_token
+```
 
-To learn more about Next.js, take a look at the following resources:
+4. Run the development server:
+```bash
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Usage
 
-## Deploy on Vercel
+1. Enter a secret key to access or create a note
+2. If the key exists, you'll see the rendered markdown
+3. Click "Edit" to modify the content
+4. Save your changes to persist them
+5. Use "Change Key" to switch to a different note
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+marker/
+├── app/
+│   ├── api/
+│   │   └── content/          # API routes for content CRUD
+│   ├── components/
+│   │   ├── ContentEditor.tsx  # Markdown editor component
+│   │   ├── ContentViewer.tsx  # Markdown viewer component
+│   │   ├── KeyInput.tsx       # Key input form
+│   │   └── ScrollActions.tsx  # Scroll navigation buttons
+│   ├── lib/
+│   │   └── redis.ts           # Redis client configuration
+│   └── page.tsx               # Main application page
+└── README.md
+```
+
+## Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+
+## Deployment
+
+The easiest way to deploy is using [Vercel](https://vercel.com):
+
+1. Push your code to GitHub
+2. Import your repository on Vercel
+3. Add your environment variables (`KV_REST_API_URL` and `KV_REST_API_TOKEN`)
+4. Deploy
+
+Make sure to set up your Upstash Redis instance and configure the environment variables in your deployment platform.
+
+## License
+
+Private project.

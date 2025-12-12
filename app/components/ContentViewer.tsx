@@ -2,11 +2,18 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { Components } from "react-markdown";
 
 interface ContentViewerProps {
   content: string;
   onEdit: () => void;
 }
+
+const markdownComponents: Components = {
+  a: ({ node, ...props }) => (
+    <a {...props} target="_blank" rel="noopener noreferrer" />
+  ),
+};
 
 export function ContentViewer({ content, onEdit }: ContentViewerProps) {
   return (
@@ -21,7 +28,12 @@ export function ContentViewer({ content, onEdit }: ContentViewerProps) {
       </div>
       <div className="prose dark:prose-invert max-w-none break-words">
         {content ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={markdownComponents}
+          >
+            {content}
+          </ReactMarkdown>
         ) : (
           <p className="text-zinc-400 dark:text-zinc-500 italic">
             No content yet. Click Edit to add some.
