@@ -124,7 +124,7 @@ export default function Home() {
           </div>
         )}
 
-        {(appState === "viewing" || appState === "editing") && (
+        {appState === "viewing" && (
           <div>
             <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800">
               <span className="text-sm text-zinc-500 dark:text-zinc-400 font-mono">
@@ -137,22 +137,19 @@ export default function Home() {
                 Change Key
               </button>
             </div>
-
-            {appState === "viewing" && (
-              <ContentViewer content={content} onEdit={handleEdit} />
-            )}
-
-            {appState === "editing" && (
-              <ContentEditor
-                content={content}
-                onChange={setContent}
-                onSave={handleSave}
-                onCancel={handleCancel}
-                isSaving={isSaving}
-                isNew={isNew}
-              />
-            )}
+            <ContentViewer content={content} onEdit={handleEdit} />
           </div>
+        )}
+
+        {appState === "editing" && (
+          <ContentEditor
+            content={content}
+            onChange={setContent}
+            onSave={handleSave}
+            onCancel={handleCancel}
+            isSaving={isSaving}
+            isNew={isNew}
+          />
         )}
       </main>
       <ScrollActions />
