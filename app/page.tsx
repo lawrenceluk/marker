@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { KeyInput } from "./components/KeyInput";
 import { ContentViewer } from "./components/ContentViewer";
 import { ContentEditor } from "./components/ContentEditor";
@@ -95,6 +95,25 @@ export default function Home() {
     setIsNew(false);
     setError(null);
   }
+
+  // Allow the key to be carried in via ?key=... so it doesn't have to be typed.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const keyFromUrl = params.get("key");
+    if (!keyFromUrl) return;
+
+    // Strip it from the address bar so the secret doesn't linger in
+    // browser history or get leaked via the Referer header.
+    params.delete("key");
+    const query = params.toString();
+    window.history.replaceState(
+      {},
+      "",
+      `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`
+    );
+
+    handleKeySubmit(keyFromUrl);
+  }, []);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
