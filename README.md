@@ -64,6 +64,32 @@ npm run dev
 4. Save your changes to persist them
 5. Use "Change Key" to switch to a different note
 
+## Using with AI Agents
+
+Marker works as a simple markdown pastebin: give an agent the blurb below (verbatim) and it will know how to read and write notes via the API, without needing browser access.
+
+````markdown
+Marker is a markdown pastebin at https://marker.luk.xyz. A note is identified
+by a "key", which also acts as its secret — anyone who has the key can read
+and overwrite that note, so use a long, random, hard-to-guess key.
+
+- Read a note:
+  GET https://marker.luk.xyz/api/content?key=<key>
+  → { "content": string | null, "exists": boolean }
+
+- Write/overwrite a note (creates it if it doesn't exist):
+  POST https://marker.luk.xyz/api/content
+  Content-Type: application/json
+  Body: { "key": "<key>", "content": "<markdown string>" }
+  → { "success": true }
+
+- View/edit a note in the browser (no need to type the key in):
+  https://marker.luk.xyz/?key=<key>
+
+Content is plain markdown (GitHub-flavored). There is no authentication
+beyond the key itself, so don't store sensitive secrets in it.
+````
+
 ## Project Structure
 
 ```
