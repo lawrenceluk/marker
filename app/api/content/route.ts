@@ -31,8 +31,19 @@ export async function GET(request: NextRequest) {
 
   const note = await readNote(key);
 
+  // Same shape either way, so callers never have to branch on `exists` before
+  // reading a field. A note that doesn't exist reads as rev 0, which is also
+  // the value `if_rev` wants for create-only-if-absent.
   if (!note) {
-    return NextResponse.json({ content: null, exists: false });
+    return NextResponse.json({
+      content: null,
+      exists: false,
+      rev: 0,
+      updated_at: null,
+      created_at: null,
+      expires_at: null,
+      size: 0,
+    });
   }
 
   return NextResponse.json({
