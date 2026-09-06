@@ -13,6 +13,7 @@ via a small HTTP API, from AI agents.
 - **Shareable Links**: `/?key=...` moves the key into an httpOnly cookie and renders the note server-side, so the key stays out of the address bar and browser history
 - **Persistent URL**: Opt a note into a bookmarkable `/?key=...&persist=1` document link that stays in the address bar and survives a browser restart
 - **Copy all**: Copy a note's full markdown from the viewer or editor, with a brief "Copied" confirmation
+- **Rename Key**: Change a note's key in place without rewriting its content; the destination must be free
 - **View & Edit Modes**: Toggle between viewing rendered markdown and editing raw content
 - **Dark Mode**: Automatic dark mode support
 - **Scroll Actions**: Quick navigation buttons to scroll to top or bottom
@@ -26,9 +27,10 @@ agents you want to have full read/write access. Anyone with the key can read and
 overwrite the note.
 
 Only the current value of a note is stored — there is no version history, so an
-overwrite cannot be undone. Notes are excluded from search indexing and carry no
-Open Graph tags, so pasting a link into a chat app won't unfurl its contents into
-the channel.
+overwrite cannot be undone. Notes are excluded from search indexing (`robots.txt` disallows `/`, pages send
+`noindex` meta and `X-Robots-Tag`, and nothing is cached or given Open Graph
+tags) so pasting a link into a chat app won't unfurl its contents into the
+channel and crawlers should not list notes.
 
 ## Tech Stack
 
@@ -81,7 +83,8 @@ npm run dev
 2. If the key exists, you'll see the rendered markdown
 3. Click "Edit" to modify the content
 4. Save your changes to persist them
-5. Use "Change Key" to switch to a different note
+5. Use "Rename" to change this note's key without copying its content
+6. Use "Change Key" to switch to a different note
 
 You can also open a note directly at `/?key=<key>`. The server takes the key out
 of the URL, stores it in an httpOnly session cookie, and redirects to `/` before
@@ -186,7 +189,8 @@ accidentally extend or cancel one. Handy for temporary shares.
 ## Errors
 
 400 — missing or invalid key, non-string content, bad mode/if_rev/ttl
-409 — "if_rev" didn't match; body has the current "rev" and "content"
+404 — PATCH rename: the source key does not exist
+409 — "if_rev" didn't match (body has the current "rev" and "content"), or PATCH rename destination is taken
 413 — the resulting note would exceed the 1 MiB limit
 
 ## Examples
@@ -217,6 +221,11 @@ Write a note that self-destructs in an hour, then hand it to a human:
 - Maximum 1 MiB per note.
 - There is no delete endpoint. Write "" to empty a note, or set a short "ttl"
   to make it disappear.
+- Rename a note (content, rev, and expiry move; destination must be free):
+  PATCH https://marker.luk.xyz/api/content
+  { "key": "<old>", "new_key": "<new>" }
+  → { "success": true, "key": "<new>", "renamed": true }
+  409 if new_key already exists; 404 if key does not.
 - https://marker.luk.xyz/?key=<key> is the human-facing view/edit page. Use the
   API above rather than fetching that page.
 - The key is the only authentication. Don't store credentials or sensitive data
@@ -238,12 +247,15 @@ marker/
 │   │   ├── KeyInput.tsx       # Key input form
 │   │   ├── NoteApp.tsx        # Client-side app state and flow
 │   │   ├── PersistToggle.tsx  # Persistent URL switch and copyable link
+│   │   ├── RenameKey.tsx      # In-place key rename form
 │   │   └── ScrollActions.tsx  # Scroll navigation buttons
 │   ├── lib/
 │   │   ├── clipboard.ts       # Clipboard helper
 │   │   ├── key.ts             # Key validation, masking, session cookie
 │   │   ├── notes.ts           # Note storage schema and atomic read/write scripts
-│   │   └── redis.ts           # Redis client configuration
+│   │   ├── redis.ts           # Redis client configuration
+│   │   └── robots.ts          # X-Robots-Tag / noindex helpers
+│   ├── robots.ts              # Disallow-all robots.txt
 │   └── page.tsx               # Server component: resolves the session, renders the note
 ├── proxy.ts                   # Turns /?key=... into a cookie + redirect
 └── README.md

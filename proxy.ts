@@ -5,6 +5,7 @@ import {
   isPersistParam,
   normalizeKey,
 } from "@/app/lib/key";
+import { ROBOTS_TAG } from "@/app/lib/robots";
 
 export const config = { matcher: "/" };
 
@@ -39,8 +40,9 @@ export function proxy(request: NextRequest) {
   return withPrivateCaching(response);
 }
 
-/** Note content is per-cookie and secret; nothing may cache this page. */
+/** Note content is per-cookie and secret; nothing may cache or index this page. */
 function withPrivateCaching(response: NextResponse) {
   response.headers.set("Cache-Control", "no-store, private");
+  response.headers.set("X-Robots-Tag", ROBOTS_TAG);
   return response;
 }

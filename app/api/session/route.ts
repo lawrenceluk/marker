@@ -6,6 +6,13 @@ import {
   clearSessionCookies,
   normalizeKey,
 } from "@/app/lib/key";
+import { applyNoIndexHeaders } from "@/app/lib/robots";
+
+function json(data: unknown, status = 200) {
+  const response = NextResponse.json(data, { status });
+  applyNoIndexHeaders(response.headers);
+  return response;
+}
 
 function persistFromCookie(request: NextRequest): boolean {
   return request.cookies.get(PERSIST_COOKIE)?.value === "1";
@@ -21,13 +28,11 @@ function sessionBody(key: string, persist: boolean) {
 export async function GET(request: NextRequest) {
   const key = normalizeKey(request.cookies.get(SESSION_COOKIE)?.value);
   if (!key) {
-    return NextResponse.json({ persist: false });
+    return json({ persist: false });
   }
 
   const persist = persistFromCookie(request);
-  const response = NextResponse.json(sessionBody(key, persist));
-  response.headers.set("Cache-Control", "no-store, private");
-  return response;
+  return json(sessionBody(key, persist));
 }
 
 /** Adopt a key typed into the browser, so a reload doesn't lose it. */
@@ -36,14 +41,14 @@ export async function POST(request: NextRequest) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return json({ error: "Invalid JSON body" }, 400);
   }
 
   const cookieKey = normalizeKey(request.cookies.get(SESSION_COOKIE)?.value);
   const bodyKey = normalizeKey(body.key);
   const key = bodyKey ?? cookieKey;
   if (!key) {
-    return NextResponse.json({ error: "Key is required" }, { status: 400 });
+    return json({ error: "Key is required" }, 400);
   }
 
   // A newly typed key is a one-off session unless persist is explicitly on.
@@ -53,14 +58,14 @@ export async function POST(request: NextRequest) {
   if (body.persist === false) persist = false;
   if (bodyKey && body.persist === undefined) persist = false;
 
-  const response = NextResponse.json(sessionBody(key, persist));
+  const response = json(sessionBody(key, persist));
   applySessionCookies(response.cookies, key, persist);
   return response;
 }
 
 /** Backs "Change Key" — the cookie is httpOnly, so only the server can drop it. */
 export async function DELETE() {
-  const response = NextResponse.json({ success: true });
+  const response = json({ success: true });
   clearSessionCookies(response.cookies);
   return response;
 }

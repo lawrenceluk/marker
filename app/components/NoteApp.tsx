@@ -12,6 +12,7 @@ import { KeyInput } from "./KeyInput";
 import { ContentViewer } from "./ContentViewer";
 import { ContentEditor } from "./ContentEditor";
 import { PersistToggle } from "./PersistToggle";
+import { RenameKey } from "./RenameKey";
 import { ScrollActions } from "./ScrollActions";
 
 type AppState = "idle" | "loading" | "viewing" | "editing";
@@ -56,6 +57,8 @@ export function NoteApp({
   // on) so a default session still doesn't serialize it into the page HTML.
   const [rawKey, setRawKey] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [isSavingRename, setIsSavingRename] = useState(false);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -209,7 +212,48 @@ export function NoteApp({
     setRev(null);
     setForceOverwrite(false);
     setIsNew(false);
+    setIsRenaming(false);
     setError(null);
+  }
+
+  async function handleRename(newKey: string) {
+    const next = normalizeKey(newKey);
+    if (!next) {
+      setError("Key is required");
+      return;
+    }
+
+    setIsSavingRename(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/content", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_key: next }),
+      });
+      const data: { error?: string; key?: string } = await res.json();
+
+      if (res.status === 409) {
+        setError(data.error || "That key already exists");
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to rename key");
+      }
+
+      const key = normalizeKey(data.key) ?? next;
+      setRawKey(key);
+      setKeyLabel(maskKey(key));
+      setIsRenaming(false);
+      if (persist) {
+        showPersistUrl(key);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to rename key");
+    } finally {
+      setIsSavingRename(false);
+    }
   }
 
   async function handlePersistToggle() {
@@ -290,6 +334,15 @@ export function NoteApp({
                   disabled={isTogglingPersist}
                 />
                 <button
+                  onClick={() => {
+                    setIsRenaming((open) => !open);
+                    setError(null);
+                  }}
+                  className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
+                >
+                  Rename
+                </button>
+                <button
                   onClick={handleReset}
                   className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
                 >
@@ -297,6 +350,16 @@ export function NoteApp({
                 </button>
               </div>
             </div>
+            {isRenaming && (
+              <div className="mb-6">
+                <RenameKey
+                  currentKey={rawKey}
+                  onRename={handleRename}
+                  onCancel={() => setIsRenaming(false)}
+                  isSaving={isSavingRename}
+                />
+              </div>
+            )}
             <ContentViewer content={content} onEdit={handleEdit} />
           </div>
         )}
