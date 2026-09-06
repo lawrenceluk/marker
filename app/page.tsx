@@ -23,8 +23,12 @@ export default async function Home({
   const persist = persistFromCookie || persistFromUrl;
 
   // Persist links skip the cookie+redirect hop, so the first render may not
-  // see the cookie the proxy just set. Fall back to the URL key only then.
-  const key = cookieKey ?? (persist ? normalizeKey(params.key) : null);
+  // see the cookie the proxy just set. The URL is the document identity —
+  // prefer it so a rename (cookie still catching up) does not flash the
+  // previous key as a missing note.
+  const key = persist
+    ? (normalizeKey(params.key) ?? cookieKey)
+    : cookieKey;
   const note = key ? await readNote(key) : null;
 
   return (
