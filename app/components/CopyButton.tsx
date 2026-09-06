@@ -21,7 +21,7 @@ export function CopyButton({
   className = defaultClassName,
   disabled = false,
 }: CopyButtonProps) {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -32,20 +32,24 @@ export function CopyButton({
     };
   }, []);
 
+  function flash(next: "copied" | "failed") {
+    setStatus(next);
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = window.setTimeout(() => {
+      setStatus("idle");
+      timeoutRef.current = null;
+    }, 1500);
+  }
+
   async function handleCopy() {
     if (disabled) return;
     try {
       await copyToClipboard(text);
-      setCopied(true);
-      if (timeoutRef.current !== null) {
-        window.clearTimeout(timeoutRef.current);
-      }
-      timeoutRef.current = window.setTimeout(() => {
-        setCopied(false);
-        timeoutRef.current = null;
-      }, 1500);
+      flash("copied");
     } catch {
-      setCopied(false);
+      flash("failed");
     }
   }
 
@@ -54,9 +58,11 @@ export function CopyButton({
       type="button"
       onClick={handleCopy}
       disabled={disabled}
+      aria-live="polite"
+      data-copy-status={status}
       className={className}
     >
-      {copied ? copiedLabel : label}
+      {status === "copied" ? copiedLabel : status === "failed" ? "Copy failed" : label}
     </button>
   );
 }
