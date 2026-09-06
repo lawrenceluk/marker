@@ -11,6 +11,8 @@ via a small HTTP API, from AI agents.
 - **Agent-Friendly API**: Atomic append/prepend and optimistic concurrency (`if_rev`) so several agents can write to one note without clobbering each other
 - **Optional Expiry**: Per-note TTL for quick, self-destructing shares
 - **Shareable Links**: `/?key=...` moves the key into an httpOnly cookie and renders the note server-side, so the key stays out of the address bar and browser history
+- **Persistent URL**: Opt a note into a bookmarkable `/?key=...&persist=1` document link that stays in the address bar and survives a browser restart
+- **Copy all**: Copy a note's full markdown from the viewer or editor, with a brief "Copied" confirmation
 - **View & Edit Modes**: Toggle between viewing rendered markdown and editing raw content
 - **Dark Mode**: Automatic dark mode support
 - **Scroll Actions**: Quick navigation buttons to scroll to top or bottom
@@ -88,6 +90,15 @@ rendering — so the key never appears in the address bar, browser history, a
 
 That cookie is what keeps you in the note across reloads. It is cleared by
 "Change Key" or by closing the browser.
+
+To keep a stable document link instead, turn on **Persistent URL** in the note
+header. That puts `/?key=<key>&persist=1` in the address bar (and offers a copy
+button). Visiting that URL always loads the same note and leaves the key in the
+URL so it can be bookmarked. Turning the toggle off restores the one-off
+session behavior above.
+
+Because a persistent URL keeps the key visible, treat it like handing someone
+the password: it will appear in browser history and in `Referer` headers.
 
 Because only the current value of a note is stored, saving from the browser
 sends the revision it loaded. If an agent wrote to the note while you had it
@@ -223,10 +234,13 @@ marker/
 │   ├── components/
 │   │   ├── ContentEditor.tsx  # Markdown editor component
 │   │   ├── ContentViewer.tsx  # Markdown viewer component
+│   │   ├── CopyButton.tsx     # Copy-to-clipboard control with "Copied" feedback
 │   │   ├── KeyInput.tsx       # Key input form
 │   │   ├── NoteApp.tsx        # Client-side app state and flow
+│   │   ├── PersistToggle.tsx  # Persistent URL switch and copyable link
 │   │   └── ScrollActions.tsx  # Scroll navigation buttons
 │   ├── lib/
+│   │   ├── clipboard.ts       # Clipboard helper
 │   │   ├── key.ts             # Key validation, masking, session cookie
 │   │   ├── notes.ts           # Note storage schema and atomic read/write scripts
 │   │   └── redis.ts           # Redis client configuration

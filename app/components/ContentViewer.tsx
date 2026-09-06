@@ -3,6 +3,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
+import { CopyButton } from "./CopyButton";
 
 interface ContentViewerProps {
   content: string;
@@ -18,7 +19,8 @@ const markdownComponents: Components = {
 export function ContentViewer({ content, onEdit }: ContentViewerProps) {
   return (
     <div className="w-full">
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end gap-2 mb-4">
+        <CopyButton text={content} />
         <button
           onClick={onEdit}
           className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
