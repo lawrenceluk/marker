@@ -355,7 +355,10 @@ export function NoteApp({
                 <RenameKey
                   currentKey={rawKey}
                   onRename={handleRename}
-                  onCancel={() => setIsRenaming(false)}
+                  onCancel={() => {
+                    setIsRenaming(false);
+                    setError(null);
+                  }}
                   isSaving={isSavingRename}
                 />
               </div>
