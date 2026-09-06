@@ -246,9 +246,10 @@ marker/
 │   │   ├── CopyButton.tsx     # Copy-to-clipboard control with "Copied" feedback
 │   │   ├── KeyInput.tsx       # Key input form
 │   │   ├── NoteApp.tsx        # Client-side app state and flow
-│   │   ├── PersistToggle.tsx  # Persistent URL switch and copyable link
+│   │   ├── NoteToolbar.tsx    # Compact icon toolbar for a viewing session
 │   │   ├── RenameKey.tsx      # In-place key rename form
-│   │   └── ScrollActions.tsx  # Scroll navigation buttons
+│   │   ├── ScrollActions.tsx  # Scroll navigation buttons
+│   │   └── ToolbarButton.tsx  # Shared icon-button chrome
 │   ├── lib/
 │   │   ├── clipboard.ts       # Clipboard helper
 │   │   ├── key.ts             # Key validation, masking, session cookie

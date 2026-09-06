@@ -4,14 +4,13 @@ import { useEffect, useState } from "react";
 import {
   PERSIST_QUERY,
   isPersistParam,
-  maskKey,
   normalizeKey,
   persistPath,
 } from "../lib/key";
 import { KeyInput } from "./KeyInput";
 import { ContentViewer } from "./ContentViewer";
 import { ContentEditor } from "./ContentEditor";
-import { PersistToggle } from "./PersistToggle";
+import { NoteToolbar } from "./NoteToolbar";
 import { RenameKey } from "./RenameKey";
 import { ScrollActions } from "./ScrollActions";
 
@@ -39,7 +38,6 @@ export function NoteApp({
   const [appState, setAppState] = useState<AppState>(
     initialKeyLabel ? (initialNote ? "viewing" : "editing") : "idle"
   );
-  const [keyLabel, setKeyLabel] = useState(initialKeyLabel ?? "");
   const [content, setContent] = useState(initialNote?.content ?? "");
   const [originalContent, setOriginalContent] = useState(initialNote?.content ?? "");
   const [isNew, setIsNew] = useState(Boolean(initialKeyLabel) && !initialNote);
@@ -98,7 +96,6 @@ export function NoteApp({
     setAppState("loading");
     setError(null);
     setForceOverwrite(false);
-    setKeyLabel(maskKey(key));
     setRawKey(key);
     setPersist(false);
 
@@ -139,7 +136,6 @@ export function NoteApp({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setRawKey(null);
-      setKeyLabel("");
       setAppState("idle");
     }
   }
@@ -204,7 +200,6 @@ export function NoteApp({
     void fetch("/api/session", { method: "DELETE" }).catch(() => {});
     hidePersistUrl();
     setAppState("idle");
-    setKeyLabel("");
     setRawKey(null);
     setPersist(false);
     setContent("");
@@ -244,7 +239,6 @@ export function NoteApp({
 
       const key = normalizeKey(data.key) ?? next;
       setRawKey(key);
-      setKeyLabel(maskKey(key));
       setIsRenaming(false);
       if (persist) {
         showPersistUrl(key);
@@ -318,38 +312,24 @@ export function NoteApp({
 
         {appState === "viewing" && (
           <div>
-            <div className="flex flex-wrap items-start justify-between gap-3 mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800">
-              <span className="text-sm text-zinc-500 dark:text-zinc-400 font-mono">
-                {keyLabel}
-              </span>
-              <div className="flex flex-wrap items-start justify-end gap-4">
-                <PersistToggle
-                  persist={persist}
-                  shareUrl={
-                    persist && rawKey && origin
-                      ? `${origin}${persistPath(rawKey)}`
-                      : null
-                  }
-                  onToggle={handlePersistToggle}
-                  disabled={isTogglingPersist}
-                />
-                <button
-                  onClick={() => {
-                    setIsRenaming((open) => !open);
-                    setError(null);
-                  }}
-                  className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-                >
-                  Rename
-                </button>
-                <button
-                  onClick={handleReset}
-                  className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors"
-                >
-                  Change Key
-                </button>
-              </div>
-            </div>
+            <NoteToolbar
+              persist={persist}
+              shareUrl={
+                persist && rawKey && origin
+                  ? `${origin}${persistPath(rawKey)}`
+                  : null
+              }
+              onPersistToggle={handlePersistToggle}
+              persistDisabled={isTogglingPersist}
+              onRename={() => {
+                setIsRenaming((open) => !open);
+                setError(null);
+              }}
+              renaming={isRenaming}
+              onChangeKey={handleReset}
+              content={content}
+              onEdit={handleEdit}
+            />
             {isRenaming && (
               <div className="mb-6">
                 <RenameKey
@@ -363,7 +343,7 @@ export function NoteApp({
                 />
               </div>
             )}
-            <ContentViewer content={content} onEdit={handleEdit} />
+            <ContentViewer content={content} />
           </div>
         )}
 

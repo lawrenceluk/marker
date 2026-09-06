@@ -3,31 +3,22 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
-import { CopyButton } from "./CopyButton";
 
 interface ContentViewerProps {
   content: string;
-  onEdit: () => void;
 }
 
 const markdownComponents: Components = {
-  a: ({ node, ...props }) => (
-    <a {...props} target="_blank" rel="noopener noreferrer" />
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
   ),
 };
 
-export function ContentViewer({ content, onEdit }: ContentViewerProps) {
+export function ContentViewer({ content }: ContentViewerProps) {
   return (
     <div className="w-full">
-      <div className="flex justify-end gap-2 mb-4">
-        <CopyButton text={content} />
-        <button
-          onClick={onEdit}
-          className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-        >
-          Edit
-        </button>
-      </div>
       <div className="prose dark:prose-invert max-w-none break-words">
         {content ? (
           <ReactMarkdown
@@ -38,7 +29,7 @@ export function ContentViewer({ content, onEdit }: ContentViewerProps) {
           </ReactMarkdown>
         ) : (
           <p className="text-zinc-400 dark:text-zinc-500 italic">
-            No content yet. Click Edit to add some.
+            No content yet.
           </p>
         )}
       </div>

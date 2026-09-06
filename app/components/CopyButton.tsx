@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Check, Copy, X, type LucideIcon } from "lucide-react";
 import { copyToClipboard } from "../lib/clipboard";
+import { toolbarButtonClass } from "./ToolbarButton";
 
 interface CopyButtonProps {
   text: string;
@@ -9,6 +11,9 @@ interface CopyButtonProps {
   copiedLabel?: string;
   className?: string;
   disabled?: boolean;
+  /** Icon-only control; `label` is used for aria-label / title. */
+  icon?: boolean;
+  idleIcon?: LucideIcon;
 }
 
 const defaultClassName =
@@ -18,8 +23,10 @@ export function CopyButton({
   text,
   label = "Copy all",
   copiedLabel = "Copied",
-  className = defaultClassName,
+  className,
   disabled = false,
+  icon = false,
+  idleIcon: IdleIcon = Copy,
 }: CopyButtonProps) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const timeoutRef = useRef<number | null>(null);
@@ -53,16 +60,35 @@ export function CopyButton({
     }
   }
 
+  const statusLabel =
+    status === "copied" ? copiedLabel : status === "failed" ? "Copy failed" : label;
+
   return (
     <button
       type="button"
       onClick={handleCopy}
       disabled={disabled}
       aria-live="polite"
+      aria-label={icon ? statusLabel : undefined}
+      title={icon ? statusLabel : undefined}
       data-copy-status={status}
-      className={className}
+      className={className ?? (icon ? toolbarButtonClass : defaultClassName)}
     >
-      {status === "copied" ? copiedLabel : status === "failed" ? "Copy failed" : label}
+      {icon ? (
+        status === "copied" ? (
+          <Check size={18} />
+        ) : status === "failed" ? (
+          <X size={18} />
+        ) : (
+          <IdleIcon size={18} />
+        )
+      ) : status === "copied" ? (
+        copiedLabel
+      ) : status === "failed" ? (
+        "Copy failed"
+      ) : (
+        label
+      )}
     </button>
   );
 }
