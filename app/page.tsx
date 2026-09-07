@@ -1,18 +1,41 @@
 import { cookies } from "next/headers";
 import { NoteApp } from "./components/NoteApp";
-import { SESSION_COOKIE, maskKey, normalizeKey } from "./lib/key";
+import {
+  PERSIST_COOKIE,
+  PERSIST_QUERY,
+  SESSION_COOKIE,
+  isPersistParam,
+  maskKey,
+  normalizeKey,
+} from "./lib/key";
 import { readNote } from "./lib/notes";
 
-export default async function Home() {
-  // Reading the cookie opts this page out of static rendering, which is what
-  // lets the note be rendered server-side for whoever holds the key.
-  const key = normalizeKey((await cookies()).get(SESSION_COOKIE)?.value);
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ key?: string; persist?: string }>;
+}) {
+  const params = await searchParams;
+  const cookieStore = await cookies();
+  const cookieKey = normalizeKey(cookieStore.get(SESSION_COOKIE)?.value);
+  const persistFromCookie = cookieStore.get(PERSIST_COOKIE)?.value === "1";
+  const persistFromUrl = isPersistParam(params[PERSIST_QUERY]);
+  const persist = persistFromCookie || persistFromUrl;
+
+  // Persist links skip the cookie+redirect hop, so the first render may not
+  // see the cookie the proxy just set. The URL is the document identity —
+  // prefer it so a rename (cookie still catching up) does not flash the
+  // previous key as a missing note.
+  const key = persist
+    ? (normalizeKey(params.key) ?? cookieKey)
+    : cookieKey;
   const note = key ? await readNote(key) : null;
 
   return (
     <NoteApp
       initialKeyLabel={key ? maskKey(key) : null}
       initialNote={note ? { content: note.content, rev: note.rev } : null}
+      initialPersist={persist}
     />
   );
 }

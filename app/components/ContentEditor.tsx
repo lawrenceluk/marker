@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { CopyButton } from "./CopyButton";
 
 interface ContentEditorProps {
   content: string;
@@ -128,11 +129,12 @@ export function ContentEditor({
 
   return (
     <div className="fixed inset-0 bg-white dark:bg-zinc-900 z-50 flex flex-col">
-      <div className="flex justify-between items-center px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+      <div className="flex flex-wrap justify-between items-center gap-2 px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <span className="text-sm text-zinc-500 dark:text-zinc-400">
           {isNew ? "Creating new content" : "Editing"} (Cmd/Ctrl+S to save)
         </span>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <CopyButton text={content} disabled={isSaving} />
           <button
             onClick={onCancel}
             disabled={isSaving}

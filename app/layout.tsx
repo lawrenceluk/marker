@@ -17,7 +17,19 @@ export const metadata: Metadata = {
   description: "Private markdown notes with secret keys",
   // Notes are private. Deliberately no Open Graph tags either: a link unfurler
   // rendering note content into a chat preview would leak it to the channel.
-  robots: { index: false, follow: false },
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+      "max-snippet": -1,
+      "max-image-preview": "none",
+      "max-video-preview": -1,
+    },
+  },
 };
 
 export default function RootLayout({
