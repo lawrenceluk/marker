@@ -14,9 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Marker",
-  description: "Private markdown notes with secret keys",
-  // Notes are private. Deliberately no Open Graph tags either: a link unfurler
-  // rendering note content into a chat preview would leak it to the channel.
+  // Description and Open Graph live in `generateMetadata` on the page so a
+  // persist URL can override them with the note prefix. Search: stay out.
   robots: {
     index: false,
     follow: false,
