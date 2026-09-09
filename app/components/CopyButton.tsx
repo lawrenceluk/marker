@@ -14,6 +14,7 @@ interface CopyButtonProps {
   /** Icon-only control; `label` is used for aria-label and the hover tooltip. */
   icon?: boolean;
   idleIcon?: LucideIcon;
+  tooltipAlign?: "start" | "center" | "end";
 }
 
 const defaultClassName =
@@ -27,6 +28,7 @@ export function CopyButton({
   disabled = false,
   icon = false,
   idleIcon: IdleIcon = Copy,
+  tooltipAlign,
 }: CopyButtonProps) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const timeoutRef = useRef<number | null>(null);
@@ -88,7 +90,7 @@ export function CopyButton({
       ) : (
         label
       )}
-      {icon ? <ToolbarTooltip label={statusLabel} /> : null}
+      {icon ? <ToolbarTooltip label={statusLabel} align={tooltipAlign} /> : null}
     </button>
   );
 }

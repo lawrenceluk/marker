@@ -54,12 +54,13 @@ export function NoteToolbar({
   onEdit,
 }: NoteToolbarProps) {
   return (
-    <div className="flex items-center justify-between gap-2 mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800">
+    <div className="flex items-center justify-between gap-2 mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800 overflow-visible">
       <div className="flex items-center gap-1">
         <ToolbarButton
           label={persist ? "Persistent URL on" : "Persistent URL off"}
           pressed={persist}
           disabled={persistDisabled}
+          tooltipAlign="start"
           onClick={onPersistToggle}
         >
           {persist ? <Globe size={18} /> : <GlobeOff size={18} />}
@@ -84,8 +85,8 @@ export function NoteToolbar({
         </ToolbarButton>
       </div>
       <div className="flex items-center gap-1">
-        <CopyButton text={content} label="Copy all" icon />
-        <ToolbarButton label="Edit" onClick={onEdit}>
+        <CopyButton text={content} label="Copy all" icon tooltipAlign="end" />
+        <ToolbarButton label="Edit" onClick={onEdit} tooltipAlign="end">
           <Pencil size={18} />
         </ToolbarButton>
       </div>
