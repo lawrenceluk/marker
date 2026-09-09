@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Copy, X, type LucideIcon } from "lucide-react";
 import { copyToClipboard } from "../lib/clipboard";
-import { toolbarButtonClass } from "./ToolbarButton";
+import { ToolbarTooltip, toolbarButtonClass } from "./ToolbarButton";
 
 interface CopyButtonProps {
   text: string;
@@ -11,9 +11,10 @@ interface CopyButtonProps {
   copiedLabel?: string;
   className?: string;
   disabled?: boolean;
-  /** Icon-only control; `label` is used for aria-label / title. */
+  /** Icon-only control; `label` is used for aria-label and the hover tooltip. */
   icon?: boolean;
   idleIcon?: LucideIcon;
+  tooltipAlign?: "start" | "center" | "end";
 }
 
 const defaultClassName =
@@ -27,6 +28,7 @@ export function CopyButton({
   disabled = false,
   icon = false,
   idleIcon: IdleIcon = Copy,
+  tooltipAlign,
 }: CopyButtonProps) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const timeoutRef = useRef<number | null>(null);
@@ -70,7 +72,6 @@ export function CopyButton({
       disabled={disabled}
       aria-live="polite"
       aria-label={icon ? statusLabel : undefined}
-      title={icon ? statusLabel : undefined}
       data-copy-status={status}
       className={className ?? (icon ? toolbarButtonClass : defaultClassName)}
     >
@@ -89,6 +90,7 @@ export function CopyButton({
       ) : (
         label
       )}
+      {icon ? <ToolbarTooltip label={statusLabel} align={tooltipAlign} /> : null}
     </button>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChevronUp, ChevronDown } from "lucide-react";
+import { ToolbarTooltip } from "./ToolbarButton";
 
 export function ScrollActions() {
   const [isAtTop, setIsAtTop] = useState(true);
@@ -52,19 +53,21 @@ export function ScrollActions() {
       {!isAtTop && (
         <button
           onClick={scrollToTop}
-          className="p-3 rounded-full bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          className="group relative p-3 rounded-full bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
           aria-label="Scroll to top"
         >
           <ChevronUp size={20} />
+          <ToolbarTooltip label="Scroll to top" placement="above" />
         </button>
       )}
       {!isAtBottom && (
         <button
           onClick={scrollToBottom}
-          className="p-3 rounded-full bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          className="group relative p-3 rounded-full bg-zinc-100 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
           aria-label="Scroll to bottom"
         >
           <ChevronDown size={20} />
+          <ToolbarTooltip label="Scroll to bottom" placement="above" />
         </button>
       )}
     </div>
