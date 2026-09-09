@@ -12,6 +12,7 @@ via a small HTTP API, from AI agents.
 - **Optional Expiry**: Per-note TTL for quick, self-destructing shares
 - **Shareable Links**: `/?key=...` moves the key into an httpOnly cookie and renders the note server-side, so the key stays out of the address bar and browser history
 - **Persistent URL**: Opt a note into a bookmarkable `/?key=...&persist=1` document link that stays in the address bar and survives a browser restart
+- **Link previews**: Persist URLs emit Open Graph / Twitter Card tags from the start of the note so Slack, iMessage, Discord, X, etc. can unfurl them. Search indexing stays blocked.
 - **Copy all**: Copy a note's full markdown from the viewer or editor, with a brief "Copied" confirmation
 - **Rename Key**: Change a note's key in place without rewriting its content; the destination must be free
 - **View & Edit Modes**: Toggle between viewing rendered markdown and editing raw content
@@ -27,10 +28,20 @@ agents you want to have full read/write access. Anyone with the key can read and
 overwrite the note.
 
 Only the current value of a note is stored — there is no version history, so an
-overwrite cannot be undone. Notes are excluded from search indexing (`robots.txt` disallows `/`, pages send
-`noindex` meta and `X-Robots-Tag`, and nothing is cached or given Open Graph
-tags) so pasting a link into a chat app won't unfurl its contents into the
-channel and crawlers should not list notes.
+overwrite cannot be undone.
+
+Notes are excluded from search indexing: `robots.txt` disallows `/` for `*`,
+pages send `noindex` meta and `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet`,
+and nothing is cached. There is no sitemap or public listing.
+
+**Link previews are the exception.** A persistent URL (`/?key=...&persist=1`)
+is already a public view of that note (the key is in the URL). Marker puts
+`og:title` / `og:description` (and Twitter Card equivalents) in the HTML,
+derived from the start of the note's plaintext, so pasting that URL into Slack,
+iMessage, Discord, X, etc. unfurls a snippet. One-off `/?key=...` shares still
+strip the key and redirect, so they do not unfurl. `robots.txt` allows known
+preview bots (Twitterbot, Slackbot, facebookexternalhit, Discordbot, …) to fetch
+`/` while still disallowing `/api/` and leaving search crawlers on `Disallow: /`.
 
 ## Tech Stack
 
@@ -101,7 +112,9 @@ URL so it can be bookmarked. Turning the toggle off restores the one-off
 session behavior above.
 
 Because a persistent URL keeps the key visible, treat it like handing someone
-the password: it will appear in browser history and in `Referer` headers.
+the password: it will appear in browser history, in `Referer` headers, and —
+if pasted into a chat app — as a link preview showing the start of the note.
+Messenger caches can keep that snippet after the note changes or expires.
 
 Because only the current value of a note is stored, saving from the browser
 sends the revision it loaded. If an agent wrote to the note while you had it
@@ -254,10 +267,14 @@ marker/
 │   │   ├── clipboard.ts       # Clipboard helper
 │   │   ├── key.ts             # Key validation, masking, session cookie
 │   │   ├── notes.ts           # Note storage schema and atomic read/write scripts
+│   │   ├── origin.ts          # Request origin for absolute OG URLs
+│   │   ├── preview.ts         # Title/description from the start of a note
 │   │   ├── redis.ts           # Redis client configuration
-│   │   └── robots.ts          # X-Robots-Tag / noindex helpers
-│   ├── robots.ts              # Disallow-all robots.txt
-│   └── page.tsx               # Server component: resolves the session, renders the note
+│   │   └── robots.ts          # X-Robots-Tag / preview-bot allowlist
+│   ├── robots.ts              # Disallow-all robots.txt, with preview-bot allows
+│   └── page.tsx               # Server component: OG metadata, session, note
+├── tests/
+│   └── preview.test.ts        # Note-prefix title/description derivation
 ├── proxy.ts                   # Turns /?key=... into a cookie + redirect
 └── README.md
 ```
@@ -268,6 +285,7 @@ marker/
 - `npm run build` - Build for production
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
+- `npm test` - Run unit tests (note-preview title/description)
 
 ## Deployment
 

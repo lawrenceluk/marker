@@ -21,6 +21,7 @@ export function proxy(request: NextRequest) {
   if (persist) {
     // Document link: leave `/?key=&persist=1` in the address bar so it can
     // be bookmarked, and make the session cookie survive a browser restart.
+    // Chat unfurlers fetch this URL; the page emits OG tags from the note prefix.
     const response = NextResponse.next();
     applySessionCookies(response.cookies, key, true);
     return withPrivateCaching(response);
