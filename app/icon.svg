@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Marker">
+  <!-- Geometric M on zinc-900; inverts in dark mode like the app chrome. -->
+  <style>
+    .bg { fill: #18181b; }
+    .fg { fill: #fafafa; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #fafafa; }
+      .fg { fill: #18181b; }
+    }
+  </style>
+  <rect class="bg" width="32" height="32" rx="6" />
+  <path
+    class="fg"
+    d="M7.6 24.6V7.6H12L16 17.4 20 7.6h4.4v17H20.2v-9.8L16 22.2l-4.2-7.4v9.8H7.6z"
+  />
+</svg>
