@@ -81,6 +81,7 @@ body {
 
 .prose code {
   background: #f4f4f5;
+  color: #18181b;
   padding: 0.2rem 0.4rem;
   border-radius: 0.25rem;
   font-size: 0.875em;
@@ -152,33 +153,50 @@ body {
   font-weight: 600;
 }
 
-/* Dark mode prose */
-.dark .prose code {
-  background: #27272a;
-}
+/*
+ * Dark mode prose — match prefers-color-scheme (Marker has no .dark class).
+ * Inline code previously kept a light chip background while inheriting the
+ * light foreground, so chips like `state.md` were unreadable.
+ */
+@media (prefers-color-scheme: dark) {
+  .prose code {
+    background: #27272a;
+    color: #e4e4e7;
+  }
 
-.dark .prose blockquote {
-  border-left-color: #52525b;
-  color: #a1a1aa;
-}
+  .prose pre {
+    background: #09090b;
+    color: #e4e4e7;
+  }
 
-.dark .prose hr {
-  border-top-color: #3f3f46;
-}
+  .prose pre code {
+    background: transparent;
+    color: inherit;
+  }
 
-.dark .prose th,
-.dark .prose td {
-  border-color: #3f3f46;
-}
+  .prose blockquote {
+    border-left-color: #52525b;
+    color: #a1a1aa;
+  }
 
-.dark .prose th {
-  background: #27272a;
-}
+  .prose hr {
+    border-top-color: #3f3f46;
+  }
 
-.dark .prose a {
-  color: #60a5fa;
-}
+  .prose th,
+  .prose td {
+    border-color: #3f3f46;
+  }
 
-.dark .prose a:hover {
-  color: #93c5fd;
+  .prose th {
+    background: #27272a;
+  }
+
+  .prose a {
+    color: #60a5fa;
+  }
+
+  .prose a:hover {
+    color: #93c5fd;
+  }
 }
