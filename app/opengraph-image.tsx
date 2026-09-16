@@ -1,11 +1,24 @@
 import { ImageResponse } from "next/og";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 
 export const alt = "Marker";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-/** Link-unfurl image: brand mark so previews aren't stuck on a stale favicon. */
-export default function OpenGraphImage() {
+/** Load the same PNG embedded in `app/icon.svg` (M + marker tip). */
+async function markDataUrl(): Promise<string> {
+  const svg = await readFile(join(process.cwd(), "app/icon.svg"), "utf8");
+  const match = svg.match(/base64,([A-Za-z0-9+/=]+)/);
+  if (!match?.[1]) {
+    throw new Error("Marker mark missing from app/icon.svg");
+  }
+  return `data:image/png;base64,${match[1]}`;
+}
+
+export default async function OpenGraphImage() {
+  const mark = await markDataUrl();
+
   return new ImageResponse(
     (
       <div
@@ -18,23 +31,7 @@ export default function OpenGraphImage() {
           background: "#09090b",
         }}
       >
-        <div
-          style={{
-            width: 280,
-            height: 280,
-            borderRadius: 56,
-            background: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 180,
-            fontWeight: 700,
-            color: "#18181b",
-            fontFamily: "ui-sans-serif, system-ui, sans-serif",
-          }}
-        >
-          M
-        </div>
+        <img src={mark} width={420} height={420} alt="Marker" />
       </div>
     ),
     { ...size }
