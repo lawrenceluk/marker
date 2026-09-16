@@ -3,6 +3,7 @@ import {
   PERSIST_COOKIE,
   SESSION_COOKIE,
   applySessionCookies,
+  clearSessionCookies,
   normalizeKey,
 } from "@/app/lib/key";
 import {
@@ -10,6 +11,7 @@ import {
   MAX_TTL_SECONDS,
   WRITE_MODES,
   WriteMode,
+  deleteNote,
   readNote,
   renameNote,
   writeNote,
@@ -207,5 +209,29 @@ export async function PATCH(request: NextRequest) {
   const persist = request.cookies.get(PERSIST_COOKIE)?.value === "1";
   const response = json({ success: true, key: newKey, renamed: true });
   applySessionCookies(response.cookies, newKey, persist);
+  return response;
+}
+
+/** Delete the current note and clear the session. */
+export async function DELETE(request: NextRequest) {
+  let body: Record<string, unknown> = {};
+  try {
+    const text = await request.text();
+    if (text) {
+      body = JSON.parse(text) as Record<string, unknown>;
+    }
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const key = resolveKey(request, body.key);
+  if (!key) {
+    return json({ error: "Key is required" }, 400);
+  }
+
+  await deleteNote(key);
+
+  const response = json({ success: true });
+  clearSessionCookies(response.cookies);
   return response;
 }
