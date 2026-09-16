@@ -23,6 +23,17 @@ export const PERSIST_QUERY = "persist";
 /** How long a persistent key cookie lasts — matches the note TTL ceiling. */
 export const PERSIST_MAX_AGE = 60 * 60 * 24 * 365;
 
+/** Random unused keys on the home screen. */
+export const RANDOM_KEY_MIN_LENGTH = 12;
+export const RANDOM_KEY_MAX_LENGTH = 24;
+
+/**
+ * Cookie- and URL-safe alphabet for generated keys. Special punctuation would
+ * break the httpOnly session cookie or need encoding in `/?key=`.
+ */
+const RANDOM_KEY_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_~";
+
 export function normalizeKey(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const key = raw.trim();
@@ -55,6 +66,26 @@ export function persistPath(key: string): string {
   params.set("key", key);
   params.set(PERSIST_QUERY, "1");
   return `/?${params.toString()}`;
+}
+
+/**
+ * Cryptographically random key, length uniform in [12, 24]. Cookie-safe chars
+ * so it can live in the session cookie and query string without escaping.
+ */
+export function generateRandomKey(): string {
+  const span = RANDOM_KEY_MAX_LENGTH - RANDOM_KEY_MIN_LENGTH + 1;
+  const lengthBytes = new Uint8Array(1);
+  crypto.getRandomValues(lengthBytes);
+  const length =
+    RANDOM_KEY_MIN_LENGTH + (lengthBytes[0]! % span);
+
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    out += RANDOM_KEY_ALPHABET[bytes[i]! % RANDOM_KEY_ALPHABET.length]!;
+  }
+  return out;
 }
 
 /**
