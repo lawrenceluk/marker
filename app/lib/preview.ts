@@ -7,6 +7,9 @@
 export const TITLE_MAX = 70;
 export const DESCRIPTION_MAX = 200;
 
+/** Characters shown in the generated OG body image. */
+export const OG_BODY_MAX = 420;
+
 /** Enough source text for a title + description even with markdown noise. */
 const SOURCE_MAX = 8_000;
 
@@ -31,7 +34,7 @@ function stripMarkdown(markdown: string): string {
   text = text.replace(/^\s*[-*+]\s+/gm, "");
   text = text.replace(/^\s*\d+[.)]\s+/gm, "");
   text = text.replace(/^[ \t]*[-*_]{3,}[ \t]*$/gm, "");
-  text = text.replace(/^[=\-]{3,}\s*$/gm, "");
+  text = text.replace(/^[\=\-]{3,}\s*$/gm, "");
 
   text = text.replace(/`([^`]+)`/g, "$1");
   text = text.replace(/(\*\*|__)([\s\S]*?)\1/g, "$2");
@@ -71,6 +74,30 @@ function splitPrefix(
   const end = breakAt >= Math.floor(max * 0.5) ? breakAt : max;
   const prefix = normalized.slice(0, end).replace(/[\s.,;:!?-]+$/, "");
   return { prefix: prefix + "…", rest: normalized.slice(end).trim() };
+}
+
+/**
+ * Plaintext prefix for the OG visual card. Keeps paragraph breaks so the
+ * image reads like the start of the note, not a single run-on line.
+ */
+export function ogBodyText(
+  markdown: string,
+  max: number = OG_BODY_MAX
+): string {
+  const plain = stripMarkdown(markdown);
+  if (!plain) return "";
+  if (plain.length <= max) return plain;
+
+  const slice = plain.slice(0, max);
+  const breakNl = Math.max(slice.lastIndexOf("\n\n"), slice.lastIndexOf("\n"));
+  const breakSp = slice.lastIndexOf(" ");
+  const preferNl = breakNl >= Math.floor(max * 0.4);
+  const end = preferNl
+    ? breakNl
+    : breakSp >= Math.floor(max * 0.5)
+      ? breakSp
+      : max;
+  return plain.slice(0, end).replace(/[\s.,;:!?-]+$/u, "") + "…";
 }
 
 /**
