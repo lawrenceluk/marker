@@ -1,10 +1,23 @@
 import { ImageResponse } from "next/og";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
-/** Home-screen icon: black canvas, white rounded square, dark M — matches the user favicon mark. */
-export default function AppleIcon() {
+/** Same mark as favicon / OG — PNG embedded in `app/icon.svg`. */
+async function markDataUrl(): Promise<string> {
+  const svg = await readFile(join(process.cwd(), "app/icon.svg"), "utf8");
+  const match = svg.match(/base64,([A-Za-z0-9+/=]+)/);
+  if (!match?.[1]) {
+    throw new Error("Marker mark missing from app/icon.svg");
+  }
+  return `data:image/png;base64,${match[1]}`;
+}
+
+export default async function AppleIcon() {
+  const mark = await markDataUrl();
+
   return new ImageResponse(
     (
       <div
@@ -17,23 +30,7 @@ export default function AppleIcon() {
           background: "#000",
         }}
       >
-        <div
-          style={{
-            width: 148,
-            height: 148,
-            borderRadius: 32,
-            background: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 96,
-            fontWeight: 700,
-            color: "#18181b",
-            fontFamily: "ui-sans-serif, system-ui, sans-serif",
-          }}
-        >
-          M
-        </div>
+        <img src={mark} width={180} height={180} alt="Marker" />
       </div>
     ),
     { ...size }

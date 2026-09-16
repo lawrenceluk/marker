@@ -53,7 +53,7 @@ export async function generateMetadata({
   const snippet = description || title;
   // Absolute brand image so unfurls don't fall back to a cached old favicon.
   const image = {
-    url: `${origin}/opengraph-image?v=2`,
+    url: `${origin}/opengraph-image?v=3`,
     width: 1200,
     height: 630,
     alt: "Marker",
@@ -63,8 +63,8 @@ export async function generateMetadata({
     title,
     description: snippet,
     icons: {
-      icon: [{ url: `${origin}/icon.svg?v=2`, type: "image/svg+xml" }],
-      apple: [{ url: `${origin}/apple-icon` }],
+      icon: [{ url: `${origin}/icon.svg?v=3`, type: "image/svg+xml" }],
+      apple: [{ url: `${origin}/apple-icon?v=3` }],
     },
     openGraph: {
       title,

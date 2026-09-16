@@ -20,8 +20,8 @@ export const metadata: Metadata = {
   // Description and Open Graph live in `generateMetadata` on the page so a
   // persist URL can override them with the note prefix. Search: stay out.
   icons: {
-    icon: [{ url: "/icon.svg?v=2", type: "image/svg+xml" }],
-    apple: [{ url: "/apple-icon" }],
+    icon: [{ url: "/icon.svg?v=3", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-icon?v=3" }],
   },
   robots: {
     index: false,
