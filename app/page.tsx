@@ -51,12 +51,12 @@ export async function generateMetadata({
   // Root `description` is also the OG/Twitter fallback in Next.js. Never leave
   // it unset on a persist URL or the generic site tagline would unfurl.
   const snippet = description || title;
-  // Absolute brand image so unfurls don't fall back to a cached old favicon.
+  // Visual card: generated PNG of the note body start (not the brand mark).
   const image = {
-    url: `${origin}/opengraph-image?v=3`,
+    url: `${origin}/og?key=${encodeURIComponent(key)}&v=4`,
     width: 1200,
     height: 630,
-    alt: "Marker",
+    alt: title,
   };
 
   return {

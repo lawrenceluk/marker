@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   DESCRIPTION_MAX,
+  OG_BODY_MAX,
   TITLE_MAX,
+  ogBodyText,
   previewFromMarkdown,
 } from "../app/lib/preview.ts";
 
@@ -52,5 +54,25 @@ describe("previewFromMarkdown", () => {
   it("keeps fenced-code inner text so a paste of code still previews", () => {
     const preview = previewFromMarkdown("```js\nconst answer = 42;\n```");
     assert.equal(preview?.title, "const answer = 42;");
+  });
+});
+
+describe("ogBodyText", () => {
+  it("returns stripped plaintext under the max", () => {
+    assert.equal(
+      ogBodyText("# Hello\n\nWorld **bold**"),
+      "Hello\n\nWorld bold"
+    );
+  });
+
+  it("truncates long notes with an ellipsis", () => {
+    const long = Array.from({ length: 200 }, (_, i) => `line${i}`).join("\n");
+    const out = ogBodyText(long);
+    assert.ok(out.endsWith("…"));
+    assert.ok(out.length <= OG_BODY_MAX + 1);
+  });
+
+  it("returns empty for empty input", () => {
+    assert.equal(ogBodyText(""), "");
   });
 });
