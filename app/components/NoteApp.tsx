@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   PERSIST_QUERY,
+  generateRandomKey,
   isPersistParam,
   normalizeKey,
   persistPath,
@@ -29,6 +30,8 @@ interface NoteAppProps {
   /** Whether this session is a persistent document link. */
   initialPersist: boolean;
 }
+
+const RANDOMIZE_ATTEMPTS = 16;
 
 export function NoteApp({
   initialKeyLabel,
@@ -57,6 +60,8 @@ export function NoteApp({
   const [origin, setOrigin] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
   const [isSavingRename, setIsSavingRename] = useState(false);
+  const [isRandomizing, setIsRandomizing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -140,6 +145,53 @@ export function NoteApp({
     }
   }
 
+  async function handleRandomize() {
+    setIsRandomizing(true);
+    setError(null);
+
+    try {
+      for (let i = 0; i < RANDOMIZE_ATTEMPTS; i++) {
+        const key = generateRandomKey();
+
+        const session = await fetch("/api/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key }),
+        });
+        if (!session.ok) {
+          throw new Error("Failed to open note");
+        }
+
+        const res = await fetch("/api/content");
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to check key");
+        }
+
+        if (!data.exists) {
+          setRawKey(key);
+          setPersist(false);
+          setContent("");
+          setOriginalContent("");
+          setRev(0);
+          setForceOverwrite(false);
+          setIsNew(true);
+          setIsRenaming(false);
+          setAppState("editing");
+          return;
+        }
+      }
+
+      throw new Error("Couldn't find an unused key — try again");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to randomize");
+      setRawKey(null);
+      setAppState("idle");
+    } finally {
+      setIsRandomizing(false);
+    }
+  }
+
   async function handleSave() {
     setIsSaving(true);
     setError(null);
@@ -209,6 +261,34 @@ export function NoteApp({
     setIsNew(false);
     setIsRenaming(false);
     setError(null);
+  }
+
+  async function handleDelete() {
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/content", { method: "DELETE" });
+      const data: { error?: string } = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete note");
+      }
+
+      hidePersistUrl();
+      setAppState("idle");
+      setRawKey(null);
+      setPersist(false);
+      setContent("");
+      setOriginalContent("");
+      setRev(null);
+      setForceOverwrite(false);
+      setIsNew(false);
+      setIsRenaming(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete note");
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   async function handleRename(newKey: string) {
@@ -301,7 +381,12 @@ export function NoteApp({
         )}
 
         {appState === "idle" && (
-          <KeyInput onSubmit={handleKeySubmit} isLoading={false} />
+          <KeyInput
+            onSubmit={handleKeySubmit}
+            onRandomize={handleRandomize}
+            isLoading={false}
+            isRandomizing={isRandomizing}
+          />
         )}
 
         {appState === "loading" && (
@@ -329,6 +414,8 @@ export function NoteApp({
               onChangeKey={handleReset}
               content={content}
               onEdit={handleEdit}
+              onDelete={handleDelete}
+              deleteDisabled={isDeleting}
             />
             {isRenaming && (
               <div className="mb-6">

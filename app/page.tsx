@@ -45,26 +45,40 @@ export async function generateMetadata({
     return FALLBACK;
   }
 
-  const url = `${await requestOrigin()}${persistPath(key)}`;
+  const origin = await requestOrigin();
+  const url = `${origin}${persistPath(key)}`;
   const { title, description } = preview;
   // Root `description` is also the OG/Twitter fallback in Next.js. Never leave
   // it unset on a persist URL or the generic site tagline would unfurl.
   const snippet = description || title;
+  // Absolute brand image so unfurls don't fall back to a cached old favicon.
+  const image = {
+    url: `${origin}/opengraph-image?v=2`,
+    width: 1200,
+    height: 630,
+    alt: "Marker",
+  };
 
   return {
     title,
     description: snippet,
+    icons: {
+      icon: [{ url: `${origin}/icon.svg?v=2`, type: "image/svg+xml" }],
+      apple: [{ url: `${origin}/apple-icon` }],
+    },
     openGraph: {
       title,
       description: snippet,
       url,
       siteName: "Marker",
       type: "website",
+      images: [image],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title,
       description: snippet,
+      images: [image.url],
     },
   };
 }
