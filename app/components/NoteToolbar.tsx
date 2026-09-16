@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe, KeyRound, Link, Pencil, Search } from "lucide-react";
+import { Globe, Home, KeyRound, Link, Pencil, Search } from "lucide-react";
 import { CopyButton } from "./CopyButton";
 import { DeleteButton } from "./DeleteButton";
 import { ToolbarButton } from "./ToolbarButton";
@@ -32,28 +32,33 @@ function GlobeOff({ size = 18 }: { size?: number }) {
 }
 
 interface NoteToolbarProps {
-  persist: boolean;
-  shareUrl: string | null;
-  onPersistToggle: () => void;
+  onHome: () => void;
+  /** When false, only the home control is shown (idle / editing). */
+  showNoteTools?: boolean;
+  persist?: boolean;
+  shareUrl?: string | null;
+  onPersistToggle?: () => void;
   persistDisabled?: boolean;
-  onRename: () => void;
-  renaming: boolean;
-  onChangeKey: () => void;
-  content: string;
-  onEdit: () => void;
-  onDelete: () => void | Promise<void>;
+  onRename?: () => void;
+  renaming?: boolean;
+  onChangeKey?: () => void;
+  content?: string;
+  onEdit?: () => void;
+  onDelete?: () => void | Promise<void>;
   deleteDisabled?: boolean;
 }
 
 export function NoteToolbar({
-  persist,
-  shareUrl,
+  onHome,
+  showNoteTools = true,
+  persist = false,
+  shareUrl = null,
   onPersistToggle,
   persistDisabled = false,
   onRename,
-  renaming,
+  renaming = false,
   onChangeKey,
-  content,
+  content = "",
   onEdit,
   onDelete,
   deleteDisabled = false,
@@ -61,44 +66,57 @@ export function NoteToolbar({
   return (
     <div className="flex items-center justify-between gap-2 mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800 overflow-visible">
       <div className="flex items-center gap-1">
-        <DeleteButton
-          onDelete={onDelete}
-          disabled={deleteDisabled}
+        <ToolbarButton
+          label="Home"
+          onClick={onHome}
           tooltipAlign="start"
-        />
-        <ToolbarButton
-          label={persist ? "Persistent URL on" : "Persistent URL off"}
-          pressed={persist}
-          disabled={persistDisabled}
-          onClick={onPersistToggle}
         >
-          {persist ? <Globe size={18} /> : <GlobeOff size={18} />}
+          <Home size={18} />
         </ToolbarButton>
-        {persist && shareUrl && (
-          <CopyButton
-            text={shareUrl}
-            label="Copy link"
-            icon
-            idleIcon={Link}
-          />
+        {showNoteTools && (
+          <>
+            <ToolbarButton
+              label={persist ? "Persistent URL on" : "Persistent URL off"}
+              pressed={persist}
+              disabled={persistDisabled}
+              onClick={onPersistToggle}
+            >
+              {persist ? <Globe size={18} /> : <GlobeOff size={18} />}
+            </ToolbarButton>
+            {persist && shareUrl && (
+              <CopyButton
+                text={shareUrl}
+                label="Copy link"
+                icon
+                idleIcon={Link}
+              />
+            )}
+            <ToolbarButton
+              label="Rename key"
+              pressed={renaming}
+              onClick={onRename}
+            >
+              <KeyRound size={18} />
+            </ToolbarButton>
+            <ToolbarButton label="Go to note" onClick={onChangeKey}>
+              <Search size={18} />
+            </ToolbarButton>
+          </>
         )}
-        <ToolbarButton
-          label="Rename key"
-          pressed={renaming}
-          onClick={onRename}
-        >
-          <KeyRound size={18} />
-        </ToolbarButton>
-        <ToolbarButton label="Go to note" onClick={onChangeKey}>
-          <Search size={18} />
-        </ToolbarButton>
       </div>
-      <div className="flex items-center gap-1">
-        <CopyButton text={content} label="Copy all" icon tooltipAlign="end" />
-        <ToolbarButton label="Edit" onClick={onEdit} tooltipAlign="end">
-          <Pencil size={18} />
-        </ToolbarButton>
-      </div>
+      {showNoteTools && onEdit && onDelete && (
+        <div className="flex items-center gap-1">
+          <CopyButton text={content} label="Copy all" icon tooltipAlign="end" />
+          <ToolbarButton label="Edit" onClick={onEdit}>
+            <Pencil size={18} />
+          </ToolbarButton>
+          <DeleteButton
+            onDelete={onDelete}
+            disabled={deleteDisabled}
+            tooltipAlign="end"
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import {
   normalizeKey,
   persistPath,
 } from "../lib/key";
-import { KeyInput } from "./KeyInput";
+import { HomeIdle } from "./HomeIdle";
 import { ContentViewer } from "./ContentViewer";
 import { ContentEditor } from "./ContentEditor";
 import { NoteToolbar } from "./NoteToolbar";
@@ -360,23 +360,12 @@ export function NoteApp({
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
       <main className="mx-auto max-w-3xl px-4 py-12">
-        <header className="mb-10">
-          <button
-            type="button"
-            onClick={() => void handleReset()}
-            aria-label="Marker home — clear session"
-            title="Home"
-            className="inline-flex items-center rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:focus-visible:ring-zinc-400"
-          >
-            <img
-              src="/icon.svg?v=3"
-              alt=""
-              width={40}
-              height={40}
-              className="h-10 w-10"
-            />
-          </button>
-        </header>
+        {appState !== "viewing" && appState !== "idle" && (
+          <NoteToolbar
+            onHome={() => void handleReset()}
+            showNoteTools={false}
+          />
+        )}
 
         {error && (
           <div className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-center">
@@ -385,7 +374,7 @@ export function NoteApp({
         )}
 
         {appState === "idle" && (
-          <KeyInput
+          <HomeIdle
             onSubmit={handleKeySubmit}
             onRandomize={handleRandomize}
             isLoading={false}
@@ -402,6 +391,8 @@ export function NoteApp({
         {appState === "viewing" && (
           <div>
             <NoteToolbar
+              onHome={() => void handleReset()}
+              showNoteTools
               persist={persist}
               shareUrl={
                 persist && rawKey && origin
