@@ -8,7 +8,7 @@ import {
   normalizeKey,
   persistPath,
 } from "../lib/key";
-import { KeyInput } from "./KeyInput";
+import { HomeIdle } from "./HomeIdle";
 import { ContentViewer } from "./ContentViewer";
 import { ContentEditor } from "./ContentEditor";
 import { NoteToolbar } from "./NoteToolbar";
@@ -360,7 +360,7 @@ export function NoteApp({
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
       <main className="mx-auto max-w-3xl px-4 py-12">
-        {appState !== "viewing" && (
+        {appState !== "viewing" && appState !== "idle" && (
           <NoteToolbar
             onHome={() => void handleReset()}
             showNoteTools={false}
@@ -374,7 +374,7 @@ export function NoteApp({
         )}
 
         {appState === "idle" && (
-          <KeyInput
+          <HomeIdle
             onSubmit={handleKeySubmit}
             onRandomize={handleRandomize}
             isLoading={false}
