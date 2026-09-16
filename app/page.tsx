@@ -63,8 +63,8 @@ export async function generateMetadata({
     title,
     description: snippet,
     icons: {
-      icon: [{ url: `${origin}/icon.svg?v=3`, type: "image/svg+xml" }],
-      apple: [{ url: `${origin}/apple-icon?v=3` }],
+      icon: [{ url: `${origin}/icon.svg?v=4`, type: "image/svg+xml" }],
+      apple: [{ url: `${origin}/apple-icon?v=4` }],
     },
     openGraph: {
       title,
