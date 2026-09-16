@@ -46,16 +46,12 @@ export function NoteApp({
   const [isNew, setIsNew] = useState(Boolean(initialKeyLabel) && !initialNote);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Revision this editor loaded, sent back as if_rev so a save can't silently
-  // clobber a write made elsewhere (an agent, another tab) in the meantime.
   const [rev, setRev] = useState<number | null>(
     initialNote?.rev ?? (initialKeyLabel ? 0 : null)
   );
   const [forceOverwrite, setForceOverwrite] = useState(false);
   const [persist, setPersist] = useState(initialPersist);
   const [isTogglingPersist, setIsTogglingPersist] = useState(false);
-  // Raw key is kept only in memory (typed in, or revealed after persist is
-  // on) so a default session still doesn't serialize it into the page HTML.
   const [rawKey, setRawKey] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
@@ -105,8 +101,6 @@ export function NoteApp({
     setPersist(false);
 
     try {
-      // Hand the key to the server once, then work through the session cookie
-      // so it isn't repeated in every request URL or body.
       const session = await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -132,8 +126,6 @@ export function NoteApp({
       } else {
         setContent("");
         setOriginalContent("");
-        // A missing note reads as rev 0, so if_rev also gives us
-        // create-only-if-still-absent on first save.
         setRev(0);
         setIsNew(true);
         setAppState("editing");
@@ -209,8 +201,6 @@ export function NoteApp({
       const data = await res.json();
 
       if (res.status === 409) {
-        // Someone wrote to this note after we loaded it. Don't discard the
-        // user's draft — warn, and let a second Save go through unconditionally.
         setRev(data.rev ?? null);
         setForceOverwrite(true);
         setError(
@@ -242,14 +232,19 @@ export function NoteApp({
   function handleCancel() {
     setContent(originalContent);
     if (isNew && !originalContent) {
-      handleReset();
+      void handleReset();
     } else {
       setAppState("viewing");
     }
   }
 
-  function handleReset() {
-    void fetch("/api/session", { method: "DELETE" }).catch(() => {});
+  /** Clear session cookies, strip persist URL, return to idle home. */
+  async function handleReset() {
+    try {
+      await fetch("/api/session", { method: "DELETE" });
+    } catch {
+      // Still reset the UI even if the cookie clear fails.
+    }
     hidePersistUrl();
     setAppState("idle");
     setRawKey(null);
@@ -365,13 +360,22 @@ export function NoteApp({
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black">
       <main className="mx-auto max-w-3xl px-4 py-12">
-        <header className="mb-12 text-left font-mono">
-          <h1 className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
-            Marker
-          </h1>
-          <p className="text-zinc-500 dark:text-zinc-400">
-            Private markdown notes with secret keys
-          </p>
+        <header className="mb-10">
+          <button
+            type="button"
+            onClick={() => void handleReset()}
+            aria-label="Marker home — clear session"
+            title="Home"
+            className="inline-flex items-center rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 dark:focus-visible:ring-zinc-400"
+          >
+            <img
+              src="/icon.svg?v=3"
+              alt=""
+              width={40}
+              height={40}
+              className="h-10 w-10"
+            />
+          </button>
         </header>
 
         {error && (
@@ -411,7 +415,7 @@ export function NoteApp({
                 setError(null);
               }}
               renaming={isRenaming}
-              onChangeKey={handleReset}
+              onChangeKey={() => void handleReset()}
               content={content}
               onEdit={handleEdit}
               onDelete={handleDelete}
