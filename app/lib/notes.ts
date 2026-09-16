@@ -250,3 +250,8 @@ export async function renameNote(
   }
   return { ok: true };
 }
+
+/** Remove both the hash note and any legacy string for this key. */
+export async function deleteNote(key: string): Promise<void> {
+  await redis.del(noteKey(key), legacyKey(key));
+}
