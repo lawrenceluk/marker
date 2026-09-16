@@ -13,9 +13,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // Absolute icon/OG URLs for crawlers; without this, unfurls can keep a stale
+  // or relative favicon from an older deploy.
+  metadataBase: new URL("https://marker.luk.xyz"),
   title: "Marker",
   // Description and Open Graph live in `generateMetadata` on the page so a
   // persist URL can override them with the note prefix. Search: stay out.
+  icons: {
+    icon: [{ url: "/icon.svg?v=2", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-icon" }],
+  },
   robots: {
     index: false,
     follow: false,

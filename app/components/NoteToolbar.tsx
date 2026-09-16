@@ -2,6 +2,7 @@
 
 import { Globe, KeyRound, Link, Pencil, Search } from "lucide-react";
 import { CopyButton } from "./CopyButton";
+import { DeleteButton } from "./DeleteButton";
 import { ToolbarButton } from "./ToolbarButton";
 
 /** lucide-react 0.560 has Globe but not GlobeOff; same paths as later Lucide. */
@@ -40,6 +41,8 @@ interface NoteToolbarProps {
   onChangeKey: () => void;
   content: string;
   onEdit: () => void;
+  onDelete: () => void | Promise<void>;
+  deleteDisabled?: boolean;
 }
 
 export function NoteToolbar({
@@ -52,6 +55,8 @@ export function NoteToolbar({
   onChangeKey,
   content,
   onEdit,
+  onDelete,
+  deleteDisabled = false,
 }: NoteToolbarProps) {
   return (
     <div className="flex items-center justify-between gap-2 mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800 overflow-visible">
@@ -89,6 +94,11 @@ export function NoteToolbar({
         <ToolbarButton label="Edit" onClick={onEdit} tooltipAlign="end">
           <Pencil size={18} />
         </ToolbarButton>
+        <DeleteButton
+          onDelete={onDelete}
+          disabled={deleteDisabled}
+          tooltipAlign="end"
+        />
       </div>
     </div>
   );
