@@ -4,7 +4,7 @@
 export const TOOLBAR_CONTROL_PX = 36;
 
 /**
- * Home mark — same footprint as toolbar controls; sharper source via ?v=4 icon.
+ * Home mark — same footprint as toolbar controls; sized to match toolbar controls.
  */
 export function MarkerLogoButton({ onClick }: { onClick: () => void }) {
   return (
