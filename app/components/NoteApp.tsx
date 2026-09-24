@@ -58,6 +58,8 @@ export function NoteApp({
   const [isSavingRename, setIsSavingRename] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isReloading, setIsReloading] = useState(false);
+  const [deleteResetKey, setDeleteResetKey] = useState(0);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -229,6 +231,42 @@ export function NoteApp({
     setAppState("editing");
   }
 
+  async function handleReload() {
+    setIsReloading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/content");
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to reload");
+      }
+
+      setIsRenaming(false);
+      setForceOverwrite(false);
+      setDeleteResetKey((k) => k + 1);
+
+      if (data.exists) {
+        setContent(data.content || "");
+        setOriginalContent(data.content || "");
+        setRev(data.rev ?? null);
+        setIsNew(false);
+        setAppState("viewing");
+      } else {
+        setContent("");
+        setOriginalContent("");
+        setRev(0);
+        setIsNew(true);
+        setAppState("editing");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reload");
+    } finally {
+      setIsReloading(false);
+    }
+  }
+
   function handleCancel() {
     setContent(originalContent);
     if (isNew && !originalContent) {
@@ -391,6 +429,7 @@ export function NoteApp({
         {appState === "viewing" && (
           <div>
             <NoteToolbar
+              key={deleteResetKey}
               onHome={() => void handleReset()}
               showNoteTools
               persist={persist}
@@ -408,9 +447,11 @@ export function NoteApp({
               renaming={isRenaming}
               onChangeKey={() => void handleReset()}
               content={content}
+              onReload={handleReload}
+              reloadDisabled={isReloading}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              deleteDisabled={isDeleting}
+              deleteDisabled={isDeleting || isReloading}
             />
             {isRenaming && (
               <div className="mb-6">
