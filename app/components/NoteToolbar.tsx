@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe, Home, KeyRound, Link, Pencil, Search } from "lucide-react";
+import { Globe, Home, KeyRound, Link, Pencil, RefreshCw, Search } from "lucide-react";
 import { CopyButton } from "./CopyButton";
 import { DeleteButton } from "./DeleteButton";
 import { ToolbarButton } from "./ToolbarButton";
@@ -43,6 +43,8 @@ interface NoteToolbarProps {
   renaming?: boolean;
   onChangeKey?: () => void;
   content?: string;
+  onReload?: () => void | Promise<void>;
+  reloadDisabled?: boolean;
   onEdit?: () => void;
   onDelete?: () => void | Promise<void>;
   deleteDisabled?: boolean;
@@ -59,6 +61,8 @@ export function NoteToolbar({
   renaming = false,
   onChangeKey,
   content = "",
+  onReload,
+  reloadDisabled = false,
   onEdit,
   onDelete,
   deleteDisabled = false,
@@ -106,6 +110,15 @@ export function NoteToolbar({
       </div>
       {showNoteTools && onEdit && onDelete && (
         <div className="flex items-center gap-1">
+          {onReload && (
+            <ToolbarButton
+              label="Reload"
+              onClick={() => void onReload()}
+              disabled={reloadDisabled}
+            >
+              <RefreshCw size={18} />
+            </ToolbarButton>
+          )}
           <CopyButton text={content} label="Copy all" icon tooltipAlign="end" />
           <ToolbarButton label="Edit" onClick={onEdit}>
             <Pencil size={18} />
