@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { heuristicRanking, type TapCandidate } from "@/app/lib/tap-select";
+import { calibrateJevRanking, heuristicRanking, type TapCandidate } from "@/app/lib/tap-select";
 
 const MAX_BODY = 8_192;
 const TIMEOUT_MS = 800;
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
         state: { nearby_passage: body.context, tapped_text: body.candidates.find(c => c.kind === "word")?.text ?? body.candidates[0].text },
         questions: { span: {
           type: "choice",
-          instructions: "Which quote best captures the specific point a reader would comment on after tapping `tapped_text` in `nearby_passage`? Prefer the shortest meaningful phrase or word(s) that carry the point. Choose a full sentence only when its wider claim or contrast is necessary to understand the comment target; do not choose it just because it is complete. Avoid syntax-only or vague fragments.",
+          instructions: "Which quote best captures the specific point a reader would comment on after tapping `tapped_text` in `nearby_passage`? Prefer the shortest meaningful phrase or word(s) that carry the point. A phrase such as the action, object, or claim is usually more useful than its surrounding paragraph. Choose a full sentence only when its wider claim or contrast is necessary to understand the comment target; do not choose it just because it is complete. Avoid syntax-only or vague fragments, but retain negation and qualifiers needed for meaning.",
           criteria,
         } },
       }),
@@ -92,11 +92,12 @@ export async function POST(request: Request) {
     const scores = order.map((index, i) => ({ index, score: probabilities[labels[i]] }));
     if (scores.some(item => typeof item.score !== "number" || !Number.isFinite(item.score)))
       return result("heuristic · invalid answer");
-    scores.sort((a, b) => b.score - a.score || a.index - b.index);
+    const byIndex = body.candidates.map((_, index) => scores.find(item => item.index === index)!.score);
+    const calibrated = calibrateJevRanking(body.candidates, byIndex);
     const input = data?.usage?.input_tokens, output = data?.usage?.output_tokens;
     const usage = Number.isSafeInteger(input) && Number.isSafeInteger(output)
       ? { input_tokens: input, output_tokens: output, cost_usd: input * PRICE_PER_INPUT_TOKEN_USD } : undefined;
-    return result("jev", scores.map(item => item.index), usage);
+    return result(calibrated.focused ? "jev · focused" : "jev", calibrated.ranking, usage);
   } catch {
     return result(controller.signal.aborted ? "heuristic · timeout" : "heuristic · service error");
   } finally {

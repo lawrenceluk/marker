@@ -13,7 +13,7 @@ import { ContentViewer } from "./ContentViewer";
 import { ToolbarButton } from "./ToolbarButton";
 import { plainQuote, selectionBubble } from "../lib/comment-presentation";
 import { selectSourceRange, sourceSelection, tapSourceOffset } from "../lib/comment-markup";
-import { heuristicRanking, tapCandidates, tapContext, type TapCandidate } from "../lib/tap-select";
+import { adjacentSizeCandidate, heuristicRanking, tapCandidates, tapContext, type TapCandidate } from "../lib/tap-select";
 import type { CommentOperation, LocatedThread } from "../lib/comments";
 
 type Snapshot = { rev: number; content: string; comments: LocatedThread[] };
@@ -368,10 +368,7 @@ export function CommentedViewer({
   function stepAuto(direction: -1 | 1) {
     const state = autoSelection.current;
     if (!state) return;
-    const size = state.candidates[state.index].end - state.candidates[state.index].start;
-    const next = state.ranking.find(i => direction < 0
-      ? state.candidates[i].end - state.candidates[i].start < size
-      : state.candidates[i].end - state.candidates[i].start > size);
+    const next = adjacentSizeCandidate(state.candidates, state.ranking, state.index, direction);
     if (next !== undefined) chooseAuto(next);
   }
 
@@ -519,7 +516,8 @@ export function CommentedViewer({
         const size = state.candidates[state.index].end - state.candidates[state.index].start;
         const smaller = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start < size);
         const larger = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start > size);
-        return <div className="comment-auto-tools" style={{ left: Math.max(4, Math.min(selection.x - 64, window.innerWidth - 72)), top: selection.y + selection.size + 5 }}>
+        const viewBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
+        return <div className="comment-auto-tools" style={{ left: Math.max(4, Math.min(selection.x - 64, window.innerWidth - 72)), top: Math.max(4, Math.min(selection.y + selection.size + 5, viewBottom - 29)) }}>
           <button type="button" className="comment-auto-chip" aria-label="Smaller selection" disabled={!smaller} onPointerDown={e => { if (e.pointerType === "mouse") e.preventDefault(); }} onClick={() => stepAuto(-1)}><Minus size={13} /></button>
           <button type="button" className="comment-auto-chip" aria-label="Larger selection" disabled={!larger} onPointerDown={e => { if (e.pointerType === "mouse") e.preventDefault(); }} onClick={() => stepAuto(1)}><Plus size={13} /></button>
           <span className="comment-auto-status">{state.source} · {state.latency}ms</span>

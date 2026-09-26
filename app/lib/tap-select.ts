@@ -60,11 +60,11 @@ export function tapCandidates(source: string, at: number): TapCandidate[] {
   let clauseStart = bodyStart, clauseEnd = lineEnd;
   let sentenceStart = bodyStart, sentenceStop = lineEnd;
   for (let i = bodyStart; i < at; i++) {
-    if (boundary.test(source[i])) clauseStart = i + 1;
+    if (boundary.test(source[i]) || sentenceEnd.test(source[i])) clauseStart = i + 1;
     if (sentenceEnd.test(source[i])) sentenceStart = i + 1;
   }
   for (let i = at; i < lineEnd; i++) {
-    if (boundary.test(source[i])) { clauseEnd = i; break; }
+    if (boundary.test(source[i]) || sentenceEnd.test(source[i])) { clauseEnd = i + (sentenceEnd.test(source[i]) ? 1 : 0); break; }
   }
   for (let i = at; i < lineEnd; i++) {
     if (sentenceEnd.test(source[i])) { sentenceStop = i + 1; break; }
@@ -97,14 +97,66 @@ export function tapCandidates(source: string, at: number): TapCandidate[] {
   return out.sort((a, b) => (a.end - a.start) - (b.end - b.start) || a.start - b.start).slice(0, 15);
 }
 
+const dangling = new Set(["a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "of", "on", "or", "the", "to", "with"]);
+
+function words(text: string): string[] {
+  const visible = text.replace(/\[([^\]]+)\]\([^)]*\)/gu, "$1").replace(/[*_`]/gu, "");
+  return [...new Intl.Segmenter(undefined, { granularity: "word" }).segment(visible)]
+    .filter(part => part.isWordLike).map(part => part.segment.toLocaleLowerCase());
+}
+
+function plausiblePhrase(candidate: TapCandidate): boolean {
+  const terms = words(candidate.text);
+  return candidate.kind === "phrase" && terms.length >= 2 && terms.length <= 6 &&
+    candidate.text.length <= 90 && !dangling.has(terms[0]) && !dangling.has(terms.at(-1)!);
+}
+
+function focusedPhrase(candidates: TapCandidate[]): number | undefined {
+  return candidates.map((candidate, index) => ({ candidate, index, terms: words(candidate.text) }))
+    .filter(({ candidate }) => plausiblePhrase(candidate))
+    .sort((a, b) => Math.abs(a.terms.length - 4) - Math.abs(b.terms.length - 4) ||
+      b.terms.length - a.terms.length || a.index - b.index)[0]?.index;
+}
+
+/** Prefer a focused quote unless the clause is already a short complete thought. */
 export function heuristicRanking(candidates: TapCandidate[]): number[] {
   const indexes = candidates.map((_, i) => i);
-  const preferred = indexes.find(i => candidates[i].kind === "clause")
+  const clause = indexes.find(i => candidates[i].kind === "clause");
+  const shortClause = clause !== undefined && words(candidates[clause].text).length <= 6 && candidates[clause].text.length <= 70
+    ? clause : undefined;
+  const preferred = shortClause
+    ?? focusedPhrase(candidates)
+    ?? indexes.find(i => candidates[i].kind === "phrase")
+    ?? clause
     ?? indexes.find(i => candidates[i].kind === "sentence")
     ?? indexes.find(i => ["list item", "heading", "line"].includes(candidates[i].kind))
     ?? indexes.find(i => candidates[i].kind === "phrase")
     ?? 0;
   return [preferred, ...indexes.filter(i => i !== preferred)];
+}
+
+/** A broad Jev choice needs a clear lead to outweigh a plausible focused phrase. */
+export function calibrateJevRanking(candidates: TapCandidate[], scores: number[]): { ranking: number[]; focused: boolean } {
+  const ranking = candidates.map((_, index) => index).sort((a, b) => scores[b] - scores[a] || a - b);
+  const first = ranking[0];
+  if (first === undefined) return { ranking, focused: false };
+  const broad = candidates[first];
+  if (!["clause", "sentence", "line", "list item", "heading"].includes(broad.kind) ||
+    (words(broad.text).length <= 6 && broad.text.length <= 70)) return { ranking, focused: false };
+  const phrases = ranking.filter(index => plausiblePhrase(candidates[index]));
+  const focused = phrases[0];
+  if (focused === undefined || scores[focused] < scores[first] * 0.25) return { ranking, focused: false };
+  return { ranking: [focused, ...ranking.filter(index => index !== focused)], focused: true };
+}
+
+/** Chips move one distinct span size at a time; rank breaks equal-size ties. */
+export function adjacentSizeCandidate(candidates: TapCandidate[], ranking: number[], current: number, direction: -1 | 1): number | undefined {
+  const size = candidates[current].end - candidates[current].start;
+  const eligible = ranking.filter(index => direction < 0
+    ? candidates[index].end - candidates[index].start < size
+    : candidates[index].end - candidates[index].start > size);
+  return eligible.sort((a, b) => direction * ((candidates[a].end - candidates[a].start) - (candidates[b].end - candidates[b].start)) ||
+    ranking.indexOf(a) - ranking.indexOf(b))[0];
 }
 
 export function tapContext(source: string, at: number): string {

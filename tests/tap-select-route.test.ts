@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { POST } from "../app/api/tap-select/route";
+import { tapCandidates } from "../app/lib/tap-select";
 
 const sample = {
   mode: "jev",
@@ -70,6 +71,40 @@ test("missing key and timeout fall back to a clause; heuristic mode skips TypeSa
     assert.match(result.source, /timeout/u);
     result = await (await post({ ...sample, mode: "heuristic" })).json();
     assert.equal(result.source, "heuristic");
+  } finally {
+    process.env.VERCEL_ENV = oldEnv;
+    process.env.TYPESAFE_API_KEY = oldKey;
+    global.fetch = oldFetch;
+  }
+});
+
+test("a modest broad Jev lead is focused, while a decisive larger-context answer is respected", async () => {
+  const oldEnv = process.env.VERCEL_ENV, oldKey = process.env.TYPESAFE_API_KEY, oldFetch = global.fetch;
+  const context = "The small team carefully reviewed the release and considered the feedback before approving the focused staging experiment for everyone.";
+  const candidates = tapCandidates(context, context.indexOf("reviewed"));
+  const phrase = candidates.findIndex(candidate => candidate.text === "carefully reviewed the release");
+  const broad = candidates.findIndex(candidate => candidate.text === context);
+  assert.ok(phrase >= 0 && broad >= 0);
+  let broadScore = 0.48;
+  try {
+    process.env.VERCEL_ENV = "preview";
+    process.env.TYPESAFE_API_KEY = "synthetic-test-only";
+    global.fetch = (async (_url, init) => {
+      const payload = JSON.parse(String(init?.body));
+      assert.match(payload.questions.span.instructions, /surrounding paragraph/u);
+      const criteria = payload.questions.span.criteria as Record<string, { quote: string }>;
+      const probabilities = Object.fromEntries(Object.entries(criteria).map(([label, option]) =>
+        [label, option.quote === context ? broadScore : option.quote === candidates[phrase].text ? 0.20 : 0.01]));
+      return new Response(JSON.stringify({ answers: { span: { type: "choice", probabilities } } }), { status: 200 });
+    }) as typeof fetch;
+    const request = { mode: "jev", context, candidates };
+    const focused = await (await post(request)).json();
+    assert.equal(focused.source, "jev · focused");
+    assert.equal(focused.ranking[0], phrase);
+    broadScore = 0.9;
+    const necessary = await (await post(request)).json();
+    assert.equal(necessary.source, "jev");
+    assert.equal(necessary.ranking[0], broad);
   } finally {
     process.env.VERCEL_ENV = oldEnv;
     process.env.TYPESAFE_API_KEY = oldKey;

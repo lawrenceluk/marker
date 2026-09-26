@@ -11,7 +11,7 @@ test("tap or double-click ranks a whole span, steps size, and opens the normal c
     expect(body.context).toContain("reviewed");
     const chosen = body.candidates.findIndex((c: { kind: string }) => c.kind === "sentence");
     const ranking = [chosen, ...body.candidates.map((_: unknown, i: number) => i).filter((i: number) => i !== chosen)];
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ranking, source: "jev", latency_ms: 42 }) });
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ranking, source: body.mode === "jev" ? "jev" : "heuristic", latency_ms: 42 }) });
   });
   const hydrated = page.waitForResponse(r => r.url().includes("/api/comments?status=all"));
   await page.goto(`/?key=${key}&persist=1&tap=jev`);
@@ -45,6 +45,7 @@ test("tap or double-click ranks a whole span, steps size, and opens the normal c
   expect((await page.evaluate(() => window.getSelection()?.toString()))!.length).toBeLessThan(content.split(". ")[0].length);
   if (info.project.name === "iphone-webkit") await page.getByRole("button", { name: "Larger selection" }).tap();
   else await page.getByRole("button", { name: "Larger selection" }).click();
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(content.split(". ")[0] + ".");
   await expect(bubble).toBeVisible();
   if (info.project.name === "iphone-webkit") await bubble.tap();
   else await bubble.click();
@@ -73,7 +74,7 @@ test("tap or double-click ranks a whole span, steps size, and opens the normal c
   else await page.mouse.dblclick(second.x, second.y);
   await secondRanked;
   if (info.project.name !== "iphone-webkit") await page.clock.runFor(210);
-  await expect(page.locator(".comment-auto-status")).toContainText(/jev · \d+ms/u);
+  await expect(page.locator(".comment-auto-status")).toContainText(/heuristic · \d+ms/u);
   expect(modes).toEqual(["jev", "heuristic"]);
 });
 
@@ -152,6 +153,14 @@ test("a Jev reply after the short wait never replaces the displayed heuristic", 
   await expect(page.locator(".comment-auto-status")).toContainText(/heuristic · \d+ms/u);
   const selected = await page.evaluate(() => window.getSelection()?.toString());
   expect(selected).toContain("carefully reviewed the release");
+  expect(selected!.length).toBeLessThan(content.length / 2);
+  if (info.project.name === "iphone-webkit") await page.getByRole("button", { name: "Larger selection" }).tap();
+  else await page.getByRole("button", { name: "Larger selection" }).click();
+  const larger = await page.evaluate(() => window.getSelection()?.toString());
+  expect(larger!.length).toBeGreaterThan(selected!.length);
+  if (info.project.name === "iphone-webkit") await page.getByRole("button", { name: "Smaller selection" }).tap();
+  else await page.getByRole("button", { name: "Smaller selection" }).click();
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(selected);
   await expect.poll(() => lateAttempted).toBe(true);
   if (info.project.name !== "iphone-webkit") await page.clock.runFor(300);
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(selected);
