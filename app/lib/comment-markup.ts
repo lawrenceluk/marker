@@ -91,3 +91,44 @@ export function sourceSelection(
     end = offset(range.endContainer, range.endOffset);
   return start === null || end === null || end <= start ? null : { start, end };
 }
+
+/** Map a tap on rendered text to a raw source position without splitting a link or entity. */
+export function tapSourceOffset(root: HTMLElement, x: number, y: number, source: string): number | null {
+  const doc = document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null };
+  const caret = document.caretPositionFromPoint?.(x, y);
+  const range = caret ? null : doc.caretRangeFromPoint?.(x, y);
+  const node = caret?.offsetNode ?? range?.startContainer;
+  const offset = caret?.offset ?? range?.startOffset;
+  if (!node || offset === undefined) return null;
+  const element = node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement;
+  const span = element?.closest<HTMLElement>("[data-source-start]");
+  if (!span || !root.contains(span)) return null;
+  const start = Number(span.dataset.sourceStart), end = Number(span.dataset.sourceEnd);
+  if (!Number.isInteger(start) || !Number.isInteger(end) || end <= start) return null;
+  const rendered = Math.min(offset, span.textContent?.length ?? offset);
+  if (span.dataset.sourceExact === "true") return Math.min(end - 1, start + rendered);
+  const raw = source.slice(start, end);
+  const link = raw.match(/^\[([^\]]+)\]\([^)]+\)$/u);
+  if (link && link[1] === span.textContent) return Math.min(end - 1, start + 1 + rendered);
+  return start;
+}
+
+/** Render a raw anchor as the live native selection used by the comment composer. */
+export function selectSourceRange(root: HTMLElement, start: number, end: number): Range | null {
+  const spans = [...root.querySelectorAll<HTMLElement>("[data-source-start]")];
+  const first = spans.find(span => Number(span.dataset.sourceEnd) > start && Number(span.dataset.sourceStart) < end);
+  const last = spans.findLast(span => Number(span.dataset.sourceEnd) > start && Number(span.dataset.sourceStart) < end);
+  if (!first?.firstChild || !last?.firstChild) return null;
+  const range = document.createRange();
+  const firstOffset = first.dataset.sourceExact === "true"
+    ? Math.max(0, Math.min(first.firstChild.textContent?.length ?? 0, start - Number(first.dataset.sourceStart))) : 0;
+  const lastOffset = last.dataset.sourceExact === "true"
+    ? Math.max(0, Math.min(last.firstChild.textContent?.length ?? 0, end - Number(last.dataset.sourceStart)))
+    : last.firstChild.textContent?.length ?? 0;
+  range.setStart(first.firstChild, firstOffset);
+  range.setEnd(last.firstChild, lastOffset);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  return range;
+}

@@ -228,3 +228,12 @@ body {
 .toolbar-menu-item:hover, .toolbar-menu-item:focus-visible { background: color-mix(in srgb, var(--foreground) 7%, transparent); }
 .toolbar-menu-item:disabled { opacity: .35; }
 .update-nudge { display: block; margin: -8px auto 16px; padding: 5px 10px; border-radius: 999px; font-size: 12px; color: var(--foreground); background: color-mix(in srgb, var(--foreground) 6%, var(--background)); }
+/* Preview-only tap-to-select controls reuse the existing selection bubble. */
+.tap-mode { display: flex; align-items: center; gap: 5px; width: fit-content; margin: 0 0 8px auto; color: color-mix(in srgb, var(--foreground) 58%, transparent); font-size: 11px; }
+.tap-mode button { padding: 2px 6px; border-radius: 5px; }
+.tap-mode button[aria-pressed="true"] { color: var(--foreground); background: color-mix(in srgb, var(--foreground) 10%, transparent); }
+.comment-auto-tools { position: fixed; z-index: 21; display: flex; align-items: center; gap: 3px; max-width: min(260px, calc(100vw - 8px)); color: var(--foreground); }
+.comment-auto-chip { display: inline-grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); box-shadow: 0 2px 12px rgb(0 0 0 / .18); }
+.comment-auto-chip:disabled { opacity: .35; }
+.comment-auto-status { padding: 2px 4px; border-radius: 4px; background: var(--background); font-size: 10px; white-space: nowrap; opacity: .72; }
+@media (prefers-color-scheme: dark) { .comment-auto-chip, .comment-auto-status { box-shadow: 0 2px 12px rgb(0 0 0 / .5); outline: 1px solid #ffffff18; } }
