@@ -137,9 +137,9 @@ test("select → icon → type → send, then agent edit/resolve and focused rep
   });
   expect(result.status()).toBe(200);
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await activate(page.getByRole("button", { name: "Updated · tap to refresh" }), touch);
+  await activate(page.getByRole("button", { name: "Note updated · Refresh" }), touch);
   await activate(page.getByRole("button", { name: /^Comments \(/ }), touch);
-  await page.getByLabel("Include resolved").check();
+  await page.getByLabel("Show resolved").check();
   await activate(
     page.getByRole("button", { name: /Resolved · Outdated/ }),
     touch,
@@ -160,18 +160,18 @@ test("select → icon → type → send, then agent edit/resolve and focused rep
     page.getByText("Thanks\nLooks good.", { exact: true }),
   ).toBeVisible();
   await activate(
-    page.getByRole("button", { name: "Reopen", exact: true }),
+    page.getByRole("button", { name: "Reopen thread", exact: true }),
     touch,
   );
   await expect(
-    page.getByRole("button", { name: "Resolve", exact: true }),
+    page.getByRole("button", { name: "Resolve thread", exact: true }),
   ).toBeVisible();
   await activate(
-    page.getByRole("button", { name: "Resolve", exact: true }),
+    page.getByRole("button", { name: "Resolve thread", exact: true }),
     touch,
   );
   await expect(
-    page.getByRole("button", { name: "Reopen", exact: true }),
+    page.getByRole("button", { name: "Reopen thread", exact: true }),
   ).toBeVisible();
 });
 
@@ -253,7 +253,7 @@ test("raw editor remaps the third repeated phrase and retains its thread", async
     content.replace("Second:", "Revised second:") +
     "\n\nEnding";
   await page
-    .getByPlaceholder("Enter your markdown content here...")
+    .getByPlaceholder("Write markdown…")
     .fill(revised);
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.locator("mark")).toHaveCount(1);
