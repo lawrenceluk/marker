@@ -17,7 +17,8 @@ import { adjacentSizeCandidate, heuristicRanking, tapCandidates, tapContext, typ
 import type { CommentOperation, LocatedThread } from "../lib/comments";
 
 type Snapshot = { rev: number; content: string; comments: LocatedThread[] };
-type AutoSelection = { candidates: TapCandidate[]; ranking: number[]; index: number; source: string; latency: number };
+type RankAnswer = { ranking: number[]; source: string; timing?: { route_ms?: number; typesafe_ms?: number; outcome?: string } };
+type AutoSelection = { candidates: TapCandidate[]; ranking: number[]; index: number; source: string; latency: number; requestId: number };
 type Selection = {
   start: number;
   end: number;
@@ -46,8 +47,11 @@ export function CommentedViewer({
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [tapMode, setTapMode] = useState<"jev" | "heuristic">("jev");
+  const [tapWait, setTapWait] = useState<200 | 700>(700);
+  const [tapDiagnostic, setTapDiagnostic] = useState("");
   const autoSelection = useRef<AutoSelection | null>(null);
   const tapRequest = useRef(0);
+  const rankAbort = useRef<AbortController | null>(null);
   const pendingTap = useRef(false);
   const suppressDoubleClick = useRef(false);
   const [pending, setPending] = useState<{ x: number; y: number } | null>(null);
@@ -64,7 +68,10 @@ export function CommentedViewer({
   const thread = threads.find((t) => t.id === active);
   const openCount = threads.filter((t) => !t.resolved).length;
   useEffect(() => {
-    if (tapSelectPreview && new URLSearchParams(window.location.search).get("tap") === "heuristic") setTapMode("heuristic");
+    if (!tapSelectPreview) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tap") === "heuristic") setTapMode("heuristic");
+    if (params.get("tapwait") === "200") setTapWait(200);
   }, [tapSelectPreview]);
 
   const load = useCallback(
@@ -113,6 +120,8 @@ export function CommentedViewer({
       if (button) button.style.pointerEvents = enabled ? "" : "none";
     }
     function hide() {
+      rankAbort.current?.abort();
+      rankAbort.current = null;
       clearTimeout(timer);
       cancelAnimationFrame(frame);
       frame = 0;
@@ -121,6 +130,7 @@ export function CommentedViewer({
       pendingTap.current = false;
       suppressDoubleClick.current = false;
       setPending(null);
+      setTapDiagnostic("");
       tapRequest.current++;
       if (dialog.current?.open) return; // Keep the draft's source range.
       hitTesting(false); // Disable synchronously, before React removes the button.
@@ -291,6 +301,7 @@ export function CommentedViewer({
     window.visualViewport?.addEventListener("resize", viewport);
     window.visualViewport?.addEventListener("scroll", viewport);
     return () => {
+      rankAbort.current?.abort();
       clearTimeout(timer);
       cancelAnimationFrame(frame);
       document.removeEventListener("selectionchange", changed);
@@ -328,41 +339,76 @@ export function CommentedViewer({
     const requestId = ++tapRequest.current;
     const baseline = heuristicRanking(candidates);
     const started = performance.now();
+    const waitMs = tapMode === "heuristic" ? 200 : tapWait;
+    rankAbort.current?.abort();
     pendingTap.current = true;
     autoSelection.current = null;
+    setTapDiagnostic("");
     setPending({ x: Math.min(x + 9, window.innerWidth - 24), y: Math.max(4, y - 12) });
     setSelection(null);
     window.getSelection()?.removeAllRanges();
 
-    // Show one selection at 200 ms. A response after that deadline cannot jump it.
-    const answer: { current: { ranking: number[]; source: string } | null } = { current: null };
+    // Show one selection after at least 200 ms, at most the selected cap.
+    // A late reply updates timing only; it never replaces the displayed quote.
+    const answer: { current: RankAnswer | null; done: boolean; completedAt: number } = { current: null, done: false, completedAt: 0 };
     const controller = new AbortController();
-    void fetch("/api/tap-select", {
+    rankAbort.current = controller;
+    const diagnosticTimeout = setTimeout(() => controller.abort(), 1500);
+    const responseDone = fetch("/api/tap-select", {
       method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
       body: JSON.stringify({ context: tapContext(content, offset), candidates, mode: tapMode }),
       signal: controller.signal,
     }).then(async response => response.ok ? response.json() : null)
       .then(data => { answer.current = data; })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(diagnosticTimeout);
+        answer.done = true;
+        answer.completedAt = performance.now();
+        if (rankAbort.current === controller) rankAbort.current = null;
+      });
     await new Promise(resolve => setTimeout(resolve, 200));
+    if (!answer.done && waitMs > 200) {
+      let deadlineTimer: ReturnType<typeof setTimeout>;
+      await Promise.race([responseDone, new Promise(resolve => {
+        deadlineTimer = setTimeout(resolve, Math.max(0, waitMs - (performance.now() - started)));
+      })]);
+      clearTimeout(deadlineTimer!);
+    }
     if (requestId !== tapRequest.current || !pendingTap.current) {
       controller.abort();
       return;
     }
-    const ranking = answer.current?.ranking;
+    const onTime = answer.done && answer.completedAt - started <= waitMs;
+    const usable = onTime ? answer.current : null;
+    const ranking = usable?.ranking;
     const valid = Array.isArray(ranking) && ranking.length === candidates.length &&
       new Set(ranking).size === candidates.length &&
       ranking.every(i => Number.isInteger(i) && i >= 0 && i < candidates.length);
-    if (!valid) controller.abort();
     const finalRanking = valid ? ranking : baseline;
+    const timings = (data: RankAnswer | null) => {
+      const route = data?.timing?.route_ms, typeSafe = data?.timing?.typesafe_ms;
+      return [Number.isFinite(route) && route! >= 0 ? `API ${Math.round(route!)}ms` : "",
+        Number.isFinite(typeSafe) && typeSafe! >= 0 ? `Jev ${Math.round(typeSafe!)}ms` : ""].filter(Boolean).join(" · ");
+    };
     pendingTap.current = false;
     setPending(null);
     autoSelection.current = {
       candidates, ranking: finalRanking, index: finalRanking[0],
-      source: valid ? String(answer.current?.source ?? "jev") : "heuristic",
+      source: valid ? String(usable?.source ?? "jev") : "heuristic",
       latency: Math.round(performance.now() - started),
+      requestId,
     };
+    setTapDiagnostic(valid ? timings(usable) : answer.done && onTime ? "request error" : `cap ${waitMs}ms`);
     chooseAuto(finalRanking[0]);
+    if (!valid && (!answer.done || !onTime)) void responseDone.then(() => {
+      if (requestId !== tapRequest.current || autoSelection.current?.requestId !== requestId) return;
+      const elapsed = Math.round(answer.completedAt - started);
+      const outcome = answer.current?.timing?.outcome;
+      const description = outcome === "jev" ? "late Jev" : outcome === "timeout" ? "late timeout" :
+        answer.current ? "late reply" : controller.signal.aborted ? "request aborted" : "request error";
+      setTapDiagnostic(`cap ${waitMs}ms · ${description} ${elapsed}ms${timings(answer.current) ? ` · ${timings(answer.current)}` : ""}`);
+    });
   }
 
   function stepAuto(direction: -1 | 1) {
@@ -379,7 +425,15 @@ export function CommentedViewer({
     window.history.replaceState(null, "", url);
   }
 
+  function setWait(wait: 200 | 700) {
+    setTapWait(wait);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tapwait", String(wait));
+    window.history.replaceState(null, "", url);
+  }
+
   function open(id: string, rect: { left: number; bottom: number }) {
+    rankAbort.current?.abort();
     tapRequest.current++; // A late rank must not change an open composer.
     autoSelection.current = null;
     pendingTap.current = false;
@@ -462,7 +516,7 @@ export function CommentedViewer({
           {error}
         </p>
       )}
-      {tapSelectPreview && <div className="tap-mode" aria-label="Tap selection mode">Tap select: <button type="button" aria-pressed={tapMode === "jev"} onClick={() => setMode("jev")}>Jev</button><button type="button" aria-pressed={tapMode === "heuristic"} onClick={() => setMode("heuristic")}>Heuristic</button></div>}
+      {tapSelectPreview && <div className="tap-mode" aria-label="Tap selection controls">Tap select: <button type="button" aria-pressed={tapMode === "jev"} onClick={() => setMode("jev")}>Jev</button><button type="button" aria-pressed={tapMode === "heuristic"} onClick={() => setMode("heuristic")}>Heuristic</button><span className="tap-mode-separator">Jev wait</span><button type="button" aria-label="Wait up to 200 milliseconds" aria-pressed={tapWait === 200} onClick={() => setWait(200)}>200</button><button type="button" aria-label="Wait up to 700 milliseconds" aria-pressed={tapWait === 700} onClick={() => setWait(700)}>700</button></div>}
       <div
         ref={root}
         onMouseDownCapture={(e) => {
@@ -517,10 +571,10 @@ export function CommentedViewer({
         const smaller = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start < size);
         const larger = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start > size);
         const viewBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
-        return <div className="comment-auto-tools" style={{ left: Math.max(4, Math.min(selection.x - 64, window.innerWidth - 72)), top: Math.max(4, Math.min(selection.y + selection.size + 5, viewBottom - 29)) }}>
+        return <div className="comment-auto-tools" style={{ left: Math.max(4, Math.min(selection.x - 64, window.innerWidth - 72)), top: Math.max(4, Math.min(selection.y + selection.size + 5, viewBottom - 64)) }}>
           <button type="button" className="comment-auto-chip" aria-label="Smaller selection" disabled={!smaller} onPointerDown={e => { if (e.pointerType === "mouse") e.preventDefault(); }} onClick={() => stepAuto(-1)}><Minus size={13} /></button>
           <button type="button" className="comment-auto-chip" aria-label="Larger selection" disabled={!larger} onPointerDown={e => { if (e.pointerType === "mouse") e.preventDefault(); }} onClick={() => stepAuto(1)}><Plus size={13} /></button>
-          <span className="comment-auto-status">{state.source} · {state.latency}ms</span>
+          <span className="comment-auto-status">{state.source} · {state.latency}ms{tapDiagnostic && <> · {tapDiagnostic}</>}</span>
         </div>;
       })()}
       <dialog

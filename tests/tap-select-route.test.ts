@@ -39,6 +39,9 @@ test("preview Choice ranking, token cost, and hard production gate", async () =>
     const success = await (await post()).json();
     assert.equal(success.source, "jev");
     assert.equal(success.ranking[0], 1);
+    assert.equal(success.timing.outcome, "jev");
+    assert.ok(success.timing.route_ms >= success.timing.typesafe_ms);
+    assert.equal(success.latency_ms, success.timing.route_ms);
     chosenText = sample.candidates[3].text;
     const fullSentence = await (await post()).json();
     assert.equal(fullSentence.ranking[0], 3, "an explicit full-sentence judgment remains possible");
@@ -62,6 +65,8 @@ test("missing key and timeout fall back to a clause; heuristic mode skips TypeSa
     let result = await (await post()).json();
     assert.equal(result.ranking[0], 2);
     assert.match(result.source, /no key/u);
+    assert.deepEqual(Object.keys(result.timing).sort(), ["outcome", "route_ms"]);
+    assert.equal(result.timing.outcome, "no-key");
     process.env.TYPESAFE_API_KEY = "synthetic-test-only";
     global.fetch = (async (_url, init) => new Promise((_resolve, reject) => {
       init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
@@ -69,8 +74,11 @@ test("missing key and timeout fall back to a clause; heuristic mode skips TypeSa
     result = await (await post()).json();
     assert.equal(result.ranking[0], 2);
     assert.match(result.source, /timeout/u);
+    assert.equal(result.timing.outcome, "timeout");
+    assert.ok(result.timing.typesafe_ms >= 750);
     result = await (await post({ ...sample, mode: "heuristic" })).json();
     assert.equal(result.source, "heuristic");
+    assert.equal(result.timing.outcome, "heuristic");
   } finally {
     process.env.VERCEL_ENV = oldEnv;
     process.env.TYPESAFE_API_KEY = oldKey;

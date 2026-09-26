@@ -4,6 +4,7 @@ import { calibrateJevRanking, heuristicRanking, type TapCandidate } from "@/app/
 const MAX_BODY = 8_192;
 const TIMEOUT_MS = 800;
 const PRICE_PER_INPUT_TOKEN_USD = 0.042 / 1_000_000; // jev-1.13.0; output is free.
+type Outcome = "jev" | "heuristic" | "no-key" | "timeout" | "service-error" | "invalid-answer";
 
 type RankRequest = { context: string; candidates: TapCandidate[]; mode: "jev" | "heuristic" };
 
@@ -49,18 +50,23 @@ function stableHash(text: string) {
 
 export async function POST(request: Request) {
   if (process.env.VERCEL_ENV !== "preview") return reply({ error: "Not found" }, 404);
+  const started = performance.now();
   const raw = await boundedBody(request);
   if (!raw) return reply({ error: "Request too large" }, 413);
   let body: unknown;
   try { body = JSON.parse(raw); } catch { return reply({ error: "Invalid request" }, 400); }
   if (!valid(body)) return reply({ error: "Invalid request" }, 400);
   const fallback = heuristicRanking(body.candidates);
-  const started = performance.now();
-  const result = (source: string, ranking = fallback, usage?: { input_tokens: number; output_tokens: number; cost_usd: number }) =>
-    reply({ ranking, source, latency_ms: Math.round(performance.now() - started), ...(usage ? { usage } : {}) });
-  if (body.mode === "heuristic") return result("heuristic");
+  const typeSafeTiming: { started?: number } = {};
+  const result = (source: string, outcome: Outcome, ranking = fallback, usage?: { input_tokens: number; output_tokens: number; cost_usd: number }) => {
+    const routeMs = Math.round(performance.now() - started);
+    return reply({ ranking, source, latency_ms: routeMs,
+      timing: { route_ms: routeMs, outcome, ...(typeSafeTiming.started === undefined ? {} : { typesafe_ms: Math.round(performance.now() - typeSafeTiming.started) }) },
+      ...(usage ? { usage } : {}) });
+  };
+  if (body.mode === "heuristic") return result("heuristic", "heuristic");
   const key = process.env.TYPESAFE_API_KEY;
-  if (!key) return result("heuristic · no key");
+  if (!key) return result("heuristic · no key", "no-key");
   // Neutral labels and a deterministic, length-independent order reduce position bias.
   const order = body.candidates.map((_, i) => i)
     .sort((a, b) => stableHash(body.candidates[a].text) - stableHash(body.candidates[b].text) || a - b);
@@ -68,6 +74,7 @@ export async function POST(request: Request) {
   const criteria = Object.fromEntries(order.map((index, i) => [labels[i], { quote: body.candidates[index].text, scope: body.candidates[index].kind }]));
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  typeSafeTiming.started = performance.now();
   try {
     const response = await fetch("https://api.typesafe.ai/v1/systemone", {
       method: "POST",
@@ -84,22 +91,22 @@ export async function POST(request: Request) {
       signal: controller.signal,
       cache: "no-store",
     });
-    if (!response.ok) return result("heuristic · service error");
+    if (!response.ok) return result("heuristic · service error", "service-error");
     const data = await response.json();
     const probabilities = data?.answers?.span?.probabilities;
     if (data?.answers?.span?.type !== "choice" || !probabilities || typeof probabilities !== "object")
-      return result("heuristic · invalid answer");
+      return result("heuristic · invalid answer", "invalid-answer");
     const scores = order.map((index, i) => ({ index, score: probabilities[labels[i]] }));
     if (scores.some(item => typeof item.score !== "number" || !Number.isFinite(item.score)))
-      return result("heuristic · invalid answer");
+      return result("heuristic · invalid answer", "invalid-answer");
     const byIndex = body.candidates.map((_, index) => scores.find(item => item.index === index)!.score);
     const calibrated = calibrateJevRanking(body.candidates, byIndex);
     const input = data?.usage?.input_tokens, output = data?.usage?.output_tokens;
     const usage = Number.isSafeInteger(input) && Number.isSafeInteger(output)
       ? { input_tokens: input, output_tokens: output, cost_usd: input * PRICE_PER_INPUT_TOKEN_USD } : undefined;
-    return result(calibrated.focused ? "jev · focused" : "jev", calibrated.ranking, usage);
+    return result(calibrated.focused ? "jev · focused" : "jev", "jev", calibrated.ranking, usage);
   } catch {
-    return result(controller.signal.aborted ? "heuristic · timeout" : "heuristic · service error");
+    return result(controller.signal.aborted ? "heuristic · timeout" : "heuristic · service error", controller.signal.aborted ? "timeout" : "service-error");
   } finally {
     clearTimeout(timeout);
   }
