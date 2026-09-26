@@ -136,6 +136,8 @@ test("select → icon → type → send, then agent edit/resolve and focused rep
     },
   });
   expect(result.status()).toBe(200);
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await activate(page.getByRole("button", { name: "Updated · tap to refresh" }), touch);
   await activate(page.getByRole("button", { name: /^Comments \(/ }), touch);
   await page.getByLabel("Include resolved").check();
   await activate(

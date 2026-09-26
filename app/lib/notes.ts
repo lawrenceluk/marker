@@ -140,6 +140,11 @@ function toNumberOrNull(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/** One field, one Redis command; legacy/missing notes both have revision zero. */
+export async function readRevision(key: string): Promise<number> {
+  return Number(await redis.hget(noteKey(key), "rev")) || 0;
+}
+
 export async function readNote(
   key: string,
   includeComments = false,

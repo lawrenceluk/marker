@@ -1,139 +1,89 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { Globe, Home, KeyRound, Link, Pencil, RefreshCw, Search } from "lucide-react";
+import { useId, useRef, type ReactNode } from "react";
+import { Ellipsis, Home, Pencil, Share2 } from "lucide-react";
 import { CopyButton } from "./CopyButton";
 import { DeleteButton } from "./DeleteButton";
 import { ToolbarButton } from "./ToolbarButton";
 
-/** lucide-react 0.560 has Globe but not GlobeOff; same paths as later Lucide. */
-function GlobeOff({ size = 18 }: { size?: number }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M10.114 4.462A14.5 14.5 0 0 1 12 2a10 10 0 0 1 9.313 13.643" />
-      <path d="M15.557 15.556A14.5 14.5 0 0 1 12 22 10 10 0 0 1 4.929 4.929" />
-      <path d="M15.892 10.234A14.5 14.5 0 0 0 12 2a10 10 0 0 0-3.643.687" />
-      <path d="M17.656 12H22" />
-      <path d="M19.071 19.071A10 10 0 0 1 12 22 14.5 14.5 0 0 1 8.44 8.45" />
-      <path d="M2 12h10" />
-      <path d="m2 2 20 20" />
-    </svg>
-  );
+function closeMenu(button: HTMLElement) {
+  button.closest<HTMLElement>("[popover]")?.hidePopover();
+}
+
+/** Native popover supplies outside-tap/Escape dismissal and focus restoration. */
+function ToolbarMenu({ label, icon, children }: { label: string; icon: ReactNode; children: ReactNode }) {
+  const id = useId();
+  const panel = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  return <div>
+    <ToolbarButton label={label} popoverTarget={id} aria-haspopup="dialog" onClick={event => {
+      trigger.current = event.currentTarget;
+      const rect = event.currentTarget.getBoundingClientRect();
+      panel.current!.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 208))}px`;
+      panel.current!.style.top = `${rect.bottom + 8}px`;
+    }}>{icon}</ToolbarButton>
+    <div id={id} ref={panel} popover="auto" role="dialog" aria-label={`${label} options`} className="toolbar-menu"
+      onToggle={event => {
+        if (event.currentTarget.matches(":popover-open"))
+          event.currentTarget.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+        else if (document.activeElement === document.body || event.currentTarget.contains(document.activeElement))
+          trigger.current?.focus();
+      }}
+      onKeyDown={event => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.currentTarget.hidePopover();
+          trigger.current?.focus();
+          return;
+        }
+        if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+        const current = items.indexOf(document.activeElement as HTMLButtonElement);
+        const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+        items[next]?.focus();
+      }}>{children}</div>
+  </div>;
 }
 
 interface NoteToolbarProps {
   commentsButton?: ReactNode;
   onHome: () => void;
-  /** When false, only the home control is shown (idle / editing). */
   showNoteTools?: boolean;
   persist?: boolean;
   shareUrl?: string | null;
   onPersistToggle?: () => void;
   persistDisabled?: boolean;
   onRename?: () => void;
-  renaming?: boolean;
   onChangeKey?: () => void;
   content?: string;
-  onReload?: () => void | Promise<void>;
-  reloadDisabled?: boolean;
   onEdit?: () => void;
   onDelete?: () => void | Promise<void>;
   deleteDisabled?: boolean;
 }
 
 export function NoteToolbar({
-  commentsButton,
-  onHome,
-  showNoteTools = true,
-  persist = false,
-  shareUrl = null,
-  onPersistToggle,
-  persistDisabled = false,
-  onRename,
-  renaming = false,
-  onChangeKey,
-  content = "",
-  onReload,
-  reloadDisabled = false,
-  onEdit,
-  onDelete,
-  deleteDisabled = false,
+  commentsButton, onHome, showNoteTools = true, persist = false, shareUrl = null,
+  onPersistToggle, persistDisabled = false, onRename, onChangeKey, content = "",
+  onEdit, onDelete, deleteDisabled = false,
 }: NoteToolbarProps) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2 mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800 overflow-visible">
-      <div className="flex items-center gap-1">
-        <ToolbarButton
-          label="Home"
-          onClick={onHome}
-          tooltipAlign="start"
-        >
-          <Home size={18} />
-        </ToolbarButton>
-        {showNoteTools && (
-          <>
-            <ToolbarButton
-              label={persist ? "Persistent URL on" : "Persistent URL off"}
-              pressed={persist}
-              disabled={persistDisabled}
-              onClick={onPersistToggle}
-            >
-              {persist ? <Globe size={18} /> : <GlobeOff size={18} />}
-            </ToolbarButton>
-            {persist && shareUrl && (
-              <CopyButton
-                text={shareUrl}
-                label="Copy link"
-                icon
-                idleIcon={Link}
-              />
-            )}
-            <ToolbarButton
-              label="Rename key"
-              pressed={renaming}
-              onClick={onRename}
-            >
-              <KeyRound size={18} />
-            </ToolbarButton>
-            <ToolbarButton label="Go to note" onClick={onChangeKey}>
-              <Search size={18} />
-            </ToolbarButton>
-          </>
-        )}
-      </div>
-      {showNoteTools && onEdit && onDelete && (
-        <div className="flex items-center gap-1">
-          {onReload && (
-            <ToolbarButton
-              label="Reload"
-              onClick={() => void onReload()}
-              disabled={reloadDisabled}
-            >
-              <RefreshCw size={18} />
-            </ToolbarButton>
-          )}
-          {commentsButton}
-          <CopyButton text={content} label="Copy all" icon tooltipAlign="end" />
-          <ToolbarButton label="Edit" onClick={onEdit}>
-            <Pencil size={18} />
-          </ToolbarButton>
-          <DeleteButton
-            onDelete={onDelete}
-            disabled={deleteDisabled}
-            tooltipAlign="end"
-          />
-        </div>
-      )}
-    </div>
-  );
+  return <nav aria-label="Note actions" className="note-toolbar">
+    <ToolbarButton label="Home" onClick={onHome} tooltipAlign="start"><Home size={18} /></ToolbarButton>
+    {showNoteTools && <>
+      <ToolbarMenu label="Share" icon={<Share2 size={18} />}>
+        <CopyButton text={shareUrl ?? ""} label="Copy link" disabled={!shareUrl} className="toolbar-menu-item" />
+        <button type="button" role="switch" aria-label="Persistent link" aria-checked={persist} aria-disabled={persistDisabled} onClick={() => { if (!persistDisabled) onPersistToggle?.(); }} className="toolbar-menu-item justify-between">
+          {persist ? "Persistent link" : "One-time session"}<span className="text-xs opacity-50">{persist ? "On" : "Off"}</span>
+        </button>
+      </ToolbarMenu>
+      {commentsButton}
+      <ToolbarButton label="Edit" onClick={onEdit}><Pencil size={18} /></ToolbarButton>
+      <ToolbarMenu label="More" icon={<Ellipsis size={18} />}>
+        <button type="button" className="toolbar-menu-item" onClick={event => { closeMenu(event.currentTarget); onChangeKey?.(); }}>Find</button>
+        <CopyButton text={content} label="Copy all" className="toolbar-menu-item" />
+        <button type="button" className="toolbar-menu-item" onClick={event => { closeMenu(event.currentTarget); onRename?.(); }}>Re-key</button>
+        {onDelete && <DeleteButton onDelete={onDelete} disabled={deleteDisabled} menu />}
+      </ToolbarMenu>
+    </>}
+  </nav>;
 }
