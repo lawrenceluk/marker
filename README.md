@@ -11,7 +11,7 @@ via a small HTTP API, from AI agents.
 - **Agent-Friendly API**: Atomic append/prepend and optimistic concurrency (`if_rev`) so several agents can write to one note without clobbering each other
 - **Optional Expiry**: Per-note TTL for quick, self-destructing shares
 - **Shareable Links**: `/?key=...` moves the key into an httpOnly cookie and renders the note server-side, so the key stays out of the address bar and browser history
-- **Persistent URL**: Opt a note into a bookmarkable `/?key=...&persist=1` document link that stays in the address bar and survives a browser restart
+- **Persistent link**: Opt a note into a bookmarkable `/?key=...&persist=1` document link that stays in the address bar and survives a browser restart
 - **Link previews**: Persist URLs emit Open Graph / Twitter Card tags from the start of the note so Slack, iMessage, Discord, X, etc. can unfurl them. Search indexing stays blocked.
 - **Copy all**: Copy a note's full markdown from the viewer or editor, with a brief "Copied" confirmation
 - **Rename Key**: Change a note's key in place without rewriting its content; the destination must be free
@@ -105,7 +105,7 @@ rendering — so the key never appears in the address bar, browser history, a
 That cookie is what keeps you in the note across reloads. It is cleared by
 "Change Key" or by closing the browser.
 
-To keep a stable document link instead, turn on **Persistent URL** in the note
+To keep a stable document link instead, turn on **Persistent link** in the note
 header. That puts `/?key=<key>&persist=1` in the address bar (and offers a copy
 button). Visiting that URL always loads the same note and leaves the key in the
 URL so it can be bookmarked. Turning the toggle off restores the one-off
