@@ -9,7 +9,7 @@ import {
   persistPath,
 } from "../lib/key";
 import { HomeIdle } from "./HomeIdle";
-import { ContentViewer } from "./ContentViewer";
+import { CommentedViewer } from "./CommentedViewer";
 import { ContentEditor } from "./ContentEditor";
 import { NoteToolbar } from "./NoteToolbar";
 import { RenameKey } from "./RenameKey";
@@ -466,7 +466,7 @@ export function NoteApp({
                 />
               </div>
             )}
-            <ContentViewer content={content} />
+            <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} rev={rev ?? 0} onChange={(next, revision) => { setContent(next); setOriginalContent(next); setRev(revision); }} />
           </div>
         )}
 

@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test tests/preview.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "test:browser": "npm run build && playwright test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@upstash/redis": "^1.35.7",
@@ -19,13 +21,16 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.0.10",
+    "redis": "^6.2.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

@@ -1,4 +1,6 @@
 import { redis } from "./redis";
+import type { Thread } from "./comments";
+import { storagePrefix } from "./namespace";
 
 /** Maximum size of a stored note, in bytes. */
 export const MAX_CONTENT_BYTES = 1024 * 1024; // 1 MiB
@@ -9,6 +11,7 @@ export type WriteMode = (typeof WRITE_MODES)[number];
 
 export type Note = {
   content: string;
+  comments: Thread[];
   rev: number;
   updatedAt: number | null;
   createdAt: number | null;
@@ -26,9 +29,9 @@ export type RenameResult =
   | { ok: false; reason: "not_found" };
 
 /** Note hash: fields `content`, `rev`, `updated_at`, `created_at`. */
-const noteKey = (key: string) => `note:${key}`;
+const noteKey = (key: string) => `${storagePrefix()}note:${key}`;
 /** Pre-metadata schema: a bare string. Read through to it, migrate on write. */
-const legacyKey = (key: string) => `content:${key}`;
+const legacyKey = (key: string) => `${storagePrefix()}content:${key}`;
 
 /**
  * KEYS: note hash, legacy string.
@@ -39,12 +42,12 @@ local h, legacy = KEYS[1], KEYS[2]
 
 if redis.call('EXISTS', h) == 1 then
   local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at')
-  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)) }
+  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]' }
 end
 
 local old = redis.call('GET', legacy)
 if old then
-  return { old, '0', '', '', '-1' }
+  return { old, '0', '', '', '-1', '[]' }
 end
 
 return nil
@@ -168,18 +171,19 @@ function toNumberOrNull(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export async function readNote(key: string): Promise<Note | null> {
+export async function readNote(key: string, includeComments = false): Promise<Note | null> {
   const result = await redis.eval<string[], string[] | null>(
     READ_SCRIPT,
     [noteKey(key), legacyKey(key)],
-    []
+    [includeComments ? "1" : "0"]
   );
 
   if (!result) return null;
 
-  const [content, rev, updatedAt, createdAt, pttl] = result;
+  const [content, rev, updatedAt, createdAt, pttl, comments] = result;
   return {
     content,
+    comments: JSON.parse(comments),
     rev: Number(rev) || 0,
     updatedAt: toNumberOrNull(updatedAt),
     createdAt: toNumberOrNull(createdAt),
@@ -254,4 +258,27 @@ export async function renameNote(
 /** Remove both the hash note and any legacy string for this key. */
 export async function deleteNote(key: string): Promise<void> {
   await redis.del(noteKey(key), legacyKey(key));
+}
+
+/** One compare-and-swap for comments plus an optional content edit; TTL is retained. */
+const COMMENT_SCRIPT = `
+local h, legacy = KEYS[1], KEYS[2]
+local exists = redis.call('EXISTS', h) == 1
+if not exists and redis.call('EXISTS', legacy) == 0 then return {'missing'} end
+local rev = tonumber(redis.call('HGET', h, 'rev')) or 0
+if rev ~= tonumber(ARGV[1]) then return {'conflict'} end
+local current = exists and (redis.call('HGET', h, 'content') or '') or redis.call('GET', legacy)
+local comments = redis.call('HGET', h, 'comments') or '[]'
+if current ~= ARGV[2] or comments ~= ARGV[3] then return {'conflict'} end
+local ttl = redis.call('PTTL', exists and h or legacy)
+local created = redis.call('HGET', h, 'created_at') or ARGV[6]
+redis.call('HSET', h, 'content', ARGV[4], 'comments', ARGV[5], 'rev', rev + 1, 'updated_at', ARGV[6], 'created_at', created)
+if not exists and ttl > 0 then redis.call('PEXPIRE', h, ttl) end
+redis.call('DEL', legacy)
+return {'ok'}
+`;
+
+export async function commitComments(key: string, before: Note, content: string, comments: Thread[]): Promise<"ok" | "conflict" | "missing"> {
+  const result = await redis.eval<string[], string[]>(COMMENT_SCRIPT, [noteKey(key), legacyKey(key)], [String(before.rev), before.content, JSON.stringify(before.comments), content, JSON.stringify(comments), String(Date.now())]);
+  return result[0] as "ok" | "conflict" | "missing";
 }

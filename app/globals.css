@@ -200,3 +200,9 @@ body {
     color: #93c5fd;
   }
 }
+
+/* Native modal semantics, a thumb-accessible sheet on phones. */
+.comment-sheet { margin: auto; width: min(100% - 2rem, 36rem); max-height: 80dvh; overflow-y: auto; padding: 1.25rem; border-radius: 1rem; color: inherit; background: var(--background, white); }
+.comment-sheet::backdrop { background: rgb(0 0 0 / .35); }
+[data-comments] { background: #fef08a; color: #18181b; cursor: pointer; }
+@media (max-width: 640px) { .comment-sheet { margin: auto 0 0; width: 100%; max-width: 100%; border-radius: 1rem 1rem 0 0; padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); } }

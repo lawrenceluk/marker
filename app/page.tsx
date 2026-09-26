@@ -1,3 +1,4 @@
+import { DEMO_KEY, ensurePreviewDemo } from "./lib/demo";
 import type { Metadata } from "next";
 import { cache } from "react";
 import { cookies } from "next/headers";
@@ -15,7 +16,10 @@ import { readNote as loadNote } from "./lib/notes";
 import { requestOrigin } from "./lib/origin";
 import { previewFromMarkdown } from "./lib/preview";
 
-const readNote = cache(loadNote);
+const readNote = cache(async (key: string) => {
+  await ensurePreviewDemo(key);
+  return loadNote(key);
+});
 
 const FALLBACK: Metadata = {
   title: "Marker",
@@ -105,10 +109,13 @@ export default async function Home({
   const note = key ? await readNote(key) : null;
 
   return (
+    <>
+    {process.env.VERCEL_ENV === "preview" && <aside className="bg-amber-100 text-zinc-900 px-4 py-3 text-center text-sm">Preview sandbox · Separate note namespace · <a className="underline" href={persistPath(DEMO_KEY)}>Open commenting demo</a></aside>}
     <NoteApp
       initialKeyLabel={key ? maskKey(key) : null}
       initialNote={note ? { content: note.content, rev: note.rev } : null}
       initialPersist={persist}
     />
+    </>
   );
 }
