@@ -79,8 +79,19 @@ export function CommentedViewer({
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
+    let held = false;
+    let keyHeld = false;
+    let touch = window.matchMedia("(pointer: coarse)").matches;
+    function hide() {
+      clearTimeout(timer);
+      if (dialog.current?.open) return; // Keep the draft's source range.
+      // Disable hit testing synchronously, before React removes the button.
+      const button = document.querySelector<HTMLElement>(".comment-selection");
+      if (button) button.style.pointerEvents = "none";
+      setSelection(null);
+    }
     function position() {
-      if (dialog.current?.open) return;
+      if (held || keyHeld || dialog.current?.open) return;
       const source = root.current ? sourceSelection(root.current) : null;
       const range = window.getSelection()?.rangeCount
         ? window.getSelection()!.getRangeAt(0)
@@ -122,9 +133,63 @@ export function CommentedViewer({
           : null,
       );
     }
-    function changed() {
+    function settle() {
       clearTimeout(timer);
-      timer = setTimeout(position, 140);
+      if (!held && !keyHeld)
+        timer = setTimeout(position, touch ? 350 : 140);
+    }
+    function changed() {
+      hide();
+      // Native iOS handle adjustments may only emit selectionchange.
+      // Each change hides the icon and restarts the quiet-period timer.
+      if (!window.getSelection()?.isCollapsed) settle();
+    }
+    function onBubble(event: Event) {
+      return event.target instanceof Element &&
+        !!event.target.closest(".comment-selection");
+    }
+    function pointerStart(event: PointerEvent) {
+      if (event.button !== 0 || onBubble(event)) return;
+      touch = event.pointerType === "touch";
+      held = true;
+      hide();
+    }
+    function pointerEnd(event: PointerEvent) {
+      if (event.button !== 0 || !held || touch) return;
+      held = false;
+      position();
+    }
+    function mouseEnd() {
+      if (touch || !held) return;
+      held = false;
+      position();
+    }
+    function touchStart(event: TouchEvent) {
+      if (onBubble(event)) return;
+      touch = true;
+      held = true;
+      hide();
+    }
+    function touchEnd(event: TouchEvent) {
+      if (!held || event.touches.length) return;
+      held = false;
+      settle();
+    }
+    function keyboard(event: KeyboardEvent) {
+      if (!/^(Arrow|Home$|End$|Page)/.test(event.key)) return;
+      touch = false;
+      keyHeld = event.type === "keydown";
+      hide();
+      if (!keyHeld) settle();
+    }
+    function cancel() {
+      held = keyHeld = false;
+      hide();
+    }
+    function pointerCancel(event: PointerEvent) {
+      // iOS can hand a long press to native selection before the finger lifts.
+      if (event.pointerType === "touch") hide();
+      else cancel();
     }
     function viewport() {
       const view = window.visualViewport;
@@ -136,17 +201,37 @@ export function CommentedViewer({
         "--comment-viewport",
         `${view?.height ?? window.innerHeight}px`,
       );
-      position();
+      hide();
     }
     viewport();
     document.addEventListener("selectionchange", changed);
-    window.addEventListener("scroll", position, true);
+    document.addEventListener("pointerdown", pointerStart, true);
+    document.addEventListener("pointerup", pointerEnd, true);
+    document.addEventListener("mouseup", mouseEnd, true);
+    document.addEventListener("touchstart", touchStart, { capture: true, passive: true });
+    document.addEventListener("touchend", touchEnd, true);
+    document.addEventListener("pointercancel", pointerCancel, true);
+    document.addEventListener("touchcancel", cancel, true);
+    document.addEventListener("keydown", keyboard, true);
+    document.addEventListener("keyup", keyboard, true);
+    window.addEventListener("blur", cancel);
+    window.addEventListener("scroll", hide, true);
     window.visualViewport?.addEventListener("resize", viewport);
     window.visualViewport?.addEventListener("scroll", viewport);
     return () => {
       clearTimeout(timer);
       document.removeEventListener("selectionchange", changed);
-      window.removeEventListener("scroll", position, true);
+      document.removeEventListener("pointerdown", pointerStart, true);
+      document.removeEventListener("pointerup", pointerEnd, true);
+      document.removeEventListener("mouseup", mouseEnd, true);
+      document.removeEventListener("touchstart", touchStart, true);
+      document.removeEventListener("touchend", touchEnd, true);
+      document.removeEventListener("pointercancel", pointerCancel, true);
+      document.removeEventListener("touchcancel", cancel, true);
+      document.removeEventListener("keydown", keyboard, true);
+      document.removeEventListener("keyup", keyboard, true);
+      window.removeEventListener("blur", cancel);
+      window.removeEventListener("scroll", hide, true);
       window.visualViewport?.removeEventListener("resize", viewport);
       window.visualViewport?.removeEventListener("scroll", viewport);
     };
