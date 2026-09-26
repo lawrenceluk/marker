@@ -12,6 +12,7 @@ const armedClass =
 interface DeleteButtonProps {
   onDelete: () => void | Promise<void>;
   disabled?: boolean;
+  menu?: boolean;
   tooltipAlign?: "start" | "center" | "end";
 }
 
@@ -23,6 +24,7 @@ export function DeleteButton({
   onDelete,
   disabled = false,
   tooltipAlign = "end",
+  menu = false,
 }: DeleteButtonProps) {
   const [armed, setArmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -74,10 +76,10 @@ export function DeleteButton({
       disabled={disabled || busy}
       onClick={handleClick}
       onBlur={clearArm}
-      className={armed ? armedClass : toolbarButtonClass}
+      className={menu ? "toolbar-menu-item text-red-600 dark:text-red-400" : armed ? armedClass : toolbarButtonClass}
     >
       <Trash2 size={18} />
-      <ToolbarTooltip label={label} align={tooltipAlign} />
+      {menu ? (armed ? label : "Delete") : <ToolbarTooltip label={label} align={tooltipAlign} />}
     </button>
   );
 }

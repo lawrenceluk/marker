@@ -28,11 +28,15 @@ export function CommentedViewer({
   content,
   rev,
   onChange,
+  onRevision,
+  onComposingChange,
   toolbar,
 }: {
   content: string;
   rev: number;
   onChange: (content: string, rev: number) => void;
+  onRevision: (rev: number) => void;
+  onComposingChange: (composing: boolean) => void;
   toolbar: (commentsButton: ReactNode) => ReactNode;
 }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -46,7 +50,7 @@ export function CommentedViewer({
   const root = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
-  const threads = snapshot?.comments ?? [];
+  const threads = snapshot?.rev === rev ? snapshot.comments : [];
   const thread = threads.find((t) => t.id === active);
   const openCount = threads.filter((t) => !t.resolved).length;
 
@@ -61,16 +65,23 @@ export function CommentedViewer({
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
         if (signal?.aborted || version !== readVersion.current) return;
+        if (data.rev !== rev) {
+          onRevision(data.rev); // Keep the viewed document until an explicit refresh.
+          return;
+        }
         setSnapshot(data);
-        onChange(data.content, data.rev);
         setError("");
       } catch (e) {
         if (!signal?.aborted && version === readVersion.current)
           setError((e as Error).message);
       }
     },
-    [onChange],
+    [rev, onRevision],
   );
+  useEffect(() => {
+    onComposingChange(active !== null);
+    return () => onComposingChange(false);
+  }, [active, onComposingChange]);
   useEffect(() => {
     const controller = new AbortController();
     void load(controller.signal);

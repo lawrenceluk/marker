@@ -220,3 +220,11 @@ body {
 @media (prefers-color-scheme: dark) { .comment-sheet, .comment-selection { box-shadow: 0 2px 24px rgb(0 0 0 / .5); outline: 1px solid #ffffff18; } }
 @media (max-width: 640px) { .comment-sheet { left: 8px; top: auto; bottom: calc(var(--comment-bottom, 0px) + 8px); width: calc(100vw - 16px); padding-bottom: max(12px, env(safe-area-inset-bottom)); } }
 @media (hover: none) { .comment-icon > span[aria-hidden="true"], .comment-selection > span[aria-hidden="true"] { display: none; } }
+
+.note-toolbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); }
+.note-toolbar > :last-child:not(:first-child) { margin-left: auto; }
+.toolbar-menu { position: fixed; inset: auto; margin: 0; width: 200px; max-width: calc(100vw - 16px); padding: 4px; border: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); border-radius: 10px; color: var(--foreground); background: var(--background); box-shadow: 0 4px 24px rgb(0 0 0 / .12); }
+.toolbar-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border-radius: 6px; font-size: 14px; text-align: left; }
+.toolbar-menu-item:hover, .toolbar-menu-item:focus-visible { background: color-mix(in srgb, var(--foreground) 7%, transparent); }
+.toolbar-menu-item:disabled { opacity: .35; }
+.update-nudge { display: block; margin: -8px auto 16px; padding: 5px 10px; border-radius: 999px; font-size: 12px; color: var(--foreground); background: color-mix(in srgb, var(--foreground) 6%, var(--background)); }

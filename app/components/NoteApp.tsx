@@ -8,6 +8,7 @@ import {
   normalizeKey,
   persistPath,
 } from "../lib/key";
+import { useNoteRevision } from "../lib/useNoteRevision";
 import { HomeIdle } from "./HomeIdle";
 import { CommentedViewer } from "./CommentedViewer";
 import { ContentEditor } from "./ContentEditor";
@@ -60,6 +61,11 @@ export function NoteApp({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isReloading, setIsReloading] = useState(false);
   const [deleteResetKey, setDeleteResetKey] = useState(0);
+  const [isComposing, setIsComposing] = useState(false);
+  const { updated, noticeRevision } = useNoteRevision(
+    rev, (appState === "viewing" || appState === "editing") && !isNew,
+    rawKey ?? initialKeyLabel,
+  );
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -209,7 +215,7 @@ export function NoteApp({
       const data = await res.json();
 
       if (res.status === 409) {
-        setRev(data.rev ?? null);
+        if (Number.isSafeInteger(data.rev)) noticeRevision(data.rev);
         setForceOverwrite(true);
         setError(
           "This note changed elsewhere since you opened it. Saving again will overwrite that version."
@@ -433,7 +439,7 @@ export function NoteApp({
         )}
 
         {appState === "viewing" && (
-          <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} rev={rev ?? 0} onChange={handleCommentChange} toolbar={commentsButton => <>
+          <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} rev={rev ?? 0} onChange={handleCommentChange} onRevision={noticeRevision} onComposingChange={setIsComposing} toolbar={commentsButton => <>
             <NoteToolbar
               commentsButton={commentsButton}
               key={deleteResetKey}
@@ -451,15 +457,17 @@ export function NoteApp({
                 setIsRenaming((open) => !open);
                 setError(null);
               }}
-              renaming={isRenaming}
               onChangeKey={() => void handleReset()}
               content={content}
-              onReload={handleReload}
-              reloadDisabled={isReloading}
               onEdit={handleEdit}
               onDelete={handleDelete}
               deleteDisabled={isDeleting || isReloading}
             />
+            {updated && !isComposing && (
+              <button type="button" className="update-nudge" disabled={isReloading} onClick={() => void handleReload()}>
+                {isReloading ? "Refreshing…" : "Updated · tap to refresh"}
+              </button>
+            )}
             {isRenaming && (
               <div className="mb-6">
                 <RenameKey
