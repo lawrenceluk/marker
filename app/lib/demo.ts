@@ -1,3 +1,4 @@
+import { remapComments } from "./remap-comments";
 import { redis } from "./redis";
 import { storagePrefix } from "./namespace";
 import { applyComments } from "./comments";
@@ -71,6 +72,7 @@ export async function ensurePreviewDemo(key: string) {
     1,
     "Agent",
   );
+  comments = remapComments(oldContent, CONTENT, comments);
   const prefix = storagePrefix();
   await redis.eval(
     `

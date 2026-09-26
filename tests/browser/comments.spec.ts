@@ -39,10 +39,17 @@ test("select → icon → type → send, then agent edit/resolve and focused rep
   await expect(icon).toBeVisible();
   const bounds = await icon.boundingBox();
   const selected = await page.evaluate(() =>
-    window.getSelection()!.getRangeAt(0).getBoundingClientRect().toJSON(),
+    Array.from(window.getSelection()!.getRangeAt(0).getClientRects())
+      .sort((a, b) => b.bottom - a.bottom || b.right - a.right)[0]
+      .toJSON(),
   );
-  expect(bounds!.y).toBeGreaterThan(selected.bottom);
-  expect(bounds!.y - selected.bottom).toBeLessThan(50);
+  expect(bounds!.width).toBe(touch ? 28 : 24);
+  expect(bounds!.x - selected.right).toBeCloseTo(touch ? 14 : 4, 1);
+  expect(
+    Math.abs(
+      bounds!.y + bounds!.height / 2 - (selected.top + selected.bottom) / 2,
+    ),
+  ).toBeLessThan(1);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
     page.viewportSize()!.width,
   );
@@ -50,8 +57,48 @@ test("select → icon → type → send, then agent edit/resolve and focused rep
     animations: "disabled",
     path: `test-results/selection-${info.project.name}.png`,
   });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.screenshot({
+    animations: "disabled",
+    path: `test-results/selection-dark-${info.project.name}.png`,
+  });
+  await page.emulateMedia({ colorScheme: "light" });
+  // A visible extension control occupying the preferred spot should get a fallback.
+  await page.evaluate(({ x, y, width, height }) => {
+    const control = document.createElement("button");
+    control.id = "synthetic-extension-control";
+    Object.assign(control.style, {
+      position: "fixed",
+      zIndex: "999",
+      left: `${x}px`,
+      top: `${y}px`,
+      width: `${width}px`,
+      height: `${height}px`,
+    });
+    document.body.append(control);
+    document.dispatchEvent(new Event("selectionchange"));
+  }, bounds!);
+  await expect
+    .poll(async () => {
+      const moved = await icon.boundingBox();
+      return (
+        moved &&
+        (moved.x + moved.width <= bounds!.x ||
+          moved.x >= bounds!.x + bounds!.width ||
+          moved.y >= bounds!.y + bounds!.height)
+      );
+    })
+    .toBeTruthy();
+  await page.evaluate(() => {
+    document.getElementById("synthetic-extension-control")!.remove();
+    document.dispatchEvent(new Event("selectionchange"));
+  });
+  await expect
+    .poll(async () => Math.abs((await icon.boundingBox())!.x - bounds!.x))
+    .toBeLessThan(1);
   await activate(icon, touch);
   await expect(page.getByLabel("Comment as You")).toBeFocused();
+  await expect(page.locator(".comment-quote")).toHaveText("Try a little text");
   await page.keyboard.type("Make this clearer."); // No extra click/fill to focus the input.
   await page.screenshot({
     animations: "disabled",
@@ -97,6 +144,7 @@ test("select → icon → type → send, then agent edit/resolve and focused rep
   );
   const reply = page.getByLabel("Reply as You");
   await expect(reply).toBeFocused();
+  await expect(page.locator(".comment-quote")).toHaveText("Try a little text");
   await expect(page.getByText("Agent", { exact: true })).toBeVisible();
   await page.keyboard.type("Thanks");
   // Mobile Return and desktop Shift+Enter make newlines; desktop Cmd+Enter sends.
@@ -170,4 +218,51 @@ test("automatic highlights, compact focused thread, dark mode and no comments in
     await request.get("/api/comments?key=commenting-demo-v1&status=all")
   ).json();
   expect(after).toEqual(before);
+});
+
+test("raw editor remaps the third repeated phrase and retains its thread", async ({
+  page,
+  request,
+}, info) => {
+  const key = `editor-map-${info.project.name}`;
+  const content =
+    "First: same phrase\n\nSecond: same phrase\n\nThird: same phrase\n\nFourth: same phrase";
+  await request.post("/api/content", { data: { key, content } });
+  const start = content.indexOf("same phrase", content.indexOf("Third:"));
+  await request.post("/api/comments", {
+    data: {
+      key,
+      if_rev: 1,
+      operations: [
+        {
+          action: "create",
+          start,
+          end: start + 11,
+          text: "Third occurrence only",
+        },
+      ],
+    },
+  });
+  await page.goto(`/?key=${key}&persist=1`);
+  await expect(page.locator("mark")).toHaveCount(1);
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  const revised =
+    "# Intro\n\n" +
+    content.replace("Second:", "Revised second:") +
+    "\n\nEnding";
+  await page
+    .getByPlaceholder("Enter your markdown content here...")
+    .fill(revised);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.locator("mark")).toHaveCount(1);
+  await expect(page.locator("mark").locator("..")).toHaveText(
+    "Third: same phrase",
+  );
+  const state = await (await request.get(`/api/comments?key=${key}`)).json();
+  expect(state.comments[0].location.start).toBe(
+    revised.indexOf("same phrase", revised.indexOf("Third:")),
+  );
+  expect(state.comments[0].anchor.position.start).toBe(
+    state.comments[0].location.start,
+  );
 });

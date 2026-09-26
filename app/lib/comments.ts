@@ -61,9 +61,6 @@ export function applyComments(
         throw new Error("Invalid source selection (maximum 8000 characters)");
       if (next.length >= 100) throw new Error("Maximum 100 threads per note");
       const anchor = quoteAt(content, op.start, op.end);
-      const location = locate(content, anchor);
-      if (location.state !== "attached" || location.start !== op.start)
-        throw new Error("Selection is ambiguous; select more surrounding text");
       next.push({
         id: crypto.randomUUID(),
         anchor,

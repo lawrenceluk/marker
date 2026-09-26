@@ -91,7 +91,10 @@ test("real Lua: API races, combined edit/resolve, lifecycle, isolation and valid
       ).status,
       409,
     );
-    assert.equal((await notes.readNote("fixture", true))?.content, "goodbye world");
+    assert.equal(
+      (await notes.readNote("fixture", true))?.content,
+      "goodbye world",
+    );
     // A content-only writer and a comment writer share one revision and cannot overwrite each other.
     const mixed = await Promise.all([
       notes.writeNote("fixture", "new text", { ifRev: 4 }),
@@ -152,6 +155,128 @@ test("real Lua: API races, combined edit/resolve, lifecycle, isolation and valid
       200,
     );
     assert.equal((await notes.readNote("fixture", true))?.comments.length, 1);
+    const contentApi = await import("../app/api/content/route");
+    const { locateThreads } = await import("../app/lib/comments");
+    const repeated =
+      "first: same phrase\nsecond: same phrase\nthird: same phrase\nfourth: same phrase";
+    const contentPost = (body: unknown) =>
+      contentApi.POST(
+        new NextRequest("http://localhost/api/content", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      );
+    await notes.deleteNote("fixture");
+    assert.equal(
+      (await contentPost({ key: "fixture", content: repeated, ttl: 120 }))
+        .status,
+      200,
+    );
+    const start = repeated.indexOf("same phrase", repeated.indexOf("third:"));
+    assert.equal(
+      (
+        await post({
+          key: "fixture",
+          if_rev: 1,
+          operations: [
+            {
+              action: "create",
+              start,
+              end: start + 11,
+              text: "Third occurrence",
+            },
+          ],
+        })
+      ).status,
+      200,
+    );
+    const thirdId = (await (await get()).json()).comments[0].id;
+    const updated =
+      "Before\n" + repeated.replace("second:", "longer second:") + "\nAfter";
+    // Old clients supply content only, with no if_rev and no knowledge of threads.
+    assert.equal(
+      (await contentPost({ key: "fixture", content: updated })).status,
+      200,
+    );
+    let state = await (await get()).json();
+    assert.equal(
+      state.comments[0].location.start,
+      updated.indexOf("same phrase", updated.indexOf("third:")),
+    );
+    const pttlBefore = await fixture.client.pTTL(
+      "marker-commenting-preview-v1:note:fixture",
+    );
+    const oldOffset = state.comments[0].location.start;
+    const concurrent = await Promise.all([
+      contentPost({ key: "fixture", content: "Prefix", mode: "prepend" }),
+      contentPost({ key: "fixture", content: "Suffix", mode: "append" }),
+    ]);
+    assert.deepEqual(
+      concurrent.map((r) => r.status),
+      [200, 200],
+    );
+    state = await (await get()).json();
+    assert.equal(state.content, "Prefix\n" + updated + "\nSuffix");
+    assert.equal(state.comments[0].location.start, oldOffset + 7);
+    assert.equal(state.rev, 5);
+    const pttlAfter = await fixture.client.pTTL(
+      "marker-commenting-preview-v1:note:fixture",
+    );
+    assert.ok(pttlAfter > 0 && pttlAfter <= pttlBefore);
+    // Revision-checked writers cannot commit maps computed against a stale source.
+    const safeRev = state.rev;
+    const checked = await Promise.all([
+      contentPost({
+        key: "fixture",
+        content: "checked\n" + state.content,
+        if_rev: safeRev,
+      }),
+      post({
+        key: "fixture",
+        if_rev: safeRev,
+        content: state.content + "\nreviewed",
+        operations: [{ action: "reply", id: thirdId, text: "Review" }],
+      }),
+    ]);
+    assert.deepEqual(checked.map((r) => r.status).sort(), [200, 409]);
+    state = await (await get()).json();
+    assert.equal(
+      state.comments[0].location.start,
+      state.content.indexOf("same phrase", state.content.indexOf("third:")),
+    );
+    const rewritten = state.content.replace(
+      "third: same phrase",
+      "third: new text",
+    );
+    const edited = await post({
+      key: "fixture",
+      if_rev: state.rev,
+      content: rewritten,
+      operations: [
+        { action: "reply", id: thirdId, text: "Edited" },
+        { action: "resolve", id: thirdId },
+      ],
+    });
+    assert.equal(edited.status, 200);
+    const editedBody = await edited.json();
+    assert.equal(editedBody.comments[0].location.state, "outdated");
+    assert.equal(editedBody.comments[0].anchor.position, null);
+    await notes.renameNote("fixture", "mapped-renamed");
+    const renamed = await notes.readNote("mapped-renamed", true);
+    assert.equal(renamed?.comments[0].anchor.position, null);
+    assert.equal(
+      locateThreads(renamed!.content, renamed!.comments)[0].location.state,
+      "outdated",
+    );
+    assert.ok(
+      (await fixture.client.pTTL(
+        "marker-commenting-preview-v1:note:mapped-renamed",
+      )) > 0,
+    );
+    await notes.writeNote("mapped-renamed", rewritten, { ttl: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    assert.equal(await notes.readNote("mapped-renamed", true), null);
   } finally {
     await fixture.close();
   }

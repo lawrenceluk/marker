@@ -82,19 +82,19 @@ export async function POST(request: NextRequest) {
   }
   const content = body.content ?? before.content;
   const result = await commitComments(key, before, content, comments);
-  if (result !== "ok")
+  if (result.status !== "ok")
     return json(
       {
         error:
-          result === "missing"
+          result.status === "missing"
             ? "Note not found"
             : "Note or comments changed; reload and review before retrying",
       },
-      result === "missing" ? 404 : 409,
+      result.status === "missing" ? 404 : 409,
     );
   return json({
     rev: before.rev + 1,
     content,
-    comments: locateThreads(content, comments),
+    comments: locateThreads(content, result.comments),
   });
 }

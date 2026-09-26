@@ -11,11 +11,19 @@ import { flushSync } from "react-dom";
 import { Check, MessageCircle, RotateCcw, Send, X } from "lucide-react";
 import { ContentViewer } from "./ContentViewer";
 import { ToolbarButton } from "./ToolbarButton";
+import { plainQuote, selectionBubble } from "../lib/comment-presentation";
 import { sourceSelection } from "../lib/comment-markup";
 import type { CommentOperation, LocatedThread } from "../lib/comments";
 
 type Snapshot = { rev: number; content: string; comments: LocatedThread[] };
-type Selection = { start: number; end: number; x: number; y: number };
+type Selection = {
+  start: number;
+  end: number;
+  x: number;
+  y: number;
+  size: number;
+  text: string;
+};
 export function CommentedViewer({
   content,
   rev,
@@ -77,17 +85,39 @@ export function CommentedViewer({
       const range = window.getSelection()?.rangeCount
         ? window.getSelection()!.getRangeAt(0)
         : null;
-      const rect = range ? Array.from(range.getClientRects()).at(-1) : null;
+      const bubble = range
+        ? selectionBubble(
+            Array.from(range.getClientRects()),
+            window.innerWidth,
+            window.innerHeight,
+            window.matchMedia("(pointer: coarse)").matches,
+          )
+        : null;
+      // Avoid visible fixed/absolute extension controls when the page can observe them.
+      const spot =
+        bubble?.candidates.find((p) => {
+          const element = document.elementFromPoint(
+            p.x + bubble.size / 2,
+            p.y + bubble.size / 2,
+          );
+          if (!element || element.closest(".comment-selection")) return true;
+          for (
+            let el: Element | null = element;
+            el && el !== document.body;
+            el = el.parentElement
+          ) {
+            if (["fixed", "absolute"].includes(getComputedStyle(el).position))
+              return false;
+          }
+          return true;
+        }) ?? bubble?.candidates[0];
       setSelection(
-        source && rect
+        source && spot && bubble
           ? {
               ...source,
-              x: Math.max(8, Math.min(rect.right + 8, window.innerWidth - 48)),
-              // Below the last line leaves the native callout above the selection alone.
-              y: Math.max(
-                8,
-                Math.min(rect.bottom + 20, window.innerHeight - 48),
-              ),
+              ...spot,
+              size: bubble.size,
+              text: window.getSelection()?.toString() ?? "",
             }
           : null,
       );
@@ -221,11 +251,18 @@ export function CommentedViewer({
         <ToolbarButton
           label="Comment on selection"
           className="comment-selection group"
-          style={{ left: selection.x, top: selection.y }}
-          onPointerDown={(e) => { if (e.pointerType === "mouse") e.preventDefault(); }}
+          style={{
+            left: selection.x,
+            top: selection.y,
+            width: selection.size,
+            height: selection.size,
+          }}
+          onPointerDown={(e) => {
+            if (e.pointerType === "mouse") e.preventDefault();
+          }}
           onClick={(e) => open("new", e.currentTarget.getBoundingClientRect())}
         >
-          <MessageCircle size={18} />
+          <MessageCircle size={14} />
         </ToolbarButton>
       )}
       <dialog
@@ -261,10 +298,9 @@ export function CommentedViewer({
             </label>
           ) : (
             <blockquote className="comment-quote">
-              {thread?.anchor.exact ??
-                (selection
-                  ? content.slice(selection.start, selection.end)
-                  : "")}
+              {thread
+                ? plainQuote(thread.anchor.exact)
+                : (selection?.text ?? "")}
             </blockquote>
           )}
           {thread && (
