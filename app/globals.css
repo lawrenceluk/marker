@@ -71,7 +71,7 @@ body {
 }
 
 .prose a {
-  color: var(--color-blue-500);
+  color: var(--color-blue-600);
   text-decoration: underline;
   word-break: break-all;
   overflow-wrap: break-word;
@@ -79,7 +79,7 @@ body {
 }
 
 .prose a:hover {
-  color: var(--color-blue-600);
+  color: var(--color-blue-700);
 }
 
 .prose code {
