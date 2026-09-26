@@ -30,7 +30,6 @@ interface NoteAppProps {
   initialNote: { content: string; rev: number } | null;
   /** Whether this session is a persistent document link. */
   initialPersist: boolean;
-  tapSelectPreview: boolean;
 }
 
 const RANDOMIZE_ATTEMPTS = 16;
@@ -39,7 +38,6 @@ export function NoteApp({
   initialKeyLabel,
   initialNote,
   initialPersist,
-  tapSelectPreview,
 }: NoteAppProps) {
   const [appState, setAppState] = useState<AppState>(
     initialKeyLabel ? (initialNote ? "viewing" : "editing") : "idle"
@@ -441,7 +439,7 @@ export function NoteApp({
         )}
 
         {appState === "viewing" && (
-          <CommentedViewer key={rawKey ?? initialKeyLabel} tapSelectPreview={tapSelectPreview} content={content} rev={rev ?? 0} onChange={handleCommentChange} onRevision={noticeRevision} onComposingChange={setIsComposing} toolbar={commentsButton => <>
+          <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} rev={rev ?? 0} onChange={handleCommentChange} onRevision={noticeRevision} onComposingChange={setIsComposing} toolbar={commentsButton => <>
             <NoteToolbar
               commentsButton={commentsButton}
               key={deleteResetKey}

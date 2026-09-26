@@ -34,7 +34,6 @@ export function CommentedViewer({
   onRevision,
   onComposingChange,
   toolbar,
-  tapSelectPreview,
 }: {
   content: string;
   rev: number;
@@ -42,7 +41,6 @@ export function CommentedViewer({
   onRevision: (rev: number) => void;
   onComposingChange: (composing: boolean) => void;
   toolbar: (commentsButton: ReactNode) => ReactNode;
-  tapSelectPreview: boolean;
 }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -321,7 +319,7 @@ export function CommentedViewer({
   }
 
   async function tapWord(x: number, y: number) {
-    if (!tapSelectPreview || !root.current || dialog.current?.open) return;
+    if (!root.current || dialog.current?.open) return;
     const offset = tapSourceOffset(root.current, x, y, content);
     if (offset === null) return;
     const candidates = tapCandidates(content, offset);
@@ -476,15 +474,15 @@ export function CommentedViewer({
       )}
       <div
         ref={root}
-        className={tapSelectPreview ? "tap-select" : undefined}
+        className="tap-select"
         onMouseDownCapture={(e) => {
-          if (tapSelectPreview && !window.matchMedia("(pointer: coarse)").matches && e.detail >= 2) {
+          if (!window.matchMedia("(pointer: coarse)").matches && e.detail >= 2) {
             suppressDoubleClick.current = true;
             e.preventDefault(); // The browser must not flash its native word selection.
           }
         }}
         onDoubleClick={(e) => {
-          if (tapSelectPreview && !window.matchMedia("(pointer: coarse)").matches) {
+          if (!window.matchMedia("(pointer: coarse)").matches) {
             e.preventDefault();
             suppressDoubleClick.current = false;
             void tapWord(e.clientX, e.clientY);
@@ -500,7 +498,7 @@ export function CommentedViewer({
             open(mark.dataset.comments!.split(" ")[0], mark.getBoundingClientRect());
             return;
           }
-          if (!tapSelectPreview || !window.matchMedia("(pointer: coarse)").matches) return;
+          if (!window.matchMedia("(pointer: coarse)").matches) return;
           if ((e.target as HTMLElement).closest("a, button, input, textarea, select, [contenteditable], [role='button']")) {
             lastTouchTap.current = null;
             return;

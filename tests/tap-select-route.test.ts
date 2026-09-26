@@ -16,7 +16,7 @@ function post(body: unknown = sample) {
   return POST(new Request("http://localhost/api/tap-select", { method: "POST", body: JSON.stringify(body) }));
 }
 
-test("preview Choice ranking and hard production gate", async () => {
+test("Choice ranking uses the same bounded request in Preview and Production", async () => {
   const oldEnv = process.env.VERCEL_ENV, oldKey = process.env.TYPESAFE_API_KEY, oldFetch = global.fetch;
   let calls = 0;
   let chosenText: string = sample.candidates[1].text;
@@ -27,6 +27,10 @@ test("preview Choice ranking and hard production gate", async () => {
       calls++;
       const payload = JSON.parse(String(init?.body));
       assert.equal(payload.model, "jev-1.13.0");
+      assert.deepEqual(Object.keys(payload).sort(), ["model", "questions", "state"]);
+      assert.deepEqual(Object.keys(payload.state).sort(), ["nearby_passage", "tapped_text"]);
+      assert.equal(payload.state.nearby_passage, sample.context);
+      assert.equal(payload.state.tapped_text, "focused");
       assert.ok(!JSON.stringify(payload).includes("synthetic-test-only"));
       assert.match(payload.questions.span.instructions, /shortest meaningful phrase/u);
       assert.match(payload.questions.span.instructions, /full sentence only/u);
@@ -42,9 +46,27 @@ test("preview Choice ranking and hard production gate", async () => {
     const fullSentence = await (await post()).json();
     assert.equal(fullSentence.ranking[0], 3, "an explicit full-sentence judgment remains possible");
     process.env.VERCEL_ENV = "production";
-    const production = await post();
-    assert.equal(production.status, 404);
-    assert.equal(calls, 2, "production with a key must never call TypeSafe");
+    const production = await (await post()).json();
+    assert.equal(production.ranking[0], 3);
+    assert.equal(calls, 3, "production uses the same approved request boundary");
+  } finally {
+    process.env.VERCEL_ENV = oldEnv;
+    process.env.TYPESAFE_API_KEY = oldKey;
+    global.fetch = oldFetch;
+  }
+});
+
+test("the route rejects broader note context and candidate batches before egress", async () => {
+  const oldEnv = process.env.VERCEL_ENV, oldKey = process.env.TYPESAFE_API_KEY, oldFetch = global.fetch;
+  let calls = 0;
+  try {
+    process.env.VERCEL_ENV = "production";
+    process.env.TYPESAFE_API_KEY = "synthetic-test-only";
+    global.fetch = (async () => { calls++; throw new Error("Unexpected egress"); }) as typeof fetch;
+    assert.equal((await post({ ...sample, context: "x".repeat(2201) })).status, 400);
+    assert.equal((await post({ ...sample, candidates: Array(16).fill(sample.candidates[0]) })).status, 400);
+    assert.equal((await post({ ...sample, candidates: [{ ...sample.candidates[0], text: "x".repeat(701) }] })).status, 400);
+    assert.equal(calls, 0);
   } finally {
     process.env.VERCEL_ENV = oldEnv;
     process.env.TYPESAFE_API_KEY = oldKey;

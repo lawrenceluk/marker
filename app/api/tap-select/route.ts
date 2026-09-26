@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { calibrateJevRanking, heuristicRanking, type TapCandidate } from "@/app/lib/tap-select";
 
-// Preview-only route: run near TypeSafe's currently West Coast service.
+// Run near TypeSafe's currently West Coast service.
 export const preferredRegion = "sfo1";
 
 const MAX_BODY = 8_192;
@@ -48,7 +48,6 @@ function stableHash(text: string) {
 }
 
 export async function POST(request: Request) {
-  if (process.env.VERCEL_ENV !== "preview") return reply({ error: "Not found" }, 404);
   const raw = await boundedBody(request);
   if (!raw) return reply({ error: "Request too large" }, 413);
   let body: unknown;

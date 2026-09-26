@@ -115,7 +115,6 @@ export default async function Home({
       initialKeyLabel={key ? maskKey(key) : null}
       initialNote={note ? { content: note.content, rev: note.rev } : null}
       initialPersist={persist}
-      tapSelectPreview={process.env.VERCEL_ENV === "preview"}
     />
     </>
   );
