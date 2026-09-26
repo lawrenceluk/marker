@@ -1,4 +1,7 @@
 import { redis } from "./redis";
+import type { Thread } from "./comments";
+import { remapComments } from "./remap-comments";
+import { storagePrefix } from "./namespace";
 
 /** Maximum size of a stored note, in bytes. */
 export const MAX_CONTENT_BYTES = 1024 * 1024; // 1 MiB
@@ -9,6 +12,7 @@ export type WriteMode = (typeof WRITE_MODES)[number];
 
 export type Note = {
   content: string;
+  comments: Thread[];
   rev: number;
   updatedAt: number | null;
   createdAt: number | null;
@@ -16,7 +20,13 @@ export type Note = {
 };
 
 export type WriteResult =
-  | { ok: true; rev: number; updatedAt: number; expiresAt: number | null; size: number }
+  | {
+      ok: true;
+      rev: number;
+      updatedAt: number;
+      expiresAt: number | null;
+      size: number;
+    }
   | { ok: false; reason: "conflict"; rev: number; content: string }
   | { ok: false; reason: "too_large"; size: number };
 
@@ -26,9 +36,9 @@ export type RenameResult =
   | { ok: false; reason: "not_found" };
 
 /** Note hash: fields `content`, `rev`, `updated_at`, `created_at`. */
-const noteKey = (key: string) => `note:${key}`;
+const noteKey = (key: string) => `${storagePrefix()}note:${key}`;
 /** Pre-metadata schema: a bare string. Read through to it, migrate on write. */
-const legacyKey = (key: string) => `content:${key}`;
+const legacyKey = (key: string) => `${storagePrefix()}content:${key}`;
 
 /**
  * KEYS: note hash, legacy string.
@@ -39,77 +49,39 @@ local h, legacy = KEYS[1], KEYS[2]
 
 if redis.call('EXISTS', h) == 1 then
   local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at')
-  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)) }
+  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]' }
 end
 
 local old = redis.call('GET', legacy)
 if old then
-  return { old, '0', '', '', '-1' }
+  return { old, '0', '', '', '-1', '[]' }
 end
 
 return nil
 `;
 
-/**
- * KEYS: note hash, legacy string.
- * ARGV: mode, payload, now(ms), ifRev ('' = unconditional),
- *       ttl ('' = leave as-is, '0' = clear, N = seconds), maxBytes.
- *
- * Read-modify-write happens inside the script so concurrent writers can't
- * interleave: this is what makes append and if_rev safe for multiple agents.
- */
-const WRITE_SCRIPT = `
+/** All writes commit content + anchors under the snapshot revision. TTL stays inside Lua. */
+const COMMIT_SCRIPT = `
 local h, legacy = KEYS[1], KEYS[2]
-local mode, payload, now, ifRev, ttl = ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5]
-local maxBytes = tonumber(ARGV[6])
-
-local current, rev, created = '', 0, now
-
-if redis.call('EXISTS', h) == 1 then
-  local f = redis.call('HMGET', h, 'content', 'rev', 'created_at')
-  current = f[1] or ''
-  rev = tonumber(f[2]) or 0
-  created = f[3] or now
-else
-  current = redis.call('GET', legacy) or ''
+local exists = redis.call('EXISTS', h) == 1
+local old = not exists and redis.call('GET', legacy) or false
+local present = exists or old ~= false
+local rev = tonumber(redis.call('HGET', h, 'rev')) or 0
+local current = exists and (redis.call('HGET', h, 'content') or '') or old or ''
+local comments = redis.call('HGET', h, 'comments') or '[]'
+if ARGV[7] == '1' and not present then return {'missing'} end
+if (ARGV[7] == '1') ~= present or rev ~= tonumber(ARGV[1]) or current ~= ARGV[2] or comments ~= ARGV[3] then
+  return {'conflict', tostring(rev), current}
 end
-
-if ifRev ~= '' and tonumber(ifRev) ~= rev then
-  return { 'conflict', tostring(rev), current }
-end
-
-local nextContent
-if mode == 'append' then
-  if #current > 0 and string.sub(current, -1) ~= '\\n' then
-    nextContent = current .. '\\n' .. payload
-  else
-    nextContent = current .. payload
-  end
-elseif mode == 'prepend' then
-  if #payload > 0 and #current > 0 and string.sub(payload, -1) ~= '\\n' then
-    nextContent = payload .. '\\n' .. current
-  else
-    nextContent = payload .. current
-  end
-else
-  nextContent = payload
-end
-
-if #nextContent > maxBytes then
-  return { 'too_large', tostring(#nextContent) }
-end
-
-rev = rev + 1
-redis.call('HSET', h, 'content', nextContent, 'rev', rev, 'updated_at', now, 'created_at', created)
+if #ARGV[4] > tonumber(ARGV[9]) then return {'too_large', tostring(#ARGV[4])} end
+local pttl = redis.call('PTTL', exists and h or legacy)
+local created = redis.call('HGET', h, 'created_at') or ARGV[6]
+redis.call('HSET', h, 'content', ARGV[4], 'comments', ARGV[5], 'rev', rev + 1, 'updated_at', ARGV[6], 'created_at', created)
+if ARGV[8] == '0' then redis.call('PERSIST', h)
+elseif ARGV[8] ~= '' then redis.call('EXPIRE', h, tonumber(ARGV[8]))
+elseif not exists and pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
 redis.call('DEL', legacy)
-
-if ttl == '0' then
-  redis.call('PERSIST', h)
-elseif ttl ~= '' then
-  redis.call('EXPIRE', h, tonumber(ttl))
-end
-
-return { 'ok', tostring(rev), tostring(redis.call('PTTL', h)), tostring(#nextContent) }
+return {'ok', tostring(rev + 1), tostring(redis.call('PTTL', h)), tostring(#ARGV[4])}
 `;
 
 /**
@@ -168,18 +140,22 @@ function toNumberOrNull(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export async function readNote(key: string): Promise<Note | null> {
+export async function readNote(
+  key: string,
+  includeComments = false,
+): Promise<Note | null> {
   const result = await redis.eval<string[], string[] | null>(
     READ_SCRIPT,
     [noteKey(key), legacyKey(key)],
-    []
+    [includeComments ? "1" : "0"],
   );
 
   if (!result) return null;
 
-  const [content, rev, updatedAt, createdAt, pttl] = result;
+  const [content, rev, updatedAt, createdAt, pttl, comments] = result;
   return {
     content,
+    comments: JSON.parse(comments),
     rev: Number(rev) || 0,
     updatedAt: toNumberOrNull(updatedAt),
     createdAt: toNumberOrNull(createdAt),
@@ -187,37 +163,39 @@ export async function readNote(key: string): Promise<Note | null> {
   };
 }
 
-export async function writeNote(
+async function commitNote(
   key: string,
+  before: Note | null,
   content: string,
-  options: { mode?: WriteMode; ifRev?: number; ttl?: number | null } = {}
-): Promise<WriteResult> {
-  const { mode = "overwrite", ifRev, ttl } = options;
+  comments: Thread[],
+  ttl?: number | null,
+): Promise<WriteResult | { ok: false; reason: "missing" }> {
   const now = Date.now();
-
   const result = await redis.eval<string[], string[]>(
-    WRITE_SCRIPT,
+    COMMIT_SCRIPT,
     [noteKey(key), legacyKey(key)],
     [
-      mode,
+      String(before?.rev ?? 0),
+      before?.content ?? "",
+      JSON.stringify(before?.comments ?? []),
       content,
+      JSON.stringify(comments),
       String(now),
-      ifRev === undefined ? "" : String(ifRev),
+      before ? "1" : "0",
       ttl === undefined ? "" : String(ttl ?? 0),
       String(MAX_CONTENT_BYTES),
-    ]
+    ],
   );
-
-  const [status] = result;
-
-  if (status === "conflict") {
-    return { ok: false, reason: "conflict", rev: Number(result[1]), content: result[2] };
-  }
-
-  if (status === "too_large") {
+  if (result[0] === "missing") return { ok: false, reason: "missing" };
+  if (result[0] === "conflict")
+    return {
+      ok: false,
+      reason: "conflict",
+      rev: Number(result[1]),
+      content: result[2],
+    };
+  if (result[0] === "too_large")
     return { ok: false, reason: "too_large", size: Number(result[1]) };
-  }
-
   return {
     ok: true,
     rev: Number(result[1]),
@@ -227,9 +205,50 @@ export async function writeNote(
   };
 }
 
+export async function writeNote(
+  key: string,
+  content: string,
+  options: { mode?: WriteMode; ifRev?: number; ttl?: number | null } = {},
+): Promise<WriteResult> {
+  const { mode = "overwrite", ifRev, ttl } = options;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const before = await readNote(key, true);
+    const current = before?.content ?? "",
+      rev = before?.rev ?? 0;
+    if (ifRev !== undefined && ifRev !== rev)
+      return { ok: false, reason: "conflict", rev, content: current };
+    const next =
+      mode === "append"
+        ? current + (current && !current.endsWith("\n") ? "\n" : "") + content
+        : mode === "prepend"
+          ? content +
+            (content && current && !content.endsWith("\n") ? "\n" : "") +
+            current
+          : content;
+    const size = Buffer.byteLength(next, "utf8");
+    if (size > MAX_CONTENT_BYTES)
+      return { ok: false, reason: "too_large", size };
+    const comments = remapComments(current, next, before?.comments ?? [], mode);
+    const result = await commitNote(key, before, next, comments, ttl);
+    if (result.ok || result.reason === "too_large") return result;
+    if (ifRev !== undefined)
+      return result.reason === "missing"
+        ? { ok: false, reason: "conflict", rev: 0, content: "" }
+        : result;
+    // Old unconditional clients retain append/overwrite behavior: reread, rediff, CAS.
+  }
+  const latest = await readNote(key);
+  return {
+    ok: false,
+    reason: "conflict",
+    rev: latest?.rev ?? 0,
+    content: latest?.content ?? "",
+  };
+}
+
 export async function renameNote(
   from: string,
-  to: string
+  to: string,
 ): Promise<RenameResult> {
   if (from === to) {
     return { ok: true };
@@ -238,7 +257,7 @@ export async function renameNote(
   const result = await redis.eval<string[], string[]>(
     RENAME_SCRIPT,
     [noteKey(from), legacyKey(from), noteKey(to), legacyKey(to)],
-    []
+    [],
   );
 
   const [status] = result;
@@ -254,4 +273,20 @@ export async function renameNote(
 /** Remove both the hash note and any legacy string for this key. */
 export async function deleteNote(key: string): Promise<void> {
   await redis.del(noteKey(key), legacyKey(key));
+}
+
+/** Operations and mapped anchors share the content commit; no separate anchor write. */
+export async function commitComments(
+  key: string,
+  before: Note,
+  content: string,
+  comments: Thread[],
+): Promise<
+  { status: "ok"; comments: Thread[] } | { status: "conflict" | "missing" }
+> {
+  const mapped = remapComments(before.content, content, comments);
+  const result = await commitNote(key, before, content, mapped);
+  if (!result.ok)
+    return { status: result.reason === "missing" ? "missing" : "conflict" };
+  return { status: "ok", comments: mapped };
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Globe, Home, KeyRound, Link, Pencil, RefreshCw, Search } from "lucide-react";
 import { CopyButton } from "./CopyButton";
 import { DeleteButton } from "./DeleteButton";
@@ -32,6 +33,7 @@ function GlobeOff({ size = 18 }: { size?: number }) {
 }
 
 interface NoteToolbarProps {
+  commentsButton?: ReactNode;
   onHome: () => void;
   /** When false, only the home control is shown (idle / editing). */
   showNoteTools?: boolean;
@@ -51,6 +53,7 @@ interface NoteToolbarProps {
 }
 
 export function NoteToolbar({
+  commentsButton,
   onHome,
   showNoteTools = true,
   persist = false,
@@ -68,7 +71,7 @@ export function NoteToolbar({
   deleteDisabled = false,
 }: NoteToolbarProps) {
   return (
-    <div className="flex items-center justify-between gap-2 mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800 overflow-visible">
+    <div className="flex flex-wrap items-center justify-between gap-2 mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800 overflow-visible">
       <div className="flex items-center gap-1">
         <ToolbarButton
           label="Home"
@@ -119,6 +122,7 @@ export function NoteToolbar({
               <RefreshCw size={18} />
             </ToolbarButton>
           )}
+          {commentsButton}
           <CopyButton text={content} label="Copy all" icon tooltipAlign="end" />
           <ToolbarButton label="Edit" onClick={onEdit}>
             <Pencil size={18} />

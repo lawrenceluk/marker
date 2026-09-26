@@ -301,3 +301,9 @@ Make sure to set up your Upstash Redis instance and configure the environment va
 ## License
 
 Private project.
+
+## Commenting prototype
+
+See [the design and API contract](docs/commenting-design.md) and [proposed Marker skill addition](docs/marker-skill-proposal.md). This branch is for an unmerged Preview trial. Preview note keys use a fixed isolated Redis namespace; production keys are not addressed. Open `/?key=commenting-demo-v1&persist=1` on the Preview deployment to seed/open the synthetic demo. Comments are always available in view mode: select text, tap the nearby speech-bubble icon, type in the already-focused composer and send. The smaller bubble sits beside the end of the last selected line. The toolbar comments icon opens threads. Source positions map atomically through all content writes, preserving comments on repeated phrases; changed quotes stay Outdated. Comments are labeled You in the browser and Agent through the explicit-key API.
+
+Tests use disposable local Redis, never hosted credentials. Install `redis-server` and OpenSSL, run `npm ci`, then `npm test` (anchor, API/Lua concurrency and existing preview tests). For browser tests, run `npx playwright install chromium webkit`, then `npm run test:browser`; this builds the production app and runs Chromium plus iPhone-sized WebKit against a temporary HTTPS server and local Redis. The browser suite covers rendered selection, create/reply/resolve/reopen, atomic agent edits, demo idempotency and absence of comments from initial HTML. It does not simulate actual iOS touch handles. Run `npm run lint` and `npm run typecheck` for static checks.
