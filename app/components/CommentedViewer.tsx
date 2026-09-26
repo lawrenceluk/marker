@@ -79,19 +79,26 @@ export function CommentedViewer({
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
+    let frame = 0;
+    let shown: { start: number; end: number } | null = null;
     let held = false;
     let keyHeld = false;
     let touch = window.matchMedia("(pointer: coarse)").matches;
+    function hitTesting(enabled: boolean) {
+      const button = document.querySelector<HTMLElement>(".comment-selection");
+      if (button) button.style.pointerEvents = enabled ? "" : "none";
+    }
     function hide() {
       clearTimeout(timer);
+      cancelAnimationFrame(frame);
+      frame = 0;
+      shown = null;
       if (dialog.current?.open) return; // Keep the draft's source range.
-      // Disable hit testing synchronously, before React removes the button.
-      const button = document.querySelector<HTMLElement>(".comment-selection");
-      if (button) button.style.pointerEvents = "none";
+      hitTesting(false); // Disable synchronously, before React removes the button.
       setSelection(null);
     }
-    function position() {
-      if (held || keyHeld || dialog.current?.open) return;
+    function position(follow = false) {
+      if ((!follow && held) || keyHeld || dialog.current?.open) return;
       const source = root.current ? sourceSelection(root.current) : null;
       const range = window.getSelection()?.rangeCount
         ? window.getSelection()!.getRangeAt(0)
@@ -122,6 +129,7 @@ export function CommentedViewer({
           }
           return true;
         }) ?? bubble?.candidates[0];
+      shown = source && spot && bubble ? source : null;
       setSelection(
         source && spot && bubble
           ? {
@@ -135,14 +143,39 @@ export function CommentedViewer({
     }
     function settle() {
       clearTimeout(timer);
-      if (!held && !keyHeld)
-        timer = setTimeout(position, touch ? 350 : 140);
+      if ((!held && !keyHeld) || (touch && shown))
+        timer = setTimeout(() => {
+          position(touch && !!shown);
+          hitTesting(true); // Never leave a settled native adjustment untappable.
+        }, touch ? 350 : 140);
     }
     function changed() {
-      hide();
-      // Native iOS handle adjustments may only emit selectionchange.
-      // Each change hides the icon and restarts the quiet-period timer.
-      if (!window.getSelection()?.isCollapsed) settle();
+      if (dialog.current?.open) return;
+      const source = root.current ? sourceSelection(root.current) : null;
+      if (!source) return hide();
+      if (touch && shown && source.start < shown.end && source.end > shown.start) {
+        // iOS often exposes only selectionchange for native handle drags.
+        // Follow overlapping ranges; a disjoint range is a fresh selection.
+        hitTesting(false);
+        if (!frame) frame = requestAnimationFrame(() => {
+          frame = 0;
+          position(true);
+        });
+        settle();
+      } else {
+        hide();
+        settle();
+      }
+    }
+    function beginTouch() {
+      touch = true;
+      held = true;
+      // Native handles cannot reliably be distinguished from a fresh long press
+      // until the range changes. Prefer following an existing selection.
+      if (shown) {
+        hitTesting(false);
+        settle();
+      } else hide();
     }
     function onBubble(event: Event) {
       return event.target instanceof Element &&
@@ -150,7 +183,8 @@ export function CommentedViewer({
     }
     function pointerStart(event: PointerEvent) {
       if (event.button !== 0 || onBubble(event)) return;
-      touch = event.pointerType === "touch";
+      if (event.pointerType === "touch") return beginTouch();
+      touch = false;
       held = true;
       hide();
     }
@@ -166,9 +200,7 @@ export function CommentedViewer({
     }
     function touchStart(event: TouchEvent) {
       if (onBubble(event)) return;
-      touch = true;
-      held = true;
-      hide();
+      beginTouch();
     }
     function touchEnd(event: TouchEvent) {
       if (!held || event.touches.length) return;
@@ -188,8 +220,15 @@ export function CommentedViewer({
     }
     function pointerCancel(event: PointerEvent) {
       // iOS can hand a long press to native selection before the finger lifts.
-      if (event.pointerType === "touch") hide();
-      else cancel();
+      if (event.pointerType === "touch") {
+        if (shown) settle();
+        else hide();
+      } else cancel();
+    }
+    function touchCancel() {
+      held = false;
+      if (shown) settle();
+      else hide();
     }
     function viewport() {
       const view = window.visualViewport;
@@ -211,7 +250,7 @@ export function CommentedViewer({
     document.addEventListener("touchstart", touchStart, { capture: true, passive: true });
     document.addEventListener("touchend", touchEnd, true);
     document.addEventListener("pointercancel", pointerCancel, true);
-    document.addEventListener("touchcancel", cancel, true);
+    document.addEventListener("touchcancel", touchCancel, true);
     document.addEventListener("keydown", keyboard, true);
     document.addEventListener("keyup", keyboard, true);
     window.addEventListener("blur", cancel);
@@ -220,6 +259,7 @@ export function CommentedViewer({
     window.visualViewport?.addEventListener("scroll", viewport);
     return () => {
       clearTimeout(timer);
+      cancelAnimationFrame(frame);
       document.removeEventListener("selectionchange", changed);
       document.removeEventListener("pointerdown", pointerStart, true);
       document.removeEventListener("pointerup", pointerEnd, true);
@@ -227,7 +267,7 @@ export function CommentedViewer({
       document.removeEventListener("touchstart", touchStart, true);
       document.removeEventListener("touchend", touchEnd, true);
       document.removeEventListener("pointercancel", pointerCancel, true);
-      document.removeEventListener("touchcancel", cancel, true);
+      document.removeEventListener("touchcancel", touchCancel, true);
       document.removeEventListener("keydown", keyboard, true);
       document.removeEventListener("keyup", keyboard, true);
       window.removeEventListener("blur", cancel);

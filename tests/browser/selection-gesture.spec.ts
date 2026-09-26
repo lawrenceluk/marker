@@ -44,12 +44,50 @@ test("selection bubble waits for gesture completion and never intercepts a drag"
     await expect(icon).toHaveCount(0);
     await page.clock.runFor(120);
     await expect(icon).toBeVisible();
-    await text.evaluate((element) => {
-      window.getSelection()!.getRangeAt(0).setEnd(element.firstChild!, 25);
+    // Once shown, native adjustments follow continuously, including a touch
+    // handoff that never delivers another touchend to the page.
+    await text.evaluate((element) => element.dispatchEvent(new Event("touchstart", { bubbles: true })));
+    await page.evaluate(() => document.dispatchEvent(new PointerEvent("pointercancel", { pointerType: "touch" })));
+    await expect(icon).toBeVisible();
+    for (const end of [25, 35, 22, 30]) {
+      await text.evaluate((element, end) => {
+        window.getSelection()!.getRangeAt(0).setEnd(element.firstChild!, end);
+        document.dispatchEvent(new Event("selectionchange"));
+      }, end);
+      await expect(icon).toBeVisible();
+      await page.clock.runFor(20); // One animation frame, well before settling.
+      const selected = await page.evaluate(() => Array.from(window.getSelection()!.getRangeAt(0).getClientRects())
+        .sort((a, b) => b.bottom - a.bottom || b.right - a.right)[0].toJSON());
+      const box = await icon.boundingBox();
+      expect(box!.x - selected.right).toBeCloseTo(14, 1);
+      expect(box!.y + box!.height / 2).toBeCloseTo((selected.top + selected.bottom) / 2, 1);
+      await expect(icon).toHaveCSS("pointer-events", "none");
+    }
+    await page.clock.runFor(370);
+    await expect(icon).toBeVisible();
+    await expect(icon).toHaveCSS("pointer-events", "auto");
+    await page.screenshot({ path: "test-results/selection-touch-follow.png" });
+    await icon.tap();
+    await expect(page.getByLabel("Comment as You")).toBeFocused();
+    await expect(page.locator(".comment-quote")).toHaveText(content.slice(0, 30));
+    await page.keyboard.type("Extended quote");
+    await page.getByRole("button", { name: "Send comment", exact: true }).tap();
+    await expect(page.getByRole("dialog")).not.toBeVisible();
+    const snapshot = await (await request.get(`/api/comments?key=${key}`)).json();
+    expect(snapshot.comments[0].anchor.exact).toBe(content.slice(0, 30));
+    // A disjoint selection is new and must wait for the first-appearance delay.
+    await page.locator(".prose").evaluate((root) => {
+      const tail = [...root.querySelectorAll("[data-source-start]")].at(-1)!;
+      tail.dispatchEvent(new Event("touchstart", { bubbles: true }));
+      window.getSelection()!.setBaseAndExtent(tail.firstChild!, 5, tail.firstChild!, 15);
+      const end = new Event("touchend", { bubbles: true });
+      Object.defineProperty(end, "touches", { value: [] });
+      tail.dispatchEvent(end);
       document.dispatchEvent(new Event("selectionchange"));
     });
+    await page.clock.runFor(250);
     await expect(icon).toHaveCount(0);
-    await page.clock.runFor(370);
+    await page.clock.runFor(120);
     await expect(icon).toBeVisible();
   } else {
     const points = await text.evaluate((element) => {
