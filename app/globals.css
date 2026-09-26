@@ -167,11 +167,6 @@ body {
     color: var(--color-zinc-200);
   }
 
-  .prose pre {
-    background: var(--color-zinc-950);
-    color: var(--color-zinc-200);
-  }
-
   .prose pre code {
     background: transparent;
     color: inherit;
