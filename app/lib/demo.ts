@@ -25,7 +25,8 @@ This is a shared synthetic sandbox. Everyone with this demo link can edit it. It
 
 /** Create once, atomically, in Preview only. Never reset an existing demo. */
 export async function ensurePreviewDemo(key: string) {
-  if (process.env.VERCEL_ENV !== "preview" || key !== DEMO_KEY) return;
+  if (process.env.VERCEL_ENV !== "preview") return;
+  if (key !== DEMO_KEY) return;
   const oldContent = CONTENT + "\nThe obsolete launch date is Friday.\n";
   let comments = applyComments(
     oldContent,
@@ -73,6 +74,10 @@ export async function ensurePreviewDemo(key: string) {
     "Agent",
   );
   comments = remapComments(oldContent, CONTENT, comments);
+  await seedPreviewNote(key, CONTENT, comments);
+}
+
+async function seedPreviewNote(key: string, content: string, comments: ReturnType<typeof applyComments>) {
   const prefix = storagePrefix();
   await redis.eval(
     `
@@ -82,6 +87,6 @@ redis.call('EXPIRE', KEYS[1], 604800)
 return 1
 `,
     [`${prefix}note:${key}`, `${prefix}content:${key}`],
-    [CONTENT, JSON.stringify(comments), String(Date.now())],
+    [content, JSON.stringify(comments), String(Date.now())],
   );
 }

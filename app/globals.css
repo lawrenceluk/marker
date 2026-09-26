@@ -226,3 +226,11 @@ body {
 .toolbar-menu-item:hover, .toolbar-menu-item:focus-visible { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
 .toolbar-menu-item:disabled { opacity: .35; }
 .update-nudge { display: block; margin: -8px auto 16px; padding: 5px 10px; border-radius: 999px; font-size: 12px; color: var(--foreground); background: color-mix(in srgb, var(--foreground) 6%, var(--background)); }
+.tap-select { touch-action: manipulation; }
+.comment-auto-tools { position: fixed; z-index: 21; display: flex; align-items: center; gap: 3px; max-width: min(260px, calc(100vw - 8px)); color: var(--foreground); }
+.comment-auto-chip { display: inline-grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); box-shadow: 0 2px 12px rgb(0 0 0 / .18); }
+.comment-auto-chip:disabled { opacity: .35; }
+@media (prefers-color-scheme: dark) { .comment-auto-chip { box-shadow: 0 2px 12px rgb(0 0 0 / .5); outline: 1px solid #ffffff18; } }
+.tap-pending { position: fixed; z-index: 21; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; color: var(--foreground); background: var(--background); box-shadow: 0 2px 10px rgb(0 0 0 / .12); pointer-events: none; }
+.tap-pending::after { content: ""; width: 9px; height: 9px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; opacity: .55; animation: tap-spin .65s linear infinite; }
+@keyframes tap-spin { to { transform: rotate(360deg); } }

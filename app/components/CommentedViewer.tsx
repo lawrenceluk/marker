@@ -8,14 +8,17 @@ import {
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
-import { Check, MessageCircle, RotateCcw, Send, X } from "lucide-react";
+import { Check, MessageCircle, Minus, Plus, RotateCcw, Send, X } from "lucide-react";
 import { ContentViewer } from "./ContentViewer";
 import { ToolbarButton } from "./ToolbarButton";
 import { plainQuote, selectionBubble } from "../lib/comment-presentation";
-import { sourceSelection } from "../lib/comment-markup";
+import { selectSourceRange, sourceSelection, tapSourceOffset } from "../lib/comment-markup";
+import { adjacentSizeCandidate, heuristicRanking, tapCandidates, tapContext, type TapCandidate } from "../lib/tap-select";
 import type { CommentOperation, LocatedThread } from "../lib/comments";
 
 type Snapshot = { rev: number; content: string; comments: LocatedThread[] };
+type RankAnswer = { ranking: number[] };
+type AutoSelection = { candidates: TapCandidate[]; ranking: number[]; index: number; requestId: number };
 type Selection = {
   start: number;
   end: number;
@@ -41,6 +44,13 @@ export function CommentedViewer({
 }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const autoSelection = useRef<AutoSelection | null>(null);
+  const tapRequest = useRef(0);
+  const rankAbort = useRef<AbortController | null>(null);
+  const pendingTap = useRef(false);
+  const suppressDoubleClick = useRef(false);
+  const lastTouchTap = useRef<{ at: number; x: number; y: number; scrollX: number; scrollY: number } | null>(null);
+  const [pending, setPending] = useState<{ x: number; y: number } | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
@@ -53,7 +63,6 @@ export function CommentedViewer({
   const threads = snapshot?.rev === rev ? snapshot.comments : [];
   const thread = threads.find((t) => t.id === active);
   const openCount = threads.filter((t) => !t.resolved).length;
-
   const load = useCallback(
     async (signal?: AbortSignal) => {
       const version = ++readVersion.current;
@@ -100,17 +109,26 @@ export function CommentedViewer({
       if (button) button.style.pointerEvents = enabled ? "" : "none";
     }
     function hide() {
+      rankAbort.current?.abort();
+      rankAbort.current = null;
       clearTimeout(timer);
       cancelAnimationFrame(frame);
       frame = 0;
       shown = null;
+      autoSelection.current = null;
+      pendingTap.current = false;
+      suppressDoubleClick.current = false;
+      setPending(null);
+      tapRequest.current++;
       if (dialog.current?.open) return; // Keep the draft's source range.
       hitTesting(false); // Disable synchronously, before React removes the button.
       setSelection(null);
     }
     function position(follow = false) {
       if ((!follow && held) || keyHeld || dialog.current?.open) return;
-      const source = root.current ? sourceSelection(root.current) : null;
+      const nativeSource = root.current ? sourceSelection(root.current) : null;
+      const chosen = autoSelection.current;
+      const source = nativeSource && chosen ? chosen.candidates[chosen.index] : nativeSource;
       const range = window.getSelection()?.rangeCount
         ? window.getSelection()!.getRangeAt(0)
         : null;
@@ -162,8 +180,10 @@ export function CommentedViewer({
     }
     function changed() {
       if (dialog.current?.open) return;
+      if (pendingTap.current) { hitTesting(false); setSelection(null); return; }
       const source = root.current ? sourceSelection(root.current) : null;
       if (!source) return hide();
+      if (autoSelection.current) { position(true); return; }
       if (touch && shown && source.start < shown.end && source.end > shown.start) {
         // iOS often exposes only selectionchange for native handle drags.
         // Follow overlapping ranges; a disjoint range is a fresh selection.
@@ -190,7 +210,7 @@ export function CommentedViewer({
     }
     function onBubble(event: Event) {
       return event.target instanceof Element &&
-        !!event.target.closest(".comment-selection");
+        !!event.target.closest(".comment-selection, .comment-auto-chip");
     }
     function pointerStart(event: PointerEvent) {
       if (event.button !== 0 || onBubble(event)) return;
@@ -202,12 +222,12 @@ export function CommentedViewer({
     function pointerEnd(event: PointerEvent) {
       if (event.button !== 0 || !held || touch) return;
       held = false;
-      position();
+      if (!suppressDoubleClick.current) position();
     }
     function mouseEnd() {
       if (touch || !held) return;
       held = false;
-      position();
+      if (!suppressDoubleClick.current) position();
     }
     function touchStart(event: TouchEvent) {
       if (onBubble(event)) return;
@@ -269,6 +289,7 @@ export function CommentedViewer({
     window.visualViewport?.addEventListener("resize", viewport);
     window.visualViewport?.addEventListener("scroll", viewport);
     return () => {
+      rankAbort.current?.abort();
       clearTimeout(timer);
       cancelAnimationFrame(frame);
       document.removeEventListener("selectionchange", changed);
@@ -288,7 +309,91 @@ export function CommentedViewer({
     };
   }, []);
 
+  function chooseAuto(index: number) {
+    const state = autoSelection.current;
+    if (!state || !root.current) return;
+    state.index = index;
+    const candidate = state.candidates[index];
+    if (selectSourceRange(root.current, candidate.start, candidate.end))
+      document.dispatchEvent(new Event("selectionchange"));
+  }
+
+  async function tapWord(x: number, y: number) {
+    if (!root.current || dialog.current?.open) return;
+    const offset = tapSourceOffset(root.current, x, y, content);
+    if (offset === null) return;
+    const candidates = tapCandidates(content, offset);
+    if (!candidates.length) return;
+    const requestId = ++tapRequest.current;
+    const baseline = heuristicRanking(candidates);
+    const started = performance.now();
+    const waitMs = 700;
+    rankAbort.current?.abort();
+    pendingTap.current = true;
+    autoSelection.current = null;
+    setPending({ x: Math.min(x + 9, window.innerWidth - 24), y: Math.max(4, y - 12) });
+    setSelection(null);
+    window.getSelection()?.removeAllRanges();
+
+    // Show one selection after at least 200 ms, at most 700 ms.
+    // A late reply never replaces the displayed quote.
+    const answer: { current: RankAnswer | null; done: boolean; completedAt: number } = { current: null, done: false, completedAt: 0 };
+    const controller = new AbortController();
+    rankAbort.current = controller;
+    const responseDone = fetch("/api/tap-select", {
+      method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
+      body: JSON.stringify({ context: tapContext(content, offset), candidates }),
+      signal: controller.signal,
+    }).then(async response => response.ok ? response.json() : null)
+      .then(data => { answer.current = data; })
+      .catch(() => {})
+      .finally(() => {
+        answer.done = true;
+        answer.completedAt = performance.now();
+        if (rankAbort.current === controller) rankAbort.current = null;
+      });
+    await new Promise(resolve => setTimeout(resolve, 200));
+    if (!answer.done && waitMs > 200) {
+      let deadlineTimer: ReturnType<typeof setTimeout>;
+      await Promise.race([responseDone, new Promise(resolve => {
+        deadlineTimer = setTimeout(resolve, Math.max(0, waitMs - (performance.now() - started)));
+      })]);
+      clearTimeout(deadlineTimer!);
+    }
+    if (requestId !== tapRequest.current || !pendingTap.current) {
+      controller.abort();
+      return;
+    }
+    const onTime = answer.done && answer.completedAt - started <= waitMs;
+    const usable = onTime ? answer.current : null;
+    const ranking = usable?.ranking;
+    const valid = Array.isArray(ranking) && ranking.length === candidates.length &&
+      new Set(ranking).size === candidates.length &&
+      ranking.every(i => Number.isInteger(i) && i >= 0 && i < candidates.length);
+    const finalRanking = valid ? ranking : baseline;
+    pendingTap.current = false;
+    setPending(null);
+    autoSelection.current = {
+      candidates, ranking: finalRanking, index: finalRanking[0],
+      requestId,
+    };
+    chooseAuto(finalRanking[0]);
+    if (!valid) controller.abort();
+  }
+
+  function stepAuto(direction: -1 | 1) {
+    const state = autoSelection.current;
+    if (!state) return;
+    const next = adjacentSizeCandidate(state.candidates, state.ranking, state.index, direction);
+    if (next !== undefined) chooseAuto(next);
+  }
+
   function open(id: string, rect: { left: number; bottom: number }) {
+    rankAbort.current?.abort();
+    tapRequest.current++; // A late rank must not change an open composer.
+    autoSelection.current = null;
+    pendingTap.current = false;
+    setPending(null);
     // Mount and focus inside the tap's user activation, not an effect/timeout:
     // iOS can then show the keyboard without another tap on the field.
     flushSync(() => {
@@ -369,20 +474,47 @@ export function CommentedViewer({
       )}
       <div
         ref={root}
+        className="tap-select"
+        onMouseDownCapture={(e) => {
+          if (!window.matchMedia("(pointer: coarse)").matches && e.detail >= 2) {
+            suppressDoubleClick.current = true;
+            e.preventDefault(); // The browser must not flash its native word selection.
+          }
+        }}
+        onDoubleClick={(e) => {
+          if (!window.matchMedia("(pointer: coarse)").matches) {
+            e.preventDefault();
+            suppressDoubleClick.current = false;
+            void tapWord(e.clientX, e.clientY);
+          }
+        }}
         onClick={(e) => {
-          if (window.getSelection()?.toString()) return;
+          if (window.getSelection()?.toString()) { lastTouchTap.current = null; return; }
           const mark = (e.target as HTMLElement).closest<HTMLElement>(
             "[data-comments]",
           );
-          if (mark)
-            open(
-              mark.dataset.comments!.split(" ")[0],
-              mark.getBoundingClientRect(),
-            );
+          if (mark) {
+            lastTouchTap.current = null;
+            open(mark.dataset.comments!.split(" ")[0], mark.getBoundingClientRect());
+            return;
+          }
+          if (!window.matchMedia("(pointer: coarse)").matches) return;
+          if ((e.target as HTMLElement).closest("a, button, input, textarea, select, [contenteditable], [role='button']")) {
+            lastTouchTap.current = null;
+            return;
+          }
+          const now = performance.now();
+          const previous = lastTouchTap.current;
+          const nearby = previous && now - previous.at <= 350 && now - previous.at >= 0 &&
+            Math.hypot(e.clientX - previous.x, e.clientY - previous.y) <= 25 &&
+            Math.abs(window.scrollX - previous.scrollX) <= 2 && Math.abs(window.scrollY - previous.scrollY) <= 2;
+          lastTouchTap.current = nearby ? null : { at: now, x: e.clientX, y: e.clientY, scrollX: window.scrollX, scrollY: window.scrollY };
+          if (nearby) { e.preventDefault(); void tapWord(e.clientX, e.clientY); }
         }}
       >
         <ContentViewer content={content} comments={threads} />
       </div>
+      {pending && !active && <span className="tap-pending" role="status" aria-label="Choosing quote" style={{ left: pending.x, top: pending.y }} />}
       {selection && !active && (
         <ToolbarButton
           label="Comment on selection"
@@ -401,6 +533,17 @@ export function CommentedViewer({
           <MessageCircle size={14} />
         </ToolbarButton>
       )}
+      {selection && !active && autoSelection.current && (() => {
+        const state = autoSelection.current;
+        const size = state.candidates[state.index].end - state.candidates[state.index].start;
+        const smaller = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start < size);
+        const larger = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start > size);
+        const viewBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
+        return <div className="comment-auto-tools" style={{ left: Math.max(4, Math.min(selection.x - 64, window.innerWidth - 72)), top: Math.max(4, Math.min(selection.y + selection.size + 5, viewBottom - 64)) }}>
+          <button type="button" className="comment-auto-chip" aria-label="Smaller selection" disabled={!smaller} onPointerDown={e => { if (e.pointerType === "mouse") e.preventDefault(); }} onClick={() => stepAuto(-1)}><Minus size={13} /></button>
+          <button type="button" className="comment-auto-chip" aria-label="Larger selection" disabled={!larger} onPointerDown={e => { if (e.pointerType === "mouse") e.preventDefault(); }} onClick={() => stepAuto(1)}><Plus size={13} /></button>
+        </div>;
+      })()}
       <dialog
         ref={dialog}
         className="comment-sheet"
