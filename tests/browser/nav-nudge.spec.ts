@@ -49,20 +49,23 @@ test("five actions fit one row; share and more preserve note actions", async ({ 
   await expect(nav.getByRole("button", { name: "Share", exact: true })).toBeFocused();
   await activate(nav.getByRole("button", { name: "More", exact: true }), touch);
   const more = page.getByRole("dialog", { name: "More options" });
-  await expect(more.getByRole("button", { name: "Find", exact: true })).toBeFocused();
+  await expect(more.getByRole("button", { name: "Search", exact: true })).toBeFocused();
+  await expect(more.getByRole("button")).toHaveText(["Search", "Copy text", "Change key", "Delete"]);
+  for (const name of ["Search", "Copy text", "Change key", "Delete note"])
+    await expect(more.getByRole("button", { name, exact: true }).locator("svg")).toHaveCount(1);
   await page.keyboard.press("ArrowDown");
-  await expect(more.getByRole("button", { name: "Copy all" })).toBeFocused();
+  await expect(more.getByRole("button", { name: "Copy text" })).toBeFocused();
   await page.screenshot({ animations: "disabled", path: `test-results/more-${info.project.name}.png` });
-  await activate(more.getByRole("button", { name: "Copy all" }), touch);
+  await activate(more.getByRole("button", { name: "Copy text" }), touch);
   expect(await page.evaluate(() => (window as unknown as { copied: string }).copied)).toBe(content);
-  await activate(more.getByRole("button", { name: "Re-key", exact: true }), touch);
+  await activate(more.getByRole("button", { name: "Change key", exact: true }), touch);
   await expect(more).not.toBeVisible();
   await page.getByPlaceholder("New secret key").fill(`${key}-renamed`);
   await activate(page.getByRole("button", { name: "Rename", exact: true }), touch);
   await expect(page).toHaveURL(new RegExp(`${key}-renamed`));
   expect((await (await request.get(`/api/content?key=${key}-renamed`)).json()).content).toBe(content);
   await activate(nav.getByRole("button", { name: "More", exact: true }), touch);
-  await activate(more.getByRole("button", { name: "Find", exact: true }), touch);
+  await activate(more.getByRole("button", { name: "Search", exact: true }), touch);
   await expect(page.getByRole("heading", { name: "Marker", exact: true })).toBeVisible();
   await page.goto(`/?key=${key}-renamed&persist=1`);
   await activate(nav.getByRole("button", { name: "More", exact: true }), touch);

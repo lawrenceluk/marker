@@ -11,8 +11,8 @@ interface CopyButtonProps {
   copiedLabel?: string;
   className?: string;
   disabled?: boolean;
-  /** Icon-only control; `label` is used for aria-label and the hover tooltip. */
-  icon?: boolean;
+  /** Icon-only, or an icon beside the visible label for menu rows. */
+  icon?: boolean | "with-label";
   idleIcon?: LucideIcon;
   tooltipAlign?: "start" | "center" | "end";
 }
@@ -65,32 +65,21 @@ export function CopyButton({
   const statusLabel =
     status === "copied" ? copiedLabel : status === "failed" ? "Copy failed" : label;
 
+  const StatusIcon = status === "copied" ? Check : status === "failed" ? X : IdleIcon;
+
   return (
     <button
       type="button"
       onClick={handleCopy}
       disabled={disabled}
       aria-live="polite"
-      aria-label={icon ? statusLabel : undefined}
+      aria-label={statusLabel}
       data-copy-status={status}
       className={className ?? (icon ? toolbarButtonClass : defaultClassName)}
     >
-      {icon ? (
-        status === "copied" ? (
-          <Check size={18} />
-        ) : status === "failed" ? (
-          <X size={18} />
-        ) : (
-          <IdleIcon size={18} />
-        )
-      ) : status === "copied" ? (
-        copiedLabel
-      ) : status === "failed" ? (
-        "Copy failed"
-      ) : (
-        label
-      )}
-      {icon ? <ToolbarTooltip label={statusLabel} align={tooltipAlign} /> : null}
+      {icon && <StatusIcon size={18} aria-hidden="true" />}
+      {icon !== true && statusLabel}
+      {icon === true ? <ToolbarTooltip label={statusLabel} align={tooltipAlign} /> : null}
     </button>
   );
 }

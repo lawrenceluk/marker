@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, type ReactNode } from "react";
-import { Ellipsis, Home, Pencil, Share2 } from "lucide-react";
+import { Ellipsis, Home, KeyRound, Pencil, Search, Share2 } from "lucide-react";
 import { CopyButton } from "./CopyButton";
 import { DeleteButton } from "./DeleteButton";
 import { ToolbarButton } from "./ToolbarButton";
@@ -79,9 +79,9 @@ export function NoteToolbar({
       {commentsButton}
       <ToolbarButton label="Edit" onClick={onEdit}><Pencil size={18} /></ToolbarButton>
       <ToolbarMenu label="More" icon={<Ellipsis size={18} />}>
-        <button type="button" className="toolbar-menu-item" onClick={event => { closeMenu(event.currentTarget); onChangeKey?.(); }}>Find</button>
-        <CopyButton text={content} label="Copy all" className="toolbar-menu-item" />
-        <button type="button" className="toolbar-menu-item" onClick={event => { closeMenu(event.currentTarget); onRename?.(); }}>Re-key</button>
+        <button type="button" className="toolbar-menu-item" aria-label="Search" onClick={event => { closeMenu(event.currentTarget); onChangeKey?.(); }}><Search size={18} aria-hidden="true" />Search</button>
+        <CopyButton text={content} label="Copy text" icon="with-label" className="toolbar-menu-item" />
+        <button type="button" className="toolbar-menu-item" aria-label="Change key" onClick={event => { closeMenu(event.currentTarget); onRename?.(); }}><KeyRound size={18} aria-hidden="true" />Change key</button>
         {onDelete && <DeleteButton onDelete={onDelete} disabled={deleteDisabled} menu />}
       </ToolbarMenu>
     </>}
