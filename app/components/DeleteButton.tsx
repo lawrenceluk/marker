@@ -17,7 +17,7 @@ interface DeleteButtonProps {
 }
 
 /**
- * Trash control: first click arms ("Click again to delete"), second within
+ * Trash control: first press arms ("Press again to delete note"), second within
  * 2s confirms. Blur or timeout cancels — no modal.
  */
 export function DeleteButton({
@@ -67,7 +67,7 @@ export function DeleteButton({
     }
   }
 
-  const label = armed ? "Click again to delete" : "Delete note";
+  const label = armed ? "Press again to delete note" : "Delete note";
 
   return (
     <button
@@ -78,8 +78,8 @@ export function DeleteButton({
       onBlur={clearArm}
       className={menu ? "toolbar-menu-item text-red-600 dark:text-red-400" : armed ? armedClass : toolbarButtonClass}
     >
-      <Trash2 size={18} />
-      {menu ? (armed ? label : "Delete") : <ToolbarTooltip label={label} align={tooltipAlign} />}
+      <Trash2 size={18} aria-hidden="true" />
+      {menu ? label : <ToolbarTooltip label={label} align={tooltipAlign} />}
     </button>
   );
 }

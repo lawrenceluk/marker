@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { CopyButton } from "./CopyButton";
+import { primaryButtonClass, secondaryButtonClass } from "./controlStyles";
 
 interface ContentEditorProps {
   content: string;
@@ -128,27 +129,29 @@ export function ContentEditor({
   }
 
   return (
-    <div className="fixed inset-0 bg-white dark:bg-zinc-900 z-50 flex flex-col">
-      <div className="flex flex-wrap justify-between items-center gap-2 px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">
-          {isNew ? "Creating new content" : "Editing"} (Cmd/Ctrl+S to save)
-        </span>
-        <div className="flex flex-wrap gap-2">
-          <CopyButton text={content} disabled={isSaving} />
-          <button
-            onClick={onCancel}
-            disabled={isSaving}
-            className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
-          >
-            {showEscHint ? "Esc to close" : "Cancel"}
-          </button>
-          <button
-            onClick={onSave}
-            disabled={isSaving}
-            className="px-4 py-2 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-medium hover:bg-zinc-700 dark:hover:bg-zinc-300 disabled:opacity-50 transition-colors"
-          >
-            {isSaving ? "Saving..." : "Save"}
-          </button>
+    <div className="fixed inset-0 bg-background z-50 flex flex-col">
+      <div className="border-b border-hairline">
+        <div className="mx-auto flex w-full max-w-3xl flex-wrap justify-between items-center gap-2 px-4 py-4">
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+            {isNew ? "New note" : "Editing note"} · Cmd/Ctrl+S to save
+          </span>
+          <div className="flex flex-wrap gap-2">
+            <CopyButton text={content} disabled={isSaving} />
+            <button
+              onClick={onCancel}
+              disabled={isSaving}
+              className={`px-4 py-2 ${secondaryButtonClass}`}
+            >
+              {showEscHint ? "Esc again to cancel" : "Cancel"}
+            </button>
+            <button
+              onClick={onSave}
+              disabled={isSaving}
+              className={`px-4 py-2 ${primaryButtonClass}`}
+            >
+              {isSaving ? "Saving…" : "Save"}
+            </button>
+          </div>
         </div>
       </div>
       <div className="flex-1 flex justify-center overflow-auto">
@@ -158,9 +161,10 @@ export function ContentEditor({
             value={content}
             onChange={(e) => onChange(e.target.value)}
             onPaste={handlePaste}
-            placeholder="Enter your markdown content here..."
+            placeholder="Write markdown…"
+            aria-label="Note content"
             disabled={isSaving}
-            className="w-full min-h-[calc(100vh-80px)] px-4 py-3 border-0 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 font-mono text-sm focus:outline-none resize-none"
+            className="w-full min-h-[calc(100vh-80px)] px-4 py-3 border-0 bg-background text-foreground placeholder-zinc-400 dark:placeholder-zinc-500 font-mono text-sm focus:outline-none resize-none"
           />
         </div>
       </div>
