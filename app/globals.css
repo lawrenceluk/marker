@@ -237,3 +237,6 @@ body {
 .comment-auto-chip:disabled { opacity: .35; }
 .comment-auto-status { padding: 2px 4px; border-radius: 4px; background: var(--background); font-size: 10px; white-space: nowrap; opacity: .72; }
 @media (prefers-color-scheme: dark) { .comment-auto-chip, .comment-auto-status { box-shadow: 0 2px 12px rgb(0 0 0 / .5); outline: 1px solid #ffffff18; } }
+.tap-pending { position: fixed; z-index: 21; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; color: var(--foreground); background: var(--background); box-shadow: 0 2px 10px rgb(0 0 0 / .12); pointer-events: none; }
+.tap-pending::after { content: ""; width: 9px; height: 9px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; opacity: .55; animation: tap-spin .65s linear infinite; }
+@keyframes tap-spin { to { transform: rotate(360deg); } }

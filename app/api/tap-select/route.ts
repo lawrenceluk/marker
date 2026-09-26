@@ -65,7 +65,7 @@ export async function POST(request: Request) {
   const order = body.candidates.map((_, i) => i)
     .sort((a, b) => stableHash(body.candidates[a].text) - stableHash(body.candidates[b].text) || a - b);
   const labels = order.map((_, i) => `option_${String(i + 1).padStart(2, "0")}`);
-  const criteria = Object.fromEntries(order.map((index, i) => [labels[i], body.candidates[index].text]));
+  const criteria = Object.fromEntries(order.map((index, i) => [labels[i], { quote: body.candidates[index].text, scope: body.candidates[index].kind }]));
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
         state: { nearby_passage: body.context, tapped_text: body.candidates.find(c => c.kind === "word")?.text ?? body.candidates[0].text },
         questions: { span: {
           type: "choice",
-          instructions: "Which quoted span would a reader most likely want to comment on after tapping `tapped_text` in `nearby_passage`? Prefer a complete, specific thought over a fragment or unnecessarily broad passage.",
+          instructions: "Which quote best captures the specific point a reader would comment on after tapping `tapped_text` in `nearby_passage`? Prefer the shortest meaningful phrase or word(s) that carry the point. Choose a full sentence only when its wider claim or contrast is necessary to understand the comment target; do not choose it just because it is complete. Avoid syntax-only or vague fragments.",
           criteria,
         } },
       }),

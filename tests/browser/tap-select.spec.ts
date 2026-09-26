@@ -13,8 +13,11 @@ test("tap or double-click ranks a whole span, steps size, and opens the normal c
     const ranking = [chosen, ...body.candidates.map((_: unknown, i: number) => i).filter((i: number) => i !== chosen)];
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ranking, source: "jev", latency_ms: 42 }) });
   });
+  const hydrated = page.waitForResponse(r => r.url().includes("/api/comments?status=all"));
   await page.goto(`/?key=${key}&persist=1&tap=jev`);
+  await hydrated;
   await expect(page.getByRole("button", { name: "Comments (0 open)" })).toBeVisible();
+  if (info.project.name !== "iphone-webkit") await page.clock.install();
   const point = await page.locator(".prose [data-source-start]").first().evaluate(element => {
     const text = element.firstChild!;
     const from = text.textContent!.indexOf("reviewed");
@@ -24,16 +27,24 @@ test("tap or double-click ranks a whole span, steps size, and opens the normal c
     const rect = range.getBoundingClientRect();
     return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
   });
+  const firstRanked = page.waitForResponse("**/api/tap-select");
   if (info.project.name === "iphone-webkit") await page.touchscreen.tap(point.x, point.y);
   else await page.mouse.dblclick(point.x, point.y);
   const bubble = page.getByRole("button", { name: "Comment on selection" });
+  await expect(page.getByRole("status", { name: "Choosing quote" })).toBeVisible();
+  await expect(bubble).toHaveCount(0);
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
+  await firstRanked;
+  if (info.project.name !== "iphone-webkit") await page.clock.runFor(210);
+  await expect(page.getByRole("status", { name: "Choosing quote" })).toHaveCount(0);
   await expect(bubble).toBeVisible();
-  await expect(page.locator(".comment-auto-status")).toContainText("jev · 42ms");
-  await page.screenshot({ path: `test-results/tap-select-${info.project.name}.png` });
+  await expect(page.locator(".comment-auto-status")).toContainText(/jev · \d+ms/u);
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(content.split(". ")[0] + ".");
-  await page.getByRole("button", { name: "Smaller selection" }).click();
+  if (info.project.name === "iphone-webkit") await page.getByRole("button", { name: "Smaller selection" }).tap();
+  else await page.getByRole("button", { name: "Smaller selection" }).click();
   expect((await page.evaluate(() => window.getSelection()?.toString()))!.length).toBeLessThan(content.split(". ")[0].length);
-  await page.getByRole("button", { name: "Larger selection" }).click();
+  if (info.project.name === "iphone-webkit") await page.getByRole("button", { name: "Larger selection" }).tap();
+  else await page.getByRole("button", { name: "Larger selection" }).click();
   await expect(bubble).toBeVisible();
   if (info.project.name === "iphone-webkit") await bubble.tap();
   else await bubble.click();
@@ -57,9 +68,12 @@ test("tap or double-click ranks a whole span, steps size, and opens the normal c
     const rect = range.getBoundingClientRect();
     return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
   });
+  const secondRanked = page.waitForResponse("**/api/tap-select");
   if (info.project.name === "iphone-webkit") await page.touchscreen.tap(second.x, second.y);
   else await page.mouse.dblclick(second.x, second.y);
-  await expect(page.locator(".comment-auto-status")).toContainText("jev · 42ms");
+  await secondRanked;
+  if (info.project.name !== "iphone-webkit") await page.clock.runFor(210);
+  await expect(page.locator(".comment-auto-status")).toContainText(/jev · \d+ms/u);
   expect(modes).toEqual(["jev", "heuristic"]);
 });
 
@@ -72,7 +86,10 @@ test("formatted word tap keeps raw Markdown offsets in the created anchor", asyn
     const ranking = body.candidates.map((_: unknown, i: number) => i);
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ranking, source: "jev", latency_ms: 11 }) });
   });
+  const hydrated = page.waitForResponse(r => r.url().includes("/api/comments?status=all"));
   await page.goto(`/?key=${key}&persist=1`);
+  await hydrated;
+  if (info.project.name !== "iphone-webkit") await page.clock.install();
   const point = await page.locator(".prose strong [data-source-start]").first().evaluate(element => {
     const node = element.firstChild!;
     const range = document.createRange();
@@ -81,14 +98,100 @@ test("formatted word tap keeps raw Markdown offsets in the created anchor", asyn
     const rect = range.getBoundingClientRect();
     return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
   });
+  const ranked = page.waitForResponse("**/api/tap-select");
   if (info.project.name === "iphone-webkit") await page.touchscreen.tap(point.x, point.y);
   else await page.mouse.dblclick(point.x, point.y);
-  await expect(page.locator(".comment-auto-status")).toContainText("jev · 11ms");
-  await page.getByRole("button", { name: "Comment on selection" }).click();
+  await ranked;
+  if (info.project.name !== "iphone-webkit") await page.clock.runFor(210);
+  await expect(page.locator(".comment-auto-status")).toContainText(/jev · \d+ms/u);
+  if (info.project.name === "iphone-webkit") await page.getByRole("button", { name: "Comment on selection" }).tap();
+  else await page.getByRole("button", { name: "Comment on selection" }).click();
   await page.getByLabel("Comment as You").fill("Synthetic formatting feedback");
   await page.getByRole("button", { name: "Send comment", exact: true }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   const snapshot = await (await request.get(`/api/comments?key=${key}`)).json();
   expect(snapshot.comments[0].anchor.exact).toBe("**bold claim**");
   expect(snapshot.comments[0].anchor.position).toEqual({ start: content.indexOf("**bold claim**"), end: content.indexOf("**bold claim**") + "**bold claim**".length });
+});
+
+test("a Jev reply after the short wait never replaces the displayed heuristic", async ({ page, request }, info) => {
+  const key = `tap-late-${info.project.name}`;
+  const content = "The small team carefully reviewed the release, then approved the focused staging experiment.";
+  await request.post("/api/content", { data: { key, content } });
+  let requestSeen = false, lateAttempted = false;
+  await page.route("**/api/tap-select", async route => {
+    requestSeen = true;
+    const body = route.request().postDataJSON();
+    const chosen = body.candidates.findIndex((c: { text: string }) => c.text === "reviewed the release");
+    expect(chosen).toBeGreaterThanOrEqual(0);
+    const ranking = [chosen, ...body.candidates.map((_: unknown, i: number) => i).filter((i: number) => i !== chosen)];
+    await new Promise(resolve => setTimeout(resolve, 350));
+    lateAttempted = true;
+    try { await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ranking, source: "jev", latency_ms: 350 }) }); }
+    catch { /* The browser may already have aborted the fetch at the decision deadline. */ }
+  });
+  const hydrated = page.waitForResponse(r => r.url().includes("/api/comments?status=all"));
+  await page.goto(`/?key=${key}&persist=1`);
+  await hydrated;
+  if (info.project.name !== "iphone-webkit") await page.clock.install();
+  const point = await page.locator(".prose [data-source-start]").first().evaluate(element => {
+    const node = element.firstChild!;
+    const from = node.textContent!.indexOf("reviewed");
+    const range = document.createRange();
+    range.setStart(node, from + 3);
+    range.setEnd(node, from + 4);
+    const rect = range.getBoundingClientRect();
+    return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
+  });
+  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(point.x, point.y);
+  else await page.mouse.dblclick(point.x, point.y);
+  await expect.poll(() => requestSeen).toBe(true);
+  await expect(page.getByRole("status", { name: "Choosing quote" })).toBeVisible();
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
+  if (info.project.name !== "iphone-webkit") await page.clock.runFor(210);
+  await expect(page.locator(".comment-auto-status")).toContainText(/heuristic · \d+ms/u);
+  const selected = await page.evaluate(() => window.getSelection()?.toString());
+  expect(selected).toContain("carefully reviewed the release");
+  await expect.poll(() => lateAttempted).toBe(true);
+  if (info.project.name !== "iphone-webkit") await page.clock.runFor(300);
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(selected);
+  await expect(page.locator(".comment-auto-status")).toContainText(/heuristic · \d+ms/u);
+});
+
+test("a focused Jev phrase becomes the comment quote", async ({ page, request }, info) => {
+  const key = `tap-phrase-${info.project.name}`;
+  const content = "The small team carefully reviewed the release, then approved the focused staging experiment.";
+  await request.post("/api/content", { data: { key, content } });
+  await page.route("**/api/tap-select", async route => {
+    const body = route.request().postDataJSON();
+    const chosen = body.candidates.findIndex((c: { text: string }) => c.text === "reviewed the release");
+    expect(chosen).toBeGreaterThanOrEqual(0);
+    const ranking = [chosen, ...body.candidates.map((_: unknown, i: number) => i).filter((i: number) => i !== chosen)];
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ranking, source: "jev", latency_ms: 60 }) });
+  });
+  const hydrated = page.waitForResponse(r => r.url().includes("/api/comments?status=all"));
+  await page.goto(`/?key=${key}&persist=1`);
+  await hydrated;
+  const point = await page.locator(".prose [data-source-start]").first().evaluate(element => {
+    const node = element.firstChild!;
+    const from = node.textContent!.indexOf("reviewed");
+    const range = document.createRange();
+    range.setStart(node, from + 3);
+    range.setEnd(node, from + 4);
+    const rect = range.getBoundingClientRect();
+    return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
+  });
+  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(point.x, point.y);
+  else await page.mouse.dblclick(point.x, point.y);
+  await expect(page.locator(".comment-auto-status")).toContainText(/jev · \d+ms/u);
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("reviewed the release");
+  const bubble = page.getByRole("button", { name: "Comment on selection" });
+  if (info.project.name === "iphone-webkit") await bubble.tap();
+  else await bubble.click();
+  await expect(page.locator(".comment-quote")).toHaveText("reviewed the release");
+  await page.getByLabel("Comment as You").fill("Synthetic focused comment");
+  await page.getByRole("button", { name: "Send comment", exact: true }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  const snapshot = await (await request.get(`/api/comments?key=${key}`)).json();
+  expect(snapshot.comments[0].anchor.exact).toBe("reviewed the release");
 });

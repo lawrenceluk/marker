@@ -50,3 +50,13 @@ test("heuristic prefers a clause and clips nearby context", () => {
   assert.ok(context.includes("another clause"));
   assert.ok(context.length <= 2200);
 });
+
+
+test("directional candidates offer a focused phrase while retaining the full sentence", () => {
+  const source = "The small team carefully reviewed the release, then approved the focused staging experiment.";
+  const spans = candidates(source, "reviewed");
+  assert.ok(spans.some(c => c.kind === "phrase" && c.text === "reviewed the release"));
+  assert.ok(spans.some(c => c.kind === "phrase" && c.text === "carefully reviewed the release"));
+  assert.ok(spans.some(c => c.kind === "sentence" && c.text === source));
+  assert.ok(spans.length >= 5 && spans.length <= 15);
+});

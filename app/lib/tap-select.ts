@@ -51,20 +51,11 @@ export function tapCandidates(source: string, at: number): TapCandidate[] {
   function add(start: number, end: number, kind: string) {
     ({ start, end } = trim(source, start, end));
     ({ start, end } = protectMarkdown(source, start, end));
-    if (start < bodyStart || end > lineEnd || end <= start || !(start <= at && at < end)) return;
+    if (start < bodyStart || end > lineEnd || end <= start || end - start > 700 || !(start <= at && at < end)) return;
     const id = `${start}:${end}`;
     if (seen.has(id)) return;
     seen.add(id);
     out.push({ start, end, kind, text: source.slice(start, end) });
-  }
-  add(selected.start, selected.end, "word");
-  // Short nested phrases give useful intermediate sizes for the step chips.
-  for (const radius of [1, 2, 3, 4]) {
-    const left = words[Math.max(0, wordIndex - radius)];
-    const right = words[Math.min(words.length - 1, wordIndex + radius)];
-    if (!left || !right) continue;
-    if (source.slice(left.start, right.end).includes("\n")) continue;
-    add(left.start, right.end, "phrase");
   }
   let clauseStart = bodyStart, clauseEnd = lineEnd;
   let sentenceStart = bodyStart, sentenceStop = lineEnd;
@@ -77,6 +68,27 @@ export function tapCandidates(source: string, at: number): TapCandidate[] {
   }
   for (let i = at; i < lineEnd; i++) {
     if (sentenceEnd.test(source[i])) { sentenceStop = i + 1; break; }
+  }
+  add(selected.start, selected.end, "word");
+  // Directional windows let Jev choose the meaningful noun/verb phrase instead
+  // of forcing a symmetric fragment or a whole sentence.
+  const phraseWords = words.filter(w => w.start >= clauseStart && w.end <= clauseEnd);
+  const focus = phraseWords.findIndex(w => w.start === selected.start);
+  if (focus >= 0) for (const radius of [1, 2]) {
+    const left = phraseWords[Math.max(0, focus - radius)];
+    const right = phraseWords[Math.min(phraseWords.length - 1, focus + radius)];
+    add(left.start, selected.end, "phrase");
+    add(selected.start, right.end, "phrase");
+    add(left.start, right.end, "phrase");
+  }
+  if (focus >= 0) {
+    const left1 = phraseWords[Math.max(0, focus - 1)];
+    const left2 = phraseWords[Math.max(0, focus - 2)];
+    const right1 = phraseWords[Math.min(phraseWords.length - 1, focus + 1)];
+    const right2 = phraseWords[Math.min(phraseWords.length - 1, focus + 2)];
+    add(left1.start, right2.end, "phrase");
+    add(left2.start, right1.end, "phrase");
+    add(phraseWords[Math.max(0, focus - 3)].start, phraseWords[Math.min(phraseWords.length - 1, focus + 3)].end, "phrase");
   }
   if (prefix) add(bodyStart, lineEnd, /^\s{0,3}#/u.test(line) ? "heading" : "list item");
   add(clauseStart, clauseEnd, "clause");
