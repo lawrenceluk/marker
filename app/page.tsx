@@ -1,4 +1,5 @@
 import { DEMO_KEY, ensurePreviewDemo } from "./lib/demo";
+import { SPEC_KEY } from "./lib/spec-sample";
 import type { Metadata } from "next";
 import { cache } from "react";
 import { cookies } from "next/headers";
@@ -110,7 +111,7 @@ export default async function Home({
 
   return (
     <>
-    {process.env.VERCEL_ENV === "preview" && <aside className="bg-amber-100 text-zinc-900 px-4 py-3 text-center text-sm">Preview sandbox · Separate note namespace · <a className="underline" href={persistPath(DEMO_KEY)}>Open commenting demo</a></aside>}
+    {process.env.VERCEL_ENV === "preview" && <aside className="bg-amber-100 text-zinc-900 px-4 py-3 text-center text-sm">Preview sandbox · Separate note namespace · <a className="underline" href={persistPath(DEMO_KEY)}>Open commenting demo</a> · <a className="underline" href={`${persistPath(SPEC_KEY)}&tap=jev&tapwait=700`}>Open selection spec</a></aside>}
     <NoteApp
       initialKeyLabel={key ? maskKey(key) : null}
       initialNote={note ? { content: note.content, rev: note.rev } : null}

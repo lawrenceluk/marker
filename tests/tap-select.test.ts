@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { adjacentSizeCandidate, calibrateJevRanking, heuristicRanking, tapCandidates, tapContext } from "../app/lib/tap-select";
+import { SPEC_CONTENT } from "../app/lib/spec-sample";
 
 function candidates(source: string, needle: string) {
   const at = source.indexOf(needle);
@@ -38,6 +39,21 @@ test("CJK and emoji taps never cut a UTF-16 surrogate pair", () => {
       assert.equal(span.text, source.slice(span.start, span.end));
     }
   }
+});
+
+test("synthetic spec supplies focused targets across claims, constraints, lists, formatting, and headings", () => {
+  for (const needle of ["reliable handoff", "Reservations do not guarantee pickup", "damaged cord", "older phone", "inspection wins", "Safety", "safety checklist"]) {
+    const spans = candidates(SPEC_CONTENT, needle);
+    assert.ok(spans.length >= 2, needle);
+    assert.ok(spans.length <= 15, needle);
+    assert.ok(spans.some(span => span.text.includes(needle)), needle);
+    for (const span of spans) assert.equal(span.text, SPEC_CONTENT.slice(span.start, span.end));
+  }
+  assert.ok(candidates(SPEC_CONTENT, "damaged cord").some(span => span.kind === "list item"));
+  assert.ok(tapCandidates(SPEC_CONTENT, SPEC_CONTENT.indexOf("### Safety") + 4).some(span => span.text === "Safety"));
+  assert.ok(candidates(SPEC_CONTENT, "safety checklist").some(span => span.text.includes("[safety checklist](#safety)")));
+  const short = candidates(SPEC_CONTENT, "Reservations do not guarantee pickup");
+  assert.ok(short.some(span => span.text === "Reservations do not guarantee pickup."));
 });
 
 test("heuristic prefers a clause and clips nearby context", () => {

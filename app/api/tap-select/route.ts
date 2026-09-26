@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { calibrateJevRanking, heuristicRanking, type TapCandidate } from "@/app/lib/tap-select";
 
+// Preview-only route: run near TypeSafe's currently West Coast service.
+export const preferredRegion = "sfo1";
+
 const MAX_BODY = 8_192;
 const TIMEOUT_MS = 800;
 const PRICE_PER_INPUT_TOKEN_USD = 0.042 / 1_000_000; // jev-1.13.0; output is free.
@@ -60,8 +63,10 @@ export async function POST(request: Request) {
   const typeSafeTiming: { started?: number } = {};
   const result = (source: string, outcome: Outcome, ranking = fallback, usage?: { input_tokens: number; output_tokens: number; cost_usd: number }) => {
     const routeMs = Math.round(performance.now() - started);
+    const region = process.env.VERCEL_REGION;
     return reply({ ranking, source, latency_ms: routeMs,
-      timing: { route_ms: routeMs, outcome, ...(typeSafeTiming.started === undefined ? {} : { typesafe_ms: Math.round(performance.now() - typeSafeTiming.started) }) },
+      timing: { route_ms: routeMs, outcome, ...(typeSafeTiming.started === undefined ? {} : { typesafe_ms: Math.round(performance.now() - typeSafeTiming.started) }),
+        ...(region && /^[a-z]{3}[0-9]$/u.test(region) ? { region } : {}) },
       ...(usage ? { usage } : {}) });
   };
   if (body.mode === "heuristic") return result("heuristic", "heuristic");

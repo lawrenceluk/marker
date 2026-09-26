@@ -1,4 +1,76 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+import { SPEC_CONTENT, SPEC_KEY } from "../../app/lib/spec-sample";
+
+async function selectByGesture(page: Page, point: { x: number; y: number }, projectName: string) {
+  if (projectName === "iphone-webkit") {
+    await page.touchscreen.tap(point.x, point.y);
+    await page.touchscreen.tap(point.x, point.y);
+  } else await page.mouse.dblclick(point.x, point.y);
+}
+
+test("Preview spec is substantive and mobile requires two taps without stealing links or scroll", async ({ browser, page, request }, info) => {
+  const mobileContext = info.project.name === "chromium"
+    ? await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true })
+    : null;
+  const mobilePage = mobileContext ? await mobileContext.newPage() : page;
+  try {
+    let calls = 0;
+    await mobilePage.route("**/api/tap-select", async route => {
+      calls++;
+      const body = route.request().postDataJSON();
+      const ranking = body.candidates.map((_: unknown, index: number) => index);
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ranking, source: "jev", timing: { route_ms: 12, typesafe_ms: 9, outcome: "jev", region: "sfo1" } }) });
+    });
+    await mobilePage.goto(`/?key=${SPEC_KEY}&persist=1&tap=jev&tapwait=700`);
+    await expect(mobilePage.getByRole("heading", { name: /Atlas Tool Share/u })).toBeVisible();
+    await expect(mobilePage.getByRole("link", { name: "Open selection spec" })).toBeVisible();
+    const note = await (await request.get(`/api/content?key=${SPEC_KEY}`)).json();
+    expect(note.content).toBe(SPEC_CONTENT);
+    expect(note.content).toContain("Reservations do not guarantee pickup.");
+    expect(note.content).toContain("inspection wins");
+    expect(note.content).toContain("[safety checklist](#safety)");
+    expect(await mobilePage.locator(".tap-select-preview").evaluate(element => getComputedStyle(element).touchAction)).toBe("manipulation");
+    const point = await mobilePage.locator(".prose [data-source-start]").filter({ hasText: "reliable handoff" }).first().evaluate(element => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        const offset = node.textContent?.indexOf("handoff") ?? -1;
+        if (offset < 0) continue;
+        const range = document.createRange();
+        range.setStart(node, offset + 2);
+        range.setEnd(node, offset + 3);
+        const rect = range.getBoundingClientRect();
+        return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
+      }
+      throw new Error("Synthetic handoff target missing");
+    });
+    await mobilePage.touchscreen.tap(point.x, point.y);
+    await mobilePage.waitForTimeout(400);
+    expect(calls).toBe(0);
+    await expect(mobilePage.getByRole("status", { name: "Choosing quote" })).toHaveCount(0);
+    await expect(mobilePage.getByRole("button", { name: "Comment on selection" })).toHaveCount(0);
+    await mobilePage.touchscreen.tap(point.x, point.y);
+    await mobilePage.touchscreen.tap(point.x, point.y);
+    await expect.poll(() => calls).toBe(1);
+    await expect(mobilePage.locator(".comment-auto-status")).toContainText(/jev · \d+ms · API 12ms · Jev 9ms · outside \d+ms · sfo1/u);
+    await expect(mobilePage.getByRole("button", { name: "Comment on selection" })).toBeVisible();
+    await mobilePage.getByRole("button", { name: "Larger selection" }).tap();
+    await expect(mobilePage.getByRole("button", { name: "Comment on selection" })).toBeVisible();
+    const priorCalls = calls;
+    const openedLink = mobilePage.waitForEvent("popup");
+    await mobilePage.locator('.prose a[href="#safety"]').tap();
+    const linkedPage = await openedLink;
+    await expect.poll(() => new URL(linkedPage.url()).hash).toBe("#safety");
+    await linkedPage.close();
+    expect(calls).toBe(priorCalls);
+    await mobilePage.evaluate(() => window.scrollTo(0, 0));
+    await mobilePage.evaluate(() => window.scrollTo(0, 400));
+    await expect.poll(() => mobilePage.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    expect(calls).toBe(priorCalls);
+  } finally {
+    await mobileContext?.close();
+  }
+});
 
 test("tap or double-click ranks a whole span, steps size, and opens the normal composer", async ({ page, request }, info) => {
   const key = `tap-select-${info.project.name}`;
@@ -28,8 +100,7 @@ test("tap or double-click ranks a whole span, steps size, and opens the normal c
     return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
   });
   const firstRanked = page.waitForResponse("**/api/tap-select");
-  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(point.x, point.y);
-  else await page.mouse.dblclick(point.x, point.y);
+  await selectByGesture(page, point, info.project.name);
   const bubble = page.getByRole("button", { name: "Comment on selection" });
   await expect(page.getByRole("status", { name: "Choosing quote" })).toBeVisible();
   await expect(bubble).toHaveCount(0);
@@ -70,8 +141,7 @@ test("tap or double-click ranks a whole span, steps size, and opens the normal c
     return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
   });
   const secondRanked = page.waitForResponse("**/api/tap-select");
-  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(second.x, second.y);
-  else await page.mouse.dblclick(second.x, second.y);
+  await selectByGesture(page, second, info.project.name);
   await secondRanked;
   if (info.project.name !== "iphone-webkit") await page.clock.runFor(210);
   await expect(page.locator(".comment-auto-status")).toContainText(/heuristic · \d+ms/u);
@@ -102,8 +172,7 @@ test("formatted word tap keeps raw Markdown offsets in the created anchor", asyn
     return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
   });
   const ranked = page.waitForResponse("**/api/tap-select");
-  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(point.x, point.y);
-  else await page.mouse.dblclick(point.x, point.y);
+  await selectByGesture(page, point, info.project.name);
   await ranked;
   if (info.project.name !== "iphone-webkit") await page.clock.runFor(210);
   await expect(page.locator(".comment-auto-status")).toContainText(/jev · \d+ms/u);
@@ -145,8 +214,7 @@ test("a Jev reply after the short wait never replaces the displayed heuristic", 
     const rect = range.getBoundingClientRect();
     return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
   });
-  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(point.x, point.y);
-  else await page.mouse.dblclick(point.x, point.y);
+  await selectByGesture(page, point, info.project.name);
   await expect.poll(() => requestSeen).toBe(true);
   await expect(page.getByRole("status", { name: "Choosing quote" })).toBeVisible();
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
@@ -197,8 +265,7 @@ test("the 700 ms setting uses a slower Jev answer as the one final selection", a
     const rect = range.getBoundingClientRect();
     return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
   });
-  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(point.x, point.y);
-  else await page.mouse.dblclick(point.x, point.y);
+  await selectByGesture(page, point, info.project.name);
   await expect(page.getByRole("status", { name: "Choosing quote" })).toBeVisible();
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("");
   await expect(page.locator(".comment-auto-status")).toContainText(/jev · \d+ms · API 300ms · Jev 275ms/u);
@@ -231,8 +298,7 @@ test("the 700 ms cap keeps its focused fallback and reports a later server timeo
     const rect = range.getBoundingClientRect();
     return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
   });
-  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(point.x, point.y);
-  else await page.mouse.dblclick(point.x, point.y);
+  await selectByGesture(page, point, info.project.name);
   await expect(page.locator(".comment-auto-status")).toContainText(/heuristic · \d+ms · cap 700ms/u);
   const selected = await page.evaluate(() => window.getSelection()?.toString());
   expect(selected).toContain("reviewed");
@@ -282,11 +348,9 @@ test("a superseding tap aborts the old rank request without a late selection jum
       return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
     });
   });
-  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(points[0].x, points[0].y);
-  else await page.mouse.dblclick(points[0].x, points[0].y);
+  await selectByGesture(page, points[0], info.project.name);
   await expect.poll(() => calls).toBe(1);
-  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(points[1].x, points[1].y);
-  else await page.mouse.dblclick(points[1].x, points[1].y);
+  await selectByGesture(page, points[1], info.project.name);
   await expect.poll(() => page.evaluate(() => (window as typeof window & { tapAborts: number }).tapAborts)).toBeGreaterThan(0);
   await expect(page.locator(".comment-auto-status")).toContainText(/jev · \d+ms/u);
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("approved");
@@ -317,8 +381,7 @@ test("a focused Jev phrase becomes the comment quote", async ({ page, request },
     const rect = range.getBoundingClientRect();
     return { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
   });
-  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(point.x, point.y);
-  else await page.mouse.dblclick(point.x, point.y);
+  await selectByGesture(page, point, info.project.name);
   await expect(page.locator(".comment-auto-status")).toContainText(/jev · \d+ms/u);
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe("reviewed the release");
   const bubble = page.getByRole("button", { name: "Comment on selection" });

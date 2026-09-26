@@ -17,7 +17,7 @@ import { adjacentSizeCandidate, heuristicRanking, tapCandidates, tapContext, typ
 import type { CommentOperation, LocatedThread } from "../lib/comments";
 
 type Snapshot = { rev: number; content: string; comments: LocatedThread[] };
-type RankAnswer = { ranking: number[]; source: string; timing?: { route_ms?: number; typesafe_ms?: number; outcome?: string } };
+type RankAnswer = { ranking: number[]; source: string; timing?: { route_ms?: number; typesafe_ms?: number; outcome?: string; region?: string } };
 type AutoSelection = { candidates: TapCandidate[]; ranking: number[]; index: number; source: string; latency: number; requestId: number };
 type Selection = {
   start: number;
@@ -54,6 +54,7 @@ export function CommentedViewer({
   const rankAbort = useRef<AbortController | null>(null);
   const pendingTap = useRef(false);
   const suppressDoubleClick = useRef(false);
+  const lastTouchTap = useRef<{ at: number; x: number; y: number; scrollX: number; scrollY: number } | null>(null);
   const [pending, setPending] = useState<{ x: number; y: number } | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -388,8 +389,12 @@ export function CommentedViewer({
     const finalRanking = valid ? ranking : baseline;
     const timings = (data: RankAnswer | null) => {
       const route = data?.timing?.route_ms, typeSafe = data?.timing?.typesafe_ms;
+      const region = data?.timing?.region;
+      const outside = Number.isFinite(route) && route! >= 0 ? Math.max(0, Math.round(answer.completedAt - started - route!)) : undefined;
       return [Number.isFinite(route) && route! >= 0 ? `API ${Math.round(route!)}ms` : "",
-        Number.isFinite(typeSafe) && typeSafe! >= 0 ? `Jev ${Math.round(typeSafe!)}ms` : ""].filter(Boolean).join(" · ");
+        Number.isFinite(typeSafe) && typeSafe! >= 0 ? `Jev ${Math.round(typeSafe!)}ms` : "",
+        outside === undefined ? "" : `outside ${outside}ms`,
+        region && /^[a-z]{3}[0-9]$/u.test(region) ? region : ""].filter(Boolean).join(" · ");
     };
     pendingTap.current = false;
     setPending(null);
@@ -519,29 +524,42 @@ export function CommentedViewer({
       {tapSelectPreview && <div className="tap-mode" aria-label="Tap selection controls">Tap select: <button type="button" aria-pressed={tapMode === "jev"} onClick={() => setMode("jev")}>Jev</button><button type="button" aria-pressed={tapMode === "heuristic"} onClick={() => setMode("heuristic")}>Heuristic</button><span className="tap-mode-separator">Jev wait</span><button type="button" aria-label="Wait up to 200 milliseconds" aria-pressed={tapWait === 200} onClick={() => setWait(200)}>200</button><button type="button" aria-label="Wait up to 700 milliseconds" aria-pressed={tapWait === 700} onClick={() => setWait(700)}>700</button></div>}
       <div
         ref={root}
+        className={tapSelectPreview ? "tap-select-preview" : undefined}
         onMouseDownCapture={(e) => {
-          if (tapSelectPreview && e.detail >= 2) {
+          if (tapSelectPreview && !window.matchMedia("(pointer: coarse)").matches && e.detail >= 2) {
             suppressDoubleClick.current = true;
             e.preventDefault(); // The browser must not flash its native word selection.
           }
         }}
         onDoubleClick={(e) => {
-          if (tapSelectPreview) {
+          if (tapSelectPreview && !window.matchMedia("(pointer: coarse)").matches) {
             e.preventDefault();
             suppressDoubleClick.current = false;
             void tapWord(e.clientX, e.clientY);
           }
         }}
         onClick={(e) => {
-          if (window.getSelection()?.toString()) return;
+          if (window.getSelection()?.toString()) { lastTouchTap.current = null; return; }
           const mark = (e.target as HTMLElement).closest<HTMLElement>(
             "[data-comments]",
           );
           if (mark) {
+            lastTouchTap.current = null;
             open(mark.dataset.comments!.split(" ")[0], mark.getBoundingClientRect());
             return;
           }
-          if (tapSelectPreview && window.matchMedia("(pointer: coarse)").matches) void tapWord(e.clientX, e.clientY);
+          if (!tapSelectPreview || !window.matchMedia("(pointer: coarse)").matches) return;
+          if ((e.target as HTMLElement).closest("a, button, input, textarea, select, [contenteditable], [role='button']")) {
+            lastTouchTap.current = null;
+            return;
+          }
+          const now = performance.now();
+          const previous = lastTouchTap.current;
+          const nearby = previous && now - previous.at <= 350 && now - previous.at >= 0 &&
+            Math.hypot(e.clientX - previous.x, e.clientY - previous.y) <= 25 &&
+            Math.abs(window.scrollX - previous.scrollX) <= 2 && Math.abs(window.scrollY - previous.scrollY) <= 2;
+          lastTouchTap.current = nearby ? null : { at: now, x: e.clientX, y: e.clientY, scrollX: window.scrollX, scrollY: window.scrollY };
+          if (nearby) { e.preventDefault(); void tapWord(e.clientX, e.clientY); }
         }}
       >
         <ContentViewer content={content} comments={threads} />

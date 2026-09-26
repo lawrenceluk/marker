@@ -18,11 +18,12 @@ function post(body: unknown = sample) {
 }
 
 test("preview Choice ranking, token cost, and hard production gate", async () => {
-  const oldEnv = process.env.VERCEL_ENV, oldKey = process.env.TYPESAFE_API_KEY, oldFetch = global.fetch;
+  const oldEnv = process.env.VERCEL_ENV, oldKey = process.env.TYPESAFE_API_KEY, oldRegion = process.env.VERCEL_REGION, oldFetch = global.fetch;
   let calls = 0;
   let chosenText: string = sample.candidates[1].text;
   try {
     process.env.VERCEL_ENV = "preview";
+    process.env.VERCEL_REGION = "sfo1";
     process.env.TYPESAFE_API_KEY = "synthetic-test-only";
     global.fetch = (async (_url, init) => {
       calls++;
@@ -40,6 +41,7 @@ test("preview Choice ranking, token cost, and hard production gate", async () =>
     assert.equal(success.source, "jev");
     assert.equal(success.ranking[0], 1);
     assert.equal(success.timing.outcome, "jev");
+    assert.equal(success.timing.region, "sfo1");
     assert.ok(success.timing.route_ms >= success.timing.typesafe_ms);
     assert.equal(success.latency_ms, success.timing.route_ms);
     chosenText = sample.candidates[3].text;
@@ -53,6 +55,7 @@ test("preview Choice ranking, token cost, and hard production gate", async () =>
   } finally {
     process.env.VERCEL_ENV = oldEnv;
     process.env.TYPESAFE_API_KEY = oldKey;
+    process.env.VERCEL_REGION = oldRegion;
     global.fetch = oldFetch;
   }
 });
