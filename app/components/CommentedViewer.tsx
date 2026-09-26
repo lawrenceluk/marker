@@ -363,7 +363,7 @@ export function CommentedViewer({
         </ToolbarButton>,
       )}
       {error && !active && (
-        <p role="alert" className="mb-3 text-sm text-red-600">
+        <p role="alert" className="mb-3 text-sm text-red-600 dark:text-red-400">
           {error}
         </p>
       )}
@@ -424,13 +424,13 @@ export function CommentedViewer({
       >
         <div className="comment-heading">
           {active === "list" ? (
-            <label className="text-xs text-zinc-500 flex items-center gap-2">
+            <label className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={showResolved}
                 onChange={(e) => setShowResolved(e.target.checked)}
               />
-              Include resolved
+              Show resolved
             </label>
           ) : (
             <blockquote className="comment-quote">
@@ -442,7 +442,7 @@ export function CommentedViewer({
           {thread && (
             <ToolbarButton
               className="comment-icon group"
-              label={thread.resolved ? "Reopen" : "Resolve"}
+              label={thread.resolved ? "Reopen thread" : "Resolve thread"}
               disabled={busy}
               onClick={() =>
                 void submit({
@@ -463,7 +463,7 @@ export function CommentedViewer({
           </ToolbarButton>
         </div>
         {error && (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             {error}{" "}
             <button
               className="underline"
@@ -473,7 +473,7 @@ export function CommentedViewer({
                 void load();
               }}
             >
-              Reload comments
+              Refresh comments
             </button>
           </p>
         )}
@@ -489,7 +489,7 @@ export function CommentedViewer({
                     open(t.id, e.currentTarget.getBoundingClientRect())
                   }
                 >
-                  <span className="text-xs text-zinc-500">
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
                     {t.resolved ? "Resolved" : "Open"}
                     {t.location.state === "outdated" ? " · Outdated" : ""}
                   </span>
@@ -497,22 +497,24 @@ export function CommentedViewer({
                 </button>
               ))}
             {!threads.filter((t) => showResolved || !t.resolved).length && (
-              <p className="text-sm text-zinc-500 py-2">
-                No comments yet. Select text to start one.
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 py-2">
+                {threads.length
+                  ? "No open comments."
+                  : "No comments yet. Select text to start one."}
               </p>
             )}
           </>
         ) : (
           <>
             {thread?.location.state === "outdated" && (
-              <p className="text-xs text-zinc-500 mb-2">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
                 Outdated · Original quote
               </p>
             )}
             <div className="comment-messages">
               {thread?.messages.map((message, index) => (
                 <div key={index} className="mb-3">
-                  <p className="text-xs text-zinc-500 mb-1">{message.author}</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">{message.author}</p>
                   <p className="text-sm whitespace-pre-wrap break-words">
                     {message.text}
                   </p>
@@ -554,7 +556,7 @@ export function CommentedViewer({
                 label={thread ? "Send reply" : "Send comment"}
                 disabled={busy || !draft.trim() || (!thread && !selection)}
               >
-                <Send size={17} />
+                <Send size={16} />
               </ToolbarButton>
             </form>
           </>
