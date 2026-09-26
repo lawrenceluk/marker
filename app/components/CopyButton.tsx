@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Copy, X, type LucideIcon } from "lucide-react";
 import { copyToClipboard } from "../lib/clipboard";
 import { ToolbarTooltip, toolbarButtonClass } from "./ToolbarButton";
+import { secondaryButtonClass } from "./controlStyles";
 
 interface CopyButtonProps {
   text: string;
@@ -17,12 +18,11 @@ interface CopyButtonProps {
   tooltipAlign?: "start" | "center" | "end";
 }
 
-const defaultClassName =
-  "px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors";
+const defaultClassName = `px-4 py-2 ${secondaryButtonClass}`;
 
 export function CopyButton({
   text,
-  label = "Copy all",
+  label = "Copy text",
   copiedLabel = "Copied",
   className,
   disabled = false,

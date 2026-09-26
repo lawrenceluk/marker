@@ -1,6 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import {
+  primaryButtonClass,
+  secondaryButtonClass,
+  textInputClass,
+} from "./controlStyles";
 
 interface KeyInputProps {
   onSubmit: (key: string) => void;
@@ -33,7 +38,8 @@ export function KeyInput({
           value={key}
           onChange={(e) => setKey(e.target.value)}
           placeholder="Enter your secret key"
-          className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:focus:ring-zinc-400"
+          aria-label="Secret key"
+          className={`w-full px-4 py-3 ${textInputClass}`}
           disabled={busy}
           autoFocus
         />
@@ -41,17 +47,17 @@ export function KeyInput({
           <button
             type="submit"
             disabled={!key.trim() || busy}
-            className="flex-1 px-4 py-3 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 font-medium hover:bg-zinc-700 dark:hover:bg-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className={`flex-1 px-4 py-3 ${primaryButtonClass}`}
           >
-            {isLoading ? "Loading..." : "Access"}
+            {isLoading ? "Opening…" : "Open note"}
           </button>
           <button
             type="button"
             onClick={onRandomize}
             disabled={busy}
-            className="flex-1 px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className={`flex-1 px-4 py-3 ${secondaryButtonClass}`}
           >
-            {isRandomizing ? "Finding key..." : "Randomize"}
+            {isRandomizing ? "Creating…" : "New random note"}
           </button>
         </div>
       </div>

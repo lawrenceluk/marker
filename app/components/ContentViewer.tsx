@@ -22,7 +22,7 @@ const markdownComponents: Components = {
 export function ContentViewer({ content, comments }: ContentViewerProps) {
   return (
     <div className="w-full">
-      <div className="prose dark:prose-invert max-w-none break-words">
+      <div className="prose max-w-none break-words">
         {content ? (
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
@@ -32,8 +32,8 @@ export function ContentViewer({ content, comments }: ContentViewerProps) {
             {content}
           </ReactMarkdown>
         ) : (
-          <p className="text-zinc-400 dark:text-zinc-500 italic">
-            No content yet.
+          <p className="text-zinc-500 dark:text-zinc-400 italic">
+            This note is empty. Edit it to add text.
           </p>
         )}
       </div>

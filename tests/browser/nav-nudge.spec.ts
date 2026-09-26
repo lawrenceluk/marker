@@ -49,9 +49,9 @@ test("five actions fit one row; share and more preserve note actions", async ({ 
   await expect(nav.getByRole("button", { name: "Share", exact: true })).toBeFocused();
   await activate(nav.getByRole("button", { name: "More", exact: true }), touch);
   const more = page.getByRole("dialog", { name: "More options" });
-  await expect(more.getByRole("button", { name: "Search", exact: true })).toBeFocused();
-  await expect(more.getByRole("button")).toHaveText(["Search", "Copy text", "Change key", "Delete"]);
-  for (const name of ["Search", "Copy text", "Change key", "Delete note"])
+  await expect(more.getByRole("button", { name: "Open another note", exact: true })).toBeFocused();
+  await expect(more.getByRole("button")).toHaveText(["Open another note", "Copy text", "Change key", "Delete note"]);
+  for (const name of ["Open another note", "Copy text", "Change key", "Delete note"])
     await expect(more.getByRole("button", { name, exact: true }).locator("svg")).toHaveCount(1);
   await page.keyboard.press("ArrowDown");
   await expect(more.getByRole("button", { name: "Copy text" })).toBeFocused();
@@ -61,17 +61,17 @@ test("five actions fit one row; share and more preserve note actions", async ({ 
   await activate(more.getByRole("button", { name: "Change key", exact: true }), touch);
   await expect(more).not.toBeVisible();
   await page.getByPlaceholder("New secret key").fill(`${key}-renamed`);
-  await activate(page.getByRole("button", { name: "Rename", exact: true }), touch);
+  await activate(page.getByRole("button", { name: "Change key", exact: true }), touch);
   await expect(page).toHaveURL(new RegExp(`${key}-renamed`));
   expect((await (await request.get(`/api/content?key=${key}-renamed`)).json()).content).toBe(content);
   await activate(nav.getByRole("button", { name: "More", exact: true }), touch);
-  await activate(more.getByRole("button", { name: "Search", exact: true }), touch);
+  await activate(more.getByRole("button", { name: "Open another note", exact: true }), touch);
   await expect(page.getByRole("heading", { name: "Marker", exact: true })).toBeVisible();
   await page.goto(`/?key=${key}-renamed&persist=1`);
   await activate(nav.getByRole("button", { name: "More", exact: true }), touch);
   await activate(more.getByRole("button", { name: "Delete note", exact: true }), touch);
   expect((await (await request.get(`/api/content?key=${key}-renamed`)).json()).exists).toBe(true);
-  await activate(more.getByRole("button", { name: "Click again to delete", exact: true }), touch);
+  await activate(more.getByRole("button", { name: "Press again to delete note", exact: true }), touch);
   await expect(page.getByRole("heading", { name: "Marker", exact: true })).toBeVisible();
   expect((await (await request.get(`/api/content?key=${key}-renamed`)).json()).exists).toBe(false);
 });
@@ -118,7 +118,7 @@ test("external revisions nudge without replacing text; drafts defer it and own w
   await request.post("/api/content", { data: { key, content: "Original sentence for review." } });
   await page.goto(`/?key=${key}&persist=1`);
   await expect(page.locator(".prose")).toHaveText("Original sentence for review.");
-  const updated = page.getByRole("button", { name: "Updated · tap to refresh", exact: true });
+  const updated = page.getByRole("button", { name: "Note updated · Refresh", exact: true });
   await checkRevision(page);
   await expect(updated).toHaveCount(0);
   await request.post("/api/comments", { data: { key, if_rev: 1, content: "Original sentence for review. Added elsewhere.", operations: [{ action: "create", start: 0, end: 17, text: "Agent question" }] } });
@@ -154,12 +154,12 @@ test("external revisions nudge without replacing text; drafts defer it and own w
   await request.post("/api/content", { data: { key, content: "Original sentence for review. Changed while editing." } });
   await checkRevision(page);
   await expect(updated).toHaveCount(0);
-  await expect(page.getByPlaceholder("Enter your markdown content here...")).toHaveValue("Original sentence for review. Another external edit.");
+  await expect(page.getByPlaceholder("Write markdown…")).toHaveValue("Original sentence for review. Another external edit.");
   await activate(page.getByRole("button", { name: "Cancel", exact: true }), touch);
   await expect(updated).toBeVisible();
   await activate(updated, touch);
   await activate(page.getByRole("button", { name: "Edit", exact: true }), touch);
-  await page.getByPlaceholder("Enter your markdown content here...").fill("My own edit.");
+  await page.getByPlaceholder("Write markdown…").fill("My own edit.");
   await activate(page.getByRole("button", { name: "Save", exact: true }), touch);
   await expect(page.locator(".prose")).toHaveText("My own edit.");
   await checkRevision(page);
