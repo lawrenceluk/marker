@@ -1,72 +1,148 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { flushSync } from "react-dom";
+import { Check, MessageCircle, RotateCcw, Send, X } from "lucide-react";
 import { ContentViewer } from "./ContentViewer";
+import { ToolbarButton } from "./ToolbarButton";
 import { sourceSelection } from "../lib/comment-markup";
 import type { CommentOperation, LocatedThread } from "../lib/comments";
 
 type Snapshot = { rev: number; content: string; comments: LocatedThread[] };
+type Selection = { start: number; end: number; x: number; y: number };
 export function CommentedViewer({
   content,
   rev,
   onChange,
+  toolbar,
 }: {
   content: string;
   rev: number;
   onChange: (content: string, rev: number) => void;
+  toolbar: (commentsButton: ReactNode) => ReactNode;
 }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-  const [enabled, setEnabled] = useState(false);
-  const [selection, setSelection] = useState<{
-    start: number;
-    end: number;
-  } | null>(null);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [active, setActive] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
+  const readVersion = useRef(0);
   const root = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
   const threads = snapshot?.comments ?? [];
   const thread = threads.find((t) => t.id === active);
+  const openCount = threads.filter((t) => !t.resolved).length;
+
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      const version = ++readVersion.current;
+      try {
+        const response = await fetch("/api/comments?status=all", {
+          cache: "no-store",
+          signal,
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+        if (signal?.aborted || version !== readVersion.current) return;
+        setSnapshot(data);
+        onChange(data.content, data.rev);
+        setError("");
+      } catch (e) {
+        if (!signal?.aborted && version === readVersion.current)
+          setError((e as Error).message);
+      }
+    },
+    [onChange],
+  );
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
+    return () => controller.abort();
+  }, [load, rev]);
 
   useEffect(() => {
-    if (!enabled) return;
-    const changed = () => {
+    let timer: ReturnType<typeof setTimeout>;
+    function position() {
       if (dialog.current?.open) return;
-      setSelection(root.current ? sourceSelection(root.current) : null);
-    };
-    document.addEventListener("selectionchange", changed);
-    return () => document.removeEventListener("selectionchange", changed);
-  }, [enabled]);
-
-  async function load() {
-    setBusy(true);
-    setError("");
-    try {
-      const response = await fetch("/api/comments?status=all", {
-        cache: "no-store",
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      setSnapshot(data);
-      onChange(data.content, data.rev);
-      setEnabled(true);
-      setSelection(null);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
+      const source = root.current ? sourceSelection(root.current) : null;
+      const range = window.getSelection()?.rangeCount
+        ? window.getSelection()!.getRangeAt(0)
+        : null;
+      const rect = range ? Array.from(range.getClientRects()).at(-1) : null;
+      setSelection(
+        source && rect
+          ? {
+              ...source,
+              x: Math.max(8, Math.min(rect.right + 8, window.innerWidth - 48)),
+              // Below the last line leaves the native callout above the selection alone.
+              y: Math.max(
+                8,
+                Math.min(rect.bottom + 20, window.innerHeight - 48),
+              ),
+            }
+          : null,
+      );
     }
-  }
-  function open(id: string) {
-    setActive(id);
-    setDraft("");
-    setError("");
-    dialog.current?.showModal();
+    function changed() {
+      clearTimeout(timer);
+      timer = setTimeout(position, 140);
+    }
+    function viewport() {
+      const view = window.visualViewport;
+      dialog.current?.style.setProperty(
+        "--comment-bottom",
+        `${view ? Math.max(0, window.innerHeight - view.height - view.offsetTop) : 0}px`,
+      );
+      dialog.current?.style.setProperty(
+        "--comment-viewport",
+        `${view?.height ?? window.innerHeight}px`,
+      );
+      position();
+    }
+    viewport();
+    document.addEventListener("selectionchange", changed);
+    window.addEventListener("scroll", position, true);
+    window.visualViewport?.addEventListener("resize", viewport);
+    window.visualViewport?.addEventListener("scroll", viewport);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("selectionchange", changed);
+      window.removeEventListener("scroll", position, true);
+      window.visualViewport?.removeEventListener("resize", viewport);
+      window.visualViewport?.removeEventListener("scroll", viewport);
+    };
+  }, []);
+
+  function open(id: string, rect: { left: number; bottom: number }) {
+    // Mount and focus inside the tap's user activation, not an effect/timeout:
+    // iOS can then show the keyboard without another tap on the field.
+    flushSync(() => {
+      setActive(id);
+      setDraft("");
+      setError("");
+    });
+    const sheet = dialog.current!;
+    if (!sheet.open) sheet.showModal();
+    sheet.style.setProperty("--comment-x", `${rect.left}px`);
+    sheet.style.setProperty(
+      "--comment-y",
+      `${Math.max(8, Math.min(rect.bottom + 8, window.innerHeight - sheet.offsetHeight - 12))}px`,
+    );
+    window.getSelection()?.removeAllRanges();
+    if (id !== "list") input.current?.focus({ preventScroll: true });
   }
   async function submit(operation: CommentOperation) {
+    if (busy) return;
+    readVersion.current++;
     setBusy(true);
     setError("");
     try {
@@ -84,106 +160,98 @@ export function CommentedViewer({
       onChange(data.content, data.rev);
       setDraft("");
       setSelection(null);
-      if (operation.action === "create") setActive(data.comments.at(-1).id);
+      if (operation.action === "create") dialog.current?.close();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
   }
-  const button =
-    "min-h-11 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm disabled:opacity-50";
+  function send() {
+    if (!draft.trim() || busy) return;
+    if (thread) void submit({ action: "reply", id: thread.id, text: draft });
+    else if (selection)
+      void submit({
+        action: "create",
+        start: selection.start,
+        end: selection.end,
+        text: draft,
+      });
+  }
   return (
     <>
-      <div className="mb-4 flex items-center gap-3 text-sm">
-        <button
-          className={button}
-          disabled={busy}
-          onClick={() => (enabled ? setEnabled(false) : void load())}
-          aria-pressed={enabled}
+      {toolbar(
+        <ToolbarButton
+          label={`Comments (${openCount} open)`}
+          onClick={(e) => {
+            open("list", e.currentTarget.getBoundingClientRect());
+            void load();
+          }}
         >
-          {enabled ? "Exit commenting" : "Comment on this note"}
-        </button>
-        {enabled && (
-          <button
-            className={button}
-            disabled={busy}
-            onClick={() => {
-              void load();
-              open("list");
-            }}
-          >
-            Threads ({threads.filter((t) => !t.resolved).length})
-          </button>
-        )}
-      </div>
-      {enabled && (
-        <p className="mb-4 text-sm text-zinc-500">
-          Select text, then tap Comment. Anyone with this link can read and
-          change comments.
-        </p>
+          <MessageCircle size={18} />
+          {openCount > 0 && (
+            <span className="comment-count" aria-hidden="true">
+              {openCount}
+            </span>
+          )}
+        </ToolbarButton>,
       )}
-      {error && !dialog.current?.open && (
-        <p role="alert" className="mb-4 text-red-600">
+      {error && !active && (
+        <p role="alert" className="mb-3 text-sm text-red-600">
           {error}
         </p>
       )}
       <div
         ref={root}
-        onClick={(event) => {
-          if (!enabled || window.getSelection()?.toString()) return;
-          const mark = (event.target as HTMLElement).closest<HTMLElement>(
+        onClick={(e) => {
+          if (window.getSelection()?.toString()) return;
+          const mark = (e.target as HTMLElement).closest<HTMLElement>(
             "[data-comments]",
           );
-          if (mark) open(mark.dataset.comments!.split(" ")[0]);
+          if (mark)
+            open(
+              mark.dataset.comments!.split(" ")[0],
+              mark.getBoundingClientRect(),
+            );
         }}
       >
-        <ContentViewer
-          content={content}
-          comments={enabled ? threads : undefined}
-        />
+        <ContentViewer content={content} comments={threads} />
       </div>
-      {enabled && selection && (
-        <button
-          className={`${button} fixed bottom-6 left-1/2 -translate-x-1/2 z-20 bg-zinc-900 text-white shadow-lg`}
-          onPointerDown={(e) => e.preventDefault()}
-          onClick={() => open("new")}
+      {selection && !active && (
+        <ToolbarButton
+          label="Comment on selection"
+          className="comment-selection group"
+          style={{ left: selection.x, top: selection.y }}
+          onPointerDown={(e) => { if (e.pointerType === "mouse") e.preventDefault(); }}
+          onClick={(e) => open("new", e.currentTarget.getBoundingClientRect())}
         >
-          Comment on selection
-        </button>
+          <MessageCircle size={18} />
+        </ToolbarButton>
       )}
       <dialog
         ref={dialog}
         className="comment-sheet"
-        onClose={() => setActive(null)}
+        aria-label={active === "list" ? "Comments" : "Comment thread"}
+        onClose={() => {
+          setActive(null);
+          setSelection(null);
+        }}
+        onPointerDown={(e) => {
+          if (e.target === e.currentTarget) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            if (
+              e.clientX < rect.left ||
+              e.clientX > rect.right ||
+              e.clientY < rect.top ||
+              e.clientY > rect.bottom
+            )
+              e.currentTarget.close();
+          }
+        }}
       >
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <h2 className="font-semibold">
-            {active === "new"
-              ? "New comment"
-              : thread
-                ? "Comment thread"
-                : "Comments"}
-          </h2>
-          <button className={button} onClick={() => dialog.current?.close()}>
-            Close
-          </button>
-        </div>
-        {error && (
-          <p role="alert" className="text-red-600 mb-3">
-            {error}{" "}
-            <button
-              className="underline"
-              disabled={busy}
-              onClick={() => void load()}
-            >
-              Reload comments
-            </button>
-          </p>
-        )}
-        {active === "list" && (
-          <>
-            <label className="flex gap-2 mb-4">
+        <div className="comment-heading">
+          {active === "list" ? (
+            <label className="text-xs text-zinc-500 flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={showResolved}
@@ -191,96 +259,131 @@ export function CommentedViewer({
               />
               Include resolved
             </label>
-            {threads
-              .filter((t) => showResolved || !t.resolved)
-              .map((t) => (
-                <button
-                  className="block w-full text-left border-b border-zinc-300 py-3"
-                  key={t.id}
-                  onClick={() => {
-                    setActive(t.id);
-                    setDraft("");
-                  }}
-                >
-                  <span className="text-xs text-zinc-500">
-                    {t.resolved ? "Resolved" : "Open"}
-                    {t.location.state === "outdated" ? " · Outdated" : ""}
-                  </span>
-                  <blockquote className="truncate">{t.anchor.exact}</blockquote>
-                  <p className="truncate">
-                    {t.messages[0].author}: {t.messages[0].text}
-                  </p>
-                </button>
-              ))}
-            {!threads.filter((t) => showResolved || !t.resolved).length && (
-              <p>No comments here yet.</p>
-            )}
-          </>
-        )}
-        {(thread || active === "new") && (
-          <>
-            <blockquote className="whitespace-pre-wrap break-words border-l-2 border-amber-400 pl-3 mb-4">
+          ) : (
+            <blockquote className="comment-quote">
               {thread?.anchor.exact ??
                 (selection
                   ? content.slice(selection.start, selection.end)
                   : "")}
             </blockquote>
-            {thread?.location.state === "outdated" && (
-              <p className="text-sm mb-3">
-                Outdated — this quote was removed or is ambiguous. The original
-                quote is kept above.
-              </p>
-            )}
-            {thread?.messages.map((message, index) => (
-              <div key={index} className="mb-4">
-                <p className="font-medium text-sm">{message.author}</p>
-                <p className="whitespace-pre-wrap break-words">
-                  {message.text}
-                </p>
-              </div>
-            ))}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (thread)
-                  void submit({ action: "reply", id: thread.id, text: draft });
-                else if (selection)
-                  void submit({ action: "create", ...selection, text: draft });
+          )}
+          {thread && (
+            <ToolbarButton
+              className="comment-icon group"
+              label={thread.resolved ? "Reopen" : "Resolve"}
+              disabled={busy}
+              onClick={() =>
+                void submit({
+                  action: thread.resolved ? "reopen" : "resolve",
+                  id: thread.id,
+                })
+              }
+            >
+              {thread.resolved ? <RotateCcw size={16} /> : <Check size={16} />}
+            </ToolbarButton>
+          )}
+          <ToolbarButton
+            className="comment-icon group"
+            label="Close"
+            onClick={() => dialog.current?.close()}
+          >
+            <X size={16} />
+          </ToolbarButton>
+        </div>
+        {error && (
+          <p role="alert" className="text-sm text-red-600">
+            {error}{" "}
+            <button
+              className="underline"
+              disabled={busy}
+              onClick={() => {
+                setSelection(null);
+                void load();
               }}
             >
-              <label className="block mb-2" htmlFor="comment-text">
-                {thread ? "Reply" : "Comment"} as You
-              </label>
+              Reload comments
+            </button>
+          </p>
+        )}
+        {active === "list" ? (
+          <>
+            {threads
+              .filter((t) => showResolved || !t.resolved)
+              .map((t) => (
+                <button
+                  className="comment-row"
+                  key={t.id}
+                  onClick={(e) =>
+                    open(t.id, e.currentTarget.getBoundingClientRect())
+                  }
+                >
+                  <span className="text-xs text-zinc-500">
+                    {t.resolved ? "Resolved" : "Open"}
+                    {t.location.state === "outdated" ? " · Outdated" : ""}
+                  </span>
+                  <p className="truncate">{t.messages[0].text}</p>
+                </button>
+              ))}
+            {!threads.filter((t) => showResolved || !t.resolved).length && (
+              <p className="text-sm text-zinc-500 py-2">
+                No comments yet. Select text to start one.
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            {thread?.location.state === "outdated" && (
+              <p className="text-xs text-zinc-500 mb-2">
+                Outdated · Original quote
+              </p>
+            )}
+            <div className="comment-messages">
+              {thread?.messages.map((message, index) => (
+                <div key={index} className="mb-3">
+                  <p className="text-xs text-zinc-500 mb-1">{message.author}</p>
+                  <p className="text-sm whitespace-pre-wrap break-words">
+                    {message.text}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <form
+              className="comment-compose"
+              onSubmit={(e) => {
+                e.preventDefault();
+                send();
+              }}
+            >
               <textarea
-                id="comment-text"
-                className="w-full rounded-lg border border-zinc-300 p-3 min-h-24"
+                ref={input}
+                aria-label={thread ? "Reply as You" : "Comment as You"}
+                placeholder={thread ? "Reply…" : "Comment…"}
+                rows={1}
                 maxLength={4000}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    !e.shiftKey &&
+                    !e.nativeEvent.isComposing &&
+                    (e.metaKey ||
+                      e.ctrlKey ||
+                      window.matchMedia("(pointer: fine)").matches)
+                  ) {
+                    e.preventDefault();
+                    send();
+                  }
+                }}
               />
-              <div className="flex gap-2 mt-3">
-                <button
-                  className={button}
-                  disabled={busy || !draft.trim() || (!thread && !selection)}
-                >
-                  Post {thread ? "reply" : "comment"}
-                </button>
-                {thread && (
-                  <button
-                    className={button}
-                    type="button"
-                    disabled={busy}
-                    onClick={() =>
-                      void submit({
-                        action: thread.resolved ? "reopen" : "resolve",
-                        id: thread.id,
-                      })
-                    }
-                  >
-                    {thread.resolved ? "Reopen" : "Resolve"}
-                  </button>
-                )}
-              </div>
+              <ToolbarButton
+                className="comment-icon group"
+                type="submit"
+                label={thread ? "Send reply" : "Send comment"}
+                disabled={busy || !draft.trim() || (!thread && !selection)}
+              >
+                <Send size={17} />
+              </ToolbarButton>
             </form>
           </>
         )}

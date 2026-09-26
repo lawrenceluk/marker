@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   PERSIST_QUERY,
   generateRandomKey,
@@ -86,6 +86,12 @@ export function NoteApp({
       })
       .catch(() => {});
   }, [initialPersist]);
+
+  const handleCommentChange = useCallback((next: string, revision: number) => {
+    setContent(next);
+    setOriginalContent(next);
+    setRev(revision);
+  }, []);
 
   function showPersistUrl(key: string) {
     window.history.replaceState(null, "", persistPath(key));
@@ -427,8 +433,9 @@ export function NoteApp({
         )}
 
         {appState === "viewing" && (
-          <div>
+          <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} rev={rev ?? 0} onChange={handleCommentChange} toolbar={commentsButton => <>
             <NoteToolbar
+              commentsButton={commentsButton}
               key={deleteResetKey}
               onHome={() => void handleReset()}
               showNoteTools
@@ -466,8 +473,7 @@ export function NoteApp({
                 />
               </div>
             )}
-            <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} rev={rev ?? 0} onChange={(next, revision) => { setContent(next); setOriginalContent(next); setRev(revision); }} />
-          </div>
+          </>} />
         )}
 
         {appState === "editing" && (

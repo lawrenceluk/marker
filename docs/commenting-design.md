@@ -16,11 +16,15 @@ A shared `rev` increments for every successful content or comments mutation. Eve
 
 ## Roles and visibility
 
-Lawrence's decision: exactly two labels. Browser cookie requests are `You`; explicit-key API requests are `Agent`. No names or role picker. These labels describe the request path and cannot prove a human/agent identity. Any bearer-key holder can use either request path and can read, reply, edit, resolve or reopen. Persist links still grant full access. Comments are available on those views after tapping “Comment on this note”, with a warning beside the control; they are never serialized into initial page HTML or included in metadata, OG images or preview snippets. This is presentation hiding, not separate access control.
+Lawrence's decision: exactly two labels. Browser cookie requests are `You`; explicit-key API requests are `Agent`. No names or role picker. These labels describe the request path and cannot prove a human/agent identity. Any bearer-key holder can use either request path and can read, reply, edit, resolve or reopen. Persist links still grant full access. Comments load automatically in view mode after hydration; they are never serialized into initial page HTML or included in metadata, OG images or preview snippets. This is presentation hiding, not separate access control.
 
 ## Phone interaction
 
-Tap “Comment on this note”, long-press/select text, adjust handles, then tap the fixed “Comment on selection” button. A native modal sheet holds the quote and composer. Highlights reopen threads; Threads lists open and outdated threads and can include resolved ones. Browser posts/replies say You. The native dialog handles focus and dismissal; controls have 44 px minimum height. The [selectionchange event](https://developer.mozilla.org/en-US/docs/Web/API/Document/selectionchange_event) tracks handle adjustments. Automated WebKit emulation exercises DOM selection and the full flow; actual iOS long-press/menu interference still needs Lawrence's phone trial. No live push or polling: reopen Threads to refresh.
+Long-press/select text, adjust handles, then tap the small speech-bubble icon below the selection. It waits briefly for selection adjustments to settle and preserves the native selection callout; it does not intercept document touch gestures. The compact composer focuses synchronously inside that tap, allowing iOS to open its keyboard without another field tap. Type and send with the icon. On desktop, Enter or Cmd/Ctrl+Enter sends and Shift+Enter inserts a newline; mobile Return inserts a newline. Composition/IME Enter never submits prematurely.
+
+Subtle highlights open existing threads with a focused reply. Resolve/reopen/close use icons. A comments icon and open-count badge live in the existing toolbar; the list can include resolved and outdated threads. Desktop uses a small selection-adjacent popover; phones use a compact bottom sheet above the visual viewport's keyboard boundary. Both follow the page's dark mode. A native dialog manages focus/dismissal. The [selectionchange event](https://developer.mozilla.org/en-US/docs/Web/API/Document/selectionchange_event) tracks handle adjustments. There is no mode toggle, persistent instruction panel or additional UI dependency. Comments reload after local revision changes or opening the list; no live push or polling.
+
+Before: enable mode → select → bottom button → focus field → type → post (6 steps). After: select → nearby icon → type → send (4 steps). Automated iPhone-sized WebKit tests use touch taps and verify focus without clicking the input; actual iOS keyboard/callout behavior still needs a physical phone trial.
 
 ## API
 
@@ -47,9 +51,8 @@ Opening `/?key=commenting-demo-v1&persist=1` in Preview atomically creates an ab
 - Accounts, permissions, notifications, CRDTs, history and a rich editor: expand this focused trial into a different product.
 - Hide comments from key-bearing persist visitors as “private”: cannot enforce that with the existing bearer credential.
 
-## Decisions for Lawrence
+## Approved decisions and remaining limits
 
-1. Are comments accessible to anyone with the existing note link acceptable? Recommended yes for this prototype; private comments require separate credentials later.
-2. Is conservative exact-quote anchoring, with visible outdated threads after larger rewrites, useful enough in practice? Recommended trial it before adding reattachment/history machinery.
+Lawrence approved comments being readable by every bearer-link holder and exact-quote anchoring with the Outdated fallback. You/Agent roles and the staging trial are also decided. Merge/deploy to production still requires separate review.
 
-The two role labels and Vercel staging trial are already decided. Merge/deploy to production requires separate review. Known limits: no authenticated identity, no per-thread delete/edit, no manual reattachment, no history/undo, no notifications, no actual iPhone touch evidence yet, shared-demo contention, and Preview API calls blocked by Vercel protection unless the caller already has authorized access.
+Known limits: no authenticated identity, no per-thread delete/edit, no manual reattachment, no history/undo, no notifications, no actual iPhone keyboard/callout evidence yet, shared-demo contention, and Preview API calls blocked by Vercel protection unless the caller already has authorized access.
