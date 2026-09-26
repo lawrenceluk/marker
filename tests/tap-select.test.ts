@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { adjacentSizeCandidate, calibrateJevRanking, heuristicRanking, tapCandidates, tapContext } from "../app/lib/tap-select";
-import { SPEC_CONTENT } from "../app/lib/spec-sample";
+import { SPEC_CONTENT } from "./fixtures/spec-sample";
 
 function candidates(source: string, needle: string) {
   const at = source.indexOf(needle);

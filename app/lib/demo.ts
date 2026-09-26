@@ -2,7 +2,6 @@ import { remapComments } from "./remap-comments";
 import { redis } from "./redis";
 import { storagePrefix } from "./namespace";
 import { applyComments } from "./comments";
-import { SPEC_CONTENT, SPEC_KEY } from "./spec-sample";
 
 export const DEMO_KEY = "commenting-demo-v1";
 const CONTENT = `# A plan we can work on together
@@ -27,7 +26,6 @@ This is a shared synthetic sandbox. Everyone with this demo link can edit it. It
 /** Create once, atomically, in Preview only. Never reset an existing demo. */
 export async function ensurePreviewDemo(key: string) {
   if (process.env.VERCEL_ENV !== "preview") return;
-  if (key === SPEC_KEY) return seedPreviewNote(key, SPEC_CONTENT, []);
   if (key !== DEMO_KEY) return;
   const oldContent = CONTENT + "\nThe obsolete launch date is Friday.\n";
   let comments = applyComments(

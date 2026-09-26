@@ -6,10 +6,7 @@ export const preferredRegion = "sfo1";
 
 const MAX_BODY = 8_192;
 const TIMEOUT_MS = 800;
-const PRICE_PER_INPUT_TOKEN_USD = 0.042 / 1_000_000; // jev-1.13.0; output is free.
-type Outcome = "jev" | "heuristic" | "no-key" | "timeout" | "service-error" | "invalid-answer";
-
-type RankRequest = { context: string; candidates: TapCandidate[]; mode: "jev" | "heuristic" };
+type RankRequest = { context: string; candidates: TapCandidate[] };
 
 function reply(value: unknown, status = 200) {
   return NextResponse.json(value, {
@@ -37,8 +34,7 @@ async function boundedBody(request: Request) {
 function valid(value: unknown): value is RankRequest {
   if (!value || typeof value !== "object") return false;
   const body = value as Partial<RankRequest>;
-  return (body.mode === "jev" || body.mode === "heuristic") &&
-    typeof body.context === "string" && body.context.length <= 2200 &&
+  return typeof body.context === "string" && body.context.length <= 2200 &&
     Array.isArray(body.candidates) && body.candidates.length >= 1 && body.candidates.length <= 15 &&
     body.candidates.every(c => c && Number.isSafeInteger(c.start) && Number.isSafeInteger(c.end) &&
       c.start >= 0 && c.end > c.start && typeof c.kind === "string" && c.kind.length <= 20 &&
@@ -53,25 +49,15 @@ function stableHash(text: string) {
 
 export async function POST(request: Request) {
   if (process.env.VERCEL_ENV !== "preview") return reply({ error: "Not found" }, 404);
-  const started = performance.now();
   const raw = await boundedBody(request);
   if (!raw) return reply({ error: "Request too large" }, 413);
   let body: unknown;
   try { body = JSON.parse(raw); } catch { return reply({ error: "Invalid request" }, 400); }
   if (!valid(body)) return reply({ error: "Invalid request" }, 400);
   const fallback = heuristicRanking(body.candidates);
-  const typeSafeTiming: { started?: number } = {};
-  const result = (source: string, outcome: Outcome, ranking = fallback, usage?: { input_tokens: number; output_tokens: number; cost_usd: number }) => {
-    const routeMs = Math.round(performance.now() - started);
-    const region = process.env.VERCEL_REGION;
-    return reply({ ranking, source, latency_ms: routeMs,
-      timing: { route_ms: routeMs, outcome, ...(typeSafeTiming.started === undefined ? {} : { typesafe_ms: Math.round(performance.now() - typeSafeTiming.started) }),
-        ...(region && /^[a-z]{3}[0-9]$/u.test(region) ? { region } : {}) },
-      ...(usage ? { usage } : {}) });
-  };
-  if (body.mode === "heuristic") return result("heuristic", "heuristic");
+  const result = (ranking = fallback) => reply({ ranking });
   const key = process.env.TYPESAFE_API_KEY;
-  if (!key) return result("heuristic · no key", "no-key");
+  if (!key) return result();
   // Neutral labels and a deterministic, length-independent order reduce position bias.
   const order = body.candidates.map((_, i) => i)
     .sort((a, b) => stableHash(body.candidates[a].text) - stableHash(body.candidates[b].text) || a - b);
@@ -79,7 +65,6 @@ export async function POST(request: Request) {
   const criteria = Object.fromEntries(order.map((index, i) => [labels[i], { quote: body.candidates[index].text, scope: body.candidates[index].kind }]));
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  typeSafeTiming.started = performance.now();
   try {
     const response = await fetch("https://api.typesafe.ai/v1/systemone", {
       method: "POST",
@@ -96,22 +81,19 @@ export async function POST(request: Request) {
       signal: controller.signal,
       cache: "no-store",
     });
-    if (!response.ok) return result("heuristic · service error", "service-error");
+    if (!response.ok) return result();
     const data = await response.json();
     const probabilities = data?.answers?.span?.probabilities;
     if (data?.answers?.span?.type !== "choice" || !probabilities || typeof probabilities !== "object")
-      return result("heuristic · invalid answer", "invalid-answer");
+      return result();
     const scores = order.map((index, i) => ({ index, score: probabilities[labels[i]] }));
     if (scores.some(item => typeof item.score !== "number" || !Number.isFinite(item.score)))
-      return result("heuristic · invalid answer", "invalid-answer");
+      return result();
     const byIndex = body.candidates.map((_, index) => scores.find(item => item.index === index)!.score);
     const calibrated = calibrateJevRanking(body.candidates, byIndex);
-    const input = data?.usage?.input_tokens, output = data?.usage?.output_tokens;
-    const usage = Number.isSafeInteger(input) && Number.isSafeInteger(output)
-      ? { input_tokens: input, output_tokens: output, cost_usd: input * PRICE_PER_INPUT_TOKEN_USD } : undefined;
-    return result(calibrated.focused ? "jev · focused" : "jev", "jev", calibrated.ranking, usage);
+    return result(calibrated.ranking);
   } catch {
-    return result(controller.signal.aborted ? "heuristic · timeout" : "heuristic · service error", controller.signal.aborted ? "timeout" : "service-error");
+    return result();
   } finally {
     clearTimeout(timeout);
   }

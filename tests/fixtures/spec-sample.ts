@@ -1,4 +1,4 @@
-/** Fictional, shared Preview note for trying quote selection on varied prose. */
+/** Fictional test note for quote selection on varied prose. */
 export const SPEC_KEY = "commenting-spec-trial-v1";
 
 export const SPEC_CONTENT = `# Atlas Tool Share — synthetic product brief
@@ -40,5 +40,5 @@ The handoff screen asks the borrower to confirm that they received the listed ac
 
 The first four weeks cover one location, about thirty tools, and volunteers who can inspect returns during posted hours. We will review failed searches, abandoned reservations, overdue returns, and comments about confusing descriptions each week. We will not add delivery or peer-to-peer handoffs until the pickup flow works reliably.
 
-This is a shared synthetic Preview fixture. Anyone with this trial link can comment or edit it, and an expired fixture is recreated from this source after seven days.
+This fictional brief is test material. It contains no real member data.
 `;
