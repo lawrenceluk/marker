@@ -121,14 +121,14 @@ export function NoteApp({
         body: JSON.stringify({ key }),
       });
       if (!session.ok) {
-        throw new Error("Failed to open note");
+        throw new Error("Couldn't open note. Try again.");
       }
 
       const res = await fetch("/api/content");
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to fetch content");
+        throw new Error(data.error || "Couldn't open note. Try again.");
       }
 
       if (data.exists) {
@@ -145,7 +145,7 @@ export function NoteApp({
         setAppState("editing");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      setError(err instanceof Error ? err.message : "Couldn't open note. Try again.");
       setRawKey(null);
       setAppState("idle");
     }
@@ -165,13 +165,13 @@ export function NoteApp({
           body: JSON.stringify({ key }),
         });
         if (!session.ok) {
-          throw new Error("Failed to open note");
+          throw new Error("Couldn't create note. Try again.");
         }
 
         const res = await fetch("/api/content");
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.error || "Failed to check key");
+          throw new Error(data.error || "Couldn't create note. Try again.");
         }
 
         if (!data.exists) {
@@ -188,9 +188,9 @@ export function NoteApp({
         }
       }
 
-      throw new Error("Couldn't find an unused key — try again");
+      throw new Error("Couldn't find an unused key. Try again.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to randomize");
+      setError(err instanceof Error ? err.message : "Couldn't create note. Try again.");
       setRawKey(null);
       setAppState("idle");
     } finally {
@@ -224,7 +224,7 @@ export function NoteApp({
       }
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to save content");
+        throw new Error(data.error || "Couldn't save note. Try again.");
       }
 
       setOriginalContent(content);
@@ -233,7 +233,7 @@ export function NoteApp({
       setIsNew(false);
       setAppState("viewing");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save");
+      setError(err instanceof Error ? err.message : "Couldn't save note. Try again.");
     } finally {
       setIsSaving(false);
     }
@@ -252,7 +252,7 @@ export function NoteApp({
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to reload");
+        throw new Error(data.error || "Couldn't refresh note. Try again.");
       }
 
       setIsRenaming(false);
@@ -273,7 +273,7 @@ export function NoteApp({
         setAppState("editing");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to reload");
+      setError(err instanceof Error ? err.message : "Couldn't refresh note. Try again.");
     } finally {
       setIsReloading(false);
     }
@@ -316,7 +316,7 @@ export function NoteApp({
       const res = await fetch("/api/content", { method: "DELETE" });
       const data: { error?: string } = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Failed to delete note");
+        throw new Error(data.error || "Couldn't delete note. Try again.");
       }
 
       hidePersistUrl();
@@ -330,7 +330,7 @@ export function NoteApp({
       setIsNew(false);
       setIsRenaming(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete note");
+      setError(err instanceof Error ? err.message : "Couldn't delete note. Try again.");
     } finally {
       setIsDeleting(false);
     }
@@ -339,7 +339,7 @@ export function NoteApp({
   async function handleRename(newKey: string) {
     const next = normalizeKey(newKey);
     if (!next) {
-      setError("Key is required");
+      setError("Enter a new key.");
       return;
     }
 
@@ -355,11 +355,11 @@ export function NoteApp({
       const data: { error?: string; key?: string } = await res.json();
 
       if (res.status === 409) {
-        setError(data.error || "That key already exists");
+        setError(data.error || "That key is taken. Choose another.");
         return;
       }
       if (!res.ok) {
-        throw new Error(data.error || "Failed to rename key");
+        throw new Error(data.error || "Couldn't change key. Try again.");
       }
 
       const key = normalizeKey(data.key) ?? next;
@@ -369,7 +369,7 @@ export function NoteApp({
         showPersistUrl(key);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to rename key");
+      setError(err instanceof Error ? err.message : "Couldn't change key. Try again.");
     } finally {
       setIsSavingRename(false);
     }
@@ -389,7 +389,7 @@ export function NoteApp({
       const data: { persist?: boolean; key?: string; error?: string } =
         await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to update persistent URL");
+        throw new Error(data.error || "Couldn't update persistent link. Try again.");
       }
 
       const key = normalizeKey(data.key) ?? rawKey;
@@ -401,14 +401,14 @@ export function NoteApp({
         hidePersistUrl();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update persistent URL");
+      setError(err instanceof Error ? err.message : "Couldn't update persistent link. Try again.");
     } finally {
       setIsTogglingPersist(false);
     }
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black">
+    <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-3xl px-4 py-12">
         {appState !== "viewing" && appState !== "idle" && (
           <NoteToolbar
@@ -418,7 +418,7 @@ export function NoteApp({
         )}
 
         {error && (
-          <div className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-center">
+          <div role="alert" className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-center">
             {error}
           </div>
         )}
@@ -434,7 +434,7 @@ export function NoteApp({
 
         {appState === "loading" && (
           <div className="flex justify-center">
-            <div className="text-zinc-500 dark:text-zinc-400">Loading...</div>
+            <div className="text-zinc-500 dark:text-zinc-400">Opening note…</div>
           </div>
         )}
 
@@ -465,7 +465,7 @@ export function NoteApp({
             />
             {updated && !isComposing && (
               <button type="button" className="update-nudge" disabled={isReloading} onClick={() => void handleReload()}>
-                {isReloading ? "Refreshing…" : "Updated · tap to refresh"}
+                {isReloading ? "Refreshing…" : "Note updated · Refresh"}
               </button>
             )}
             {isRenaming && (
