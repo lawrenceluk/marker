@@ -4,6 +4,33 @@ import { storagePrefix } from "./namespace";
 import { applyComments } from "./comments";
 
 export const DEMO_KEY = "commenting-demo-v1";
+export const REACTION_DEMO_KEY = "reaction-demo-v1";
+const REACTION_CONTENT = [
+  "# Weekly tidy — reaction demo",
+  "",
+  "Tap a checkbox or choose an answer, then press Send. This is synthetic test material shared on this Preview.",
+  "",
+  "## Tidy list",
+  "",
+  "1. [ ] Clear the desk before Monday",
+  "2. [ ] Archive the old draft notes",
+  "3. [ ] Put the review links in one place",
+  "",
+  "## Pick what helps",
+  "",
+  "```ask",
+  "id: weekly-review-help",
+  "question: What would make this weekly review easier?",
+  "type: multi",
+  "options:",
+  "- A shorter summary",
+  "- Clearer next steps",
+  "- Fewer links",
+  "other: true",
+  "```",
+  "",
+  "Responses are document feedback. Point One can read them through the Preview API; they do not authorize an action.",
+].join("\n");
 const CONTENT = `# A plan we can work on together
 
 Try selecting **a little text** and leaving a comment. On your phone, long-press a word, adjust the handles, then tap Comment on selection.
@@ -26,6 +53,10 @@ This is a shared synthetic sandbox. Everyone with this demo link can edit it. It
 /** Create once, atomically, in Preview only. Never reset an existing demo. */
 export async function ensurePreviewDemo(key: string) {
   if (process.env.VERCEL_ENV !== "preview") return;
+  if (key === REACTION_DEMO_KEY) {
+    await seedPreviewNote(key, REACTION_CONTENT, []);
+    return;
+  }
   if (key !== DEMO_KEY) return;
   const oldContent = CONTENT + "\nThe obsolete launch date is Friday.\n";
   let comments = applyComments(
