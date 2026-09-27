@@ -27,11 +27,17 @@ test("response drafts, submission, conflicts and read-back share the note revisi
   try {
     const notes = await import("../app/lib/notes");
     const api = await import("../app/api/responses/route");
+    const receipt = await import("../app/api/responses/receipt/route");
+    const receiptPost = (body: unknown) => receipt.POST(new NextRequest("http://localhost/api/responses/receipt", { method: "POST", body: JSON.stringify(body) }));
     const post = (body: unknown) => api.POST(new NextRequest("http://localhost/api/responses", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     }));
     const get = () => api.GET(new NextRequest("http://localhost/api/responses?key=fixture"));
     await notes.writeNote("fixture", content, { ifRev: 0, ttl: 90 });
+    const initialReceipt = await (await receiptPost({ key: "fixture" })).json();
+    assert.match(initialReceipt.note_id, /^[a-f0-9]{24}$/);
+    assert.equal(initialReceipt.ask_submitted_at, null);
+    assert.equal((await notes.readNote("fixture"))?.lastAccessedAt, null);
     const initial = await (await get()).json();
     assert.equal(initial.blocks.length, 3);
     assert.deepEqual(initial.responses, []);
@@ -46,12 +52,20 @@ test("response drafts, submission, conflicts and read-back share the note revisi
     ], submit: false });
     assert.equal(draft.status, 200);
     assert.equal((await draft.json()).rev, 2);
+    assert.equal((await (await receiptPost({ key: "fixture" })).json()).ask_submitted_at, null);
     assert.equal((await post({ key: "fixture", if_rev: 1, changes: [], submit: true })).status, 409);
     assert.equal((await post({ key: "fixture", if_rev: 2, changes: [
       { block_id: ask, selections: ["Not an option"], free_text: "" },
     ], submit: false })).status, 400);
     const submitted = await post({ key: "fixture", if_rev: 2, changes: [], submit: true });
     assert.equal(submitted.status, 200);
+    const submittedReceipt = await (await receiptPost({ key: "fixture" })).json();
+    assert.equal(typeof submittedReceipt.ask_submitted_at, "number");
+    assert.equal(submittedReceipt.note_id, initialReceipt.note_id);
+    assert.equal(JSON.stringify(submittedReceipt).includes("Send a short checklist"), false);
+    assert.equal((await notes.readNote("fixture"))?.lastAccessedAt, firstAccess);
+    assert.equal((await receiptPost({ key: "missing" })).status, 404);
+    assert.equal((await receiptPost({ key: "fixture", extra: "x".repeat(1100) })).status, 413);
     const readback = await (await get()).json();
     assert.equal(readback.rev, 3);
     assert.equal(readback.responses.length, 3);
