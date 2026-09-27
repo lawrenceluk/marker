@@ -4,6 +4,7 @@ import { CopyButton } from "./CopyButton";
 import { KeyInput } from "./KeyInput";
 import { secondaryButtonClass } from "./controlStyles";
 import { MARKER_AGENT_PROMPT } from "../lib/agentPrompt";
+import { REACTION_AGENT_PROMPT } from "../lib/reactionAgentPrompt";
 
 interface HomeIdleProps {
   onSubmit: (key: string) => void;
@@ -32,7 +33,7 @@ export function HomeIdle({
           </p>
         </div>
         <CopyButton
-          text={MARKER_AGENT_PROMPT}
+          text={`${MARKER_AGENT_PROMPT}\n\n${REACTION_AGENT_PROMPT}`}
           label="Copy agent prompt"
           copiedLabel="Copied agent prompt"
           className={`w-full px-4 py-3 ${secondaryButtonClass}`}

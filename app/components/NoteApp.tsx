@@ -15,6 +15,7 @@ import { ContentEditor } from "./ContentEditor";
 import { NoteToolbar } from "./NoteToolbar";
 import { RenameKey } from "./RenameKey";
 import { ScrollActions } from "./ScrollActions";
+import type { ResponseEntry } from "../lib/responses";
 
 type AppState = "idle" | "loading" | "viewing" | "editing";
 
@@ -27,7 +28,7 @@ interface NoteAppProps {
    */
   initialKeyLabel: string | null;
   /** The note that key names, or null if it doesn't exist yet. */
-  initialNote: { content: string; rev: number } | null;
+  initialNote: { content: string; rev: number; responses: ResponseEntry[] } | null;
   /** Whether this session is a persistent document link. */
   initialPersist: boolean;
 }
@@ -44,6 +45,7 @@ export function NoteApp({
   );
   const [content, setContent] = useState(initialNote?.content ?? "");
   const [originalContent, setOriginalContent] = useState(initialNote?.content ?? "");
+  const [responses, setResponses] = useState<ResponseEntry[]>(initialNote?.responses ?? []);
   const [isNew, setIsNew] = useState(Boolean(initialKeyLabel) && !initialNote);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,10 +95,11 @@ export function NoteApp({
       .catch(() => {});
   }, [initialPersist]);
 
-  const handleCommentChange = useCallback((next: string, revision: number) => {
+  const handleCommentChange = useCallback((next: string, revision: number, nextResponses: ResponseEntry[]) => {
     setContent(next);
     setOriginalContent(next);
     setRev(revision);
+    setResponses(nextResponses);
   }, []);
 
   function showPersistUrl(key: string) {
@@ -134,12 +137,14 @@ export function NoteApp({
       if (data.exists) {
         setContent(data.content || "");
         setOriginalContent(data.content || "");
+        setResponses(data.responses ?? []);
         setRev(data.rev ?? null);
         setIsNew(false);
         setAppState("viewing");
       } else {
         setContent("");
         setOriginalContent("");
+        setResponses([]);
         setRev(0);
         setIsNew(true);
         setAppState("editing");
@@ -179,6 +184,7 @@ export function NoteApp({
           setPersist(false);
           setContent("");
           setOriginalContent("");
+          setResponses([]);
           setRev(0);
           setForceOverwrite(false);
           setIsNew(true);
@@ -262,12 +268,14 @@ export function NoteApp({
       if (data.exists) {
         setContent(data.content || "");
         setOriginalContent(data.content || "");
+        setResponses(data.responses ?? []);
         setRev(data.rev ?? null);
         setIsNew(false);
         setAppState("viewing");
       } else {
         setContent("");
         setOriginalContent("");
+        setResponses([]);
         setRev(0);
         setIsNew(true);
         setAppState("editing");
@@ -301,6 +309,7 @@ export function NoteApp({
     setPersist(false);
     setContent("");
     setOriginalContent("");
+    setResponses([]);
     setRev(null);
     setForceOverwrite(false);
     setIsNew(false);
@@ -325,6 +334,7 @@ export function NoteApp({
       setPersist(false);
       setContent("");
       setOriginalContent("");
+      setResponses([]);
       setRev(null);
       setForceOverwrite(false);
       setIsNew(false);
@@ -439,7 +449,7 @@ export function NoteApp({
         )}
 
         {appState === "viewing" && (
-          <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} rev={rev ?? 0} onChange={handleCommentChange} onRevision={noticeRevision} onComposingChange={setIsComposing} toolbar={commentsButton => <>
+          <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} rev={rev ?? 0} initialResponses={responses} onChange={handleCommentChange} onRevision={noticeRevision} onComposingChange={setIsComposing} toolbar={commentsButton => <>
             <NoteToolbar
               commentsButton={commentsButton}
               key={deleteResetKey}
