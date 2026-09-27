@@ -460,7 +460,7 @@ export function CommentedViewer({
         text: draft,
       });
   }
-  async function writeResponses(changes: ResponseChange[], submit: boolean) {
+  const writeResponses = useCallback(async (changes: ResponseChange[], submit: boolean) => {
     if (reactionBusy || !snapshot || snapshot.rev !== rev) return;
     setReactionBusy(true);
     setReactionError("");
@@ -491,12 +491,17 @@ export function CommentedViewer({
     } finally {
       setReactionBusy(false);
     }
-  }
+  }, [reactionBusy, snapshot, rev, onRevision, onChange, content]);
   function changeReaction(change: ResponseChange, persist: boolean) {
     setReactionDrafts(previous => ({ ...previous, [change.block_id]: change }));
     setReactionSent(false);
-    if (persist) void writeResponses([change], false);
+    if (persist) setReactionError("");
   }
+  useEffect(() => {
+    if (reactionBusy || reactionError || !snapshot || snapshot.rev !== rev) return;
+    const pending = blocks.find(block => block.kind === "checkbox" && reactionDrafts[block.id]);
+    if (pending) void writeResponses([reactionDrafts[pending.id]], false);
+  }, [blocks, reactionBusy, reactionError, reactionDrafts, snapshot, rev, writeResponses]);
   return (
     <>
       {toolbar(
@@ -560,7 +565,7 @@ export function CommentedViewer({
           if (nearby) { e.preventDefault(); void tapWord(e.clientX, e.clientY); }
         }}
       >
-        <ContentViewer content={content} comments={threads} responses={snapshot?.rev === rev ? snapshot.responses : []} drafts={reactionDrafts} onReaction={changeReaction} onTextFocus={setReactionTextFocused} busy={reactionBusy || !snapshot || snapshot.rev !== rev} />
+        <ContentViewer content={content} comments={threads} responses={snapshot?.rev === rev ? snapshot.responses : []} drafts={reactionDrafts} onReaction={changeReaction} onTextFocus={setReactionTextFocused} busy={!snapshot || snapshot.rev !== rev} />
       </div>
       {blocks.length > 0 && <div className="reaction-send">
         <button type="button" disabled={reactionBusy || !snapshot || snapshot.rev !== rev || (allSubmitted && !Object.keys(reactionDrafts).length)} onClick={() => void writeResponses(Object.values(reactionDrafts), true)}>{reactionBusy ? "Saving…" : "Send"}</button>
