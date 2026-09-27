@@ -148,12 +148,15 @@ GET https://marker.luk.xyz/api/content?key=<key>
     "rev":        number,          // 0 if the note doesn't exist yet
     "updated_at": number | null,   // epoch milliseconds
     "created_at": number | null,
+    "last_accessed_at": number | null,
     "expires_at": number | null,
     "size":       number }         // bytes
 
 The response has the same shape whether or not the note exists, so you never
 need to branch on "exists" before reading a field. "rev" increases by one on
 every write — use it for cheap freshness checks and for "if_rev" below.
+
+`last_accessed_at` is an epoch millisecond timestamp for the last note view or content/comment read, updated at most once per hour. It does not change `rev`, `updated_at`, or expiry. Older notes get a value on their next access; a missing note returns `null`. Revision polling and writes do not count as access. Marker does not automatically delete idle notes.
 
 ## Write a note (creates it if it doesn't exist)
 

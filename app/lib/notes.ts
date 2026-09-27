@@ -6,6 +6,7 @@ import { storagePrefix } from "./namespace";
 /** Maximum size of a stored note, in bytes. */
 export const MAX_CONTENT_BYTES = 1024 * 1024; // 1 MiB
 export const MAX_TTL_SECONDS = 60 * 60 * 24 * 365; // 1 year
+const ACCESS_THROTTLE_MS = 60 * 60 * 1000;
 
 export const WRITE_MODES = ["overwrite", "append", "prepend"] as const;
 export type WriteMode = (typeof WRITE_MODES)[number];
@@ -16,6 +17,7 @@ export type Note = {
   rev: number;
   updatedAt: number | null;
   createdAt: number | null;
+  lastAccessedAt: number | null;
   expiresAt: number | null;
 };
 
@@ -35,26 +37,38 @@ export type RenameResult =
   | { ok: false; reason: "exists" }
   | { ok: false; reason: "not_found" };
 
-/** Note hash: fields `content`, `rev`, `updated_at`, `created_at`. */
+/** Note hash: fields `content`, `rev`, `updated_at`, `created_at`, `last_accessed_at`. */
 const noteKey = (key: string) => `${storagePrefix()}note:${key}`;
 /** Pre-metadata schema: a bare string. Read through to it, migrate on write. */
 const legacyKey = (key: string) => `${storagePrefix()}content:${key}`;
 
 /**
  * KEYS: note hash, legacy string.
- * Returns [content, rev, updated_at, created_at, pttl] or nil.
+ * Returns [content, rev, updated_at, created_at, pttl, comments, last_accessed_at] or nil.
  */
 const READ_SCRIPT = `
 local h, legacy = KEYS[1], KEYS[2]
 
 if redis.call('EXISTS', h) == 1 then
-  local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at')
-  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]' }
+  local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at', 'last_accessed_at')
+  local accessed = f[5] or ''
+  if ARGV[2] == '1' and (accessed == '' or tonumber(ARGV[3]) - (tonumber(accessed) or 0) >= ${ACCESS_THROTTLE_MS}) then
+    redis.call('HSET', h, 'last_accessed_at', ARGV[3])
+    accessed = ARGV[3]
+  end
+  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]', accessed }
 end
 
 local old = redis.call('GET', legacy)
 if old then
-  return { old, '0', '', '', '-1', '[]' }
+  local pttl = redis.call('PTTL', legacy)
+  if ARGV[2] == '1' then
+    redis.call('HSET', h, 'content', old, 'rev', '0', 'updated_at', '', 'created_at', '', 'last_accessed_at', ARGV[3])
+    if pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
+    redis.call('DEL', legacy)
+    return { old, '0', '', '', tostring(pttl), '[]', ARGV[3] }
+  end
+  return { old, '0', '', '', tostring(pttl), '[]', '' }
 end
 
 return nil
@@ -148,24 +162,31 @@ export async function readRevision(key: string): Promise<number> {
 export async function readNote(
   key: string,
   includeComments = false,
+  recordAccess = false,
 ): Promise<Note | null> {
   const result = await redis.eval<string[], string[] | null>(
     READ_SCRIPT,
     [noteKey(key), legacyKey(key)],
-    [includeComments ? "1" : "0"],
+    [includeComments ? "1" : "0", recordAccess ? "1" : "0", String(Date.now())],
   );
 
   if (!result) return null;
 
-  const [content, rev, updatedAt, createdAt, pttl, comments] = result;
+  const [content, rev, updatedAt, createdAt, pttl, comments, lastAccessedAt] = result;
   return {
     content,
     comments: JSON.parse(comments),
     rev: Number(rev) || 0,
     updatedAt: toNumberOrNull(updatedAt),
     createdAt: toNumberOrNull(createdAt),
+    lastAccessedAt: toNumberOrNull(lastAccessedAt),
     expiresAt: expiryFromPttl(Number(pttl), Date.now()),
   };
+}
+
+/** Count deliberate content reads and views without advancing the note revision. */
+export function readAccessedNote(key: string, includeComments = false): Promise<Note | null> {
+  return readNote(key, includeComments, true);
 }
 
 async function commitNote(

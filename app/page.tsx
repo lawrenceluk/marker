@@ -16,9 +16,9 @@ import { readNote as loadNote } from "./lib/notes";
 import { requestOrigin } from "./lib/origin";
 import { previewFromMarkdown } from "./lib/preview";
 
-const readNote = cache(async (key: string) => {
+const readNote = cache(async (key: string, recordAccess: boolean) => {
   await ensurePreviewDemo(key);
-  return loadNote(key);
+  return loadNote(key, false, recordAccess);
 });
 
 const FALLBACK: Metadata = {
@@ -41,7 +41,7 @@ export async function generateMetadata({
     return FALLBACK;
   }
 
-  const note = await readNote(key);
+  const note = await readNote(key, false);
   const preview = previewFromMarkdown(
     typeof note?.content === "string" ? note.content : ""
   );
@@ -106,7 +106,7 @@ export default async function Home({
   const key = persist
     ? (normalizeKey(params.key) ?? cookieKey)
     : cookieKey;
-  const note = key ? await readNote(key) : null;
+  const note = key ? await readNote(key, true) : null;
 
   return (
     <>
