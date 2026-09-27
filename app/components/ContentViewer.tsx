@@ -31,7 +31,10 @@ const markdownComponents: Components = {
     const selected = answer(context, block.id)?.selections.includes(block.label) ?? block.checked;
     const text = Children.toArray(children).filter(child => !(isValidElement(child) && child.type === "input"));
     return <li {...props} className="reaction-task"><label className="reaction-task-label">
-      <input type="checkbox" checked={selected} disabled={context.busy || !context.onReaction} onChange={event => context.onReaction?.({ block_id: block.id, selections: event.target.checked ? [block.label] : [], free_text: "" }, true)} />
+      <span className="reaction-task-control">
+        <input type="checkbox" checked={selected} disabled={context.busy || !context.onReaction} onChange={event => context.onReaction?.({ block_id: block.id, selections: event.target.checked ? [block.label] : [], free_text: "" }, true)} />
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m4 10 4 4 8-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </span>
       <span>{text}</span>
     </label></li>;
   },

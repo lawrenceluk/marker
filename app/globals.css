@@ -125,15 +125,20 @@ body {
 }
 
 .prose .reaction-task { list-style: none; margin-left: -1.5rem; }
-.reaction-task-label { display: flex; align-items: flex-start; gap: 0.7rem; cursor: pointer; }
-.reaction-task-label input { width: 1.25rem; height: 1.25rem; flex: none; margin-top: 0.2rem; accent-color: var(--foreground); cursor: pointer; outline-color: var(--foreground); }
+.reaction-task-label { display: flex; align-items: flex-start; gap: 0.7rem; min-height: 2.75rem; cursor: pointer; }
+.reaction-task-control { position: relative; width: 1.4rem; height: 1.4rem; flex: none; margin-top: 0.16rem; }
+.reaction-task-control input { appearance: none; -webkit-appearance: none; display: block; width: 100%; height: 100%; margin: 0; border: 2px solid var(--foreground); border-radius: 0.35rem; background: transparent; cursor: pointer; }
+.reaction-task-control input:checked { background: var(--foreground); }
+.reaction-task-control svg { position: absolute; inset: 0; width: 100%; height: 100%; color: var(--background); pointer-events: none; opacity: 0; }
+.reaction-task-control input:checked + svg { opacity: 1; }
+.reaction-task-control input:focus-visible { outline: 2px solid var(--foreground); outline-offset: 3px; }
 .reaction-task-label span { min-width: 0; }
 .reaction-ask { border: 1px solid var(--hairline); border-radius: 0.9rem; padding: 1rem; margin: 1.5rem 0; background: color-mix(in srgb, var(--foreground) 3%, var(--background)); }
 .reaction-ask legend { font-weight: 650; line-height: 1.35; padding: 0 0.25rem; }
 .reaction-options { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; }
-.reaction-option { border: 1px solid color-mix(in srgb, var(--foreground) 22%, transparent); border-radius: 999px; padding: 0.55rem 0.85rem; min-height: 2.75rem; background: var(--background); font-size: 0.9rem; line-height: 1.2; }
+.reaction-option { appearance: none; border: 1px solid color-mix(in srgb, var(--foreground) 65%, transparent); border-radius: 999px; padding: 0.55rem 0.85rem; min-height: 2.75rem; background: var(--background); color: var(--foreground); font-size: 0.9rem; line-height: 1.2; }
 .reaction-option.selected { background: var(--foreground); border-color: var(--foreground); color: var(--background); }
-.reaction-option:disabled, .reaction-task-label input:disabled { opacity: 0.6; cursor: wait; }
+.reaction-option:disabled, .reaction-task-label input:disabled { opacity: 1; cursor: wait; }
 .reaction-other { width: 100%; margin-top: 0.75rem; border: 1px solid var(--hairline); border-radius: 0.65rem; padding: 0.65rem 0.75rem; background: var(--background); }
 .reaction-other:focus-visible, .reaction-option:focus-visible { outline: 2px solid var(--foreground); outline-offset: 2px; }
 .prose .reaction-hint { color: color-mix(in srgb, var(--foreground) 55%, transparent); font-size: 0.75rem; margin: 0.7rem 0 0; }

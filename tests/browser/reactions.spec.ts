@@ -84,14 +84,77 @@ test("saved checkboxes are checked in the server HTML before response hydration"
   await expect(page.getByRole("checkbox", { name: "Tidy the inbox" })).toBeChecked();
 });
 
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`checkboxes and ask chips keep selected state visually strongest in ${colorScheme} mode`, async ({ page, request }, info) => {
+    await page.emulateMedia({ colorScheme });
+    const key = `reaction-contrast-${colorScheme}-${info.project.name}`;
+    const content = [
+      "# Review contrast",
+      "",
+      "1. [ ] Still to do",
+      "2. [ ] Already done",
+      "",
+      "```ask",
+      "id: direction",
+      "question: Which direction?",
+      "options:",
+      "- Keep going",
+      "- Wait",
+      "```",
+    ].join("\n");
+    await request.post("/api/content", { data: { key, content } });
+    const state = await (await request.get(`/api/responses?key=${key}`)).json();
+    await request.post("/api/responses", { data: { key, if_rev: state.rev, changes: [
+      { block_id: state.blocks[1].id, selections: ["Already done"], free_text: "" },
+      { block_id: "ask:direction", selections: ["Keep going"], free_text: "" },
+    ], submit: false } });
+    await page.goto(`/?key=${key}&persist=1`);
+    const unchecked = page.getByRole("checkbox", { name: "Still to do" });
+    const checked = page.getByRole("checkbox", { name: "Already done" });
+    await expect(checked).toBeEnabled();
+    await expect(unchecked).not.toBeChecked();
+    await expect(checked).toBeChecked();
+    const appearance = await page.evaluate(() => {
+      const inputs = [...document.querySelectorAll<HTMLInputElement>(".reaction-task-control input")];
+      const options = [...document.querySelectorAll<HTMLButtonElement>(".reaction-option")];
+      const css = (element: Element) => getComputedStyle(element);
+      return {
+        foreground: css(document.body).color,
+        background: css(document.body).backgroundColor,
+        uncheckedAppearance: css(inputs[0]).appearance,
+        uncheckedFill: css(inputs[0]).backgroundColor,
+        uncheckedBorder: css(inputs[0]).borderTopColor,
+        checkedFill: css(inputs[1]).backgroundColor,
+        checkedTick: css(inputs[1].nextElementSibling!).opacity,
+        uncheckedTick: css(inputs[0].nextElementSibling!).opacity,
+        tickColor: css(inputs[1].nextElementSibling!).color,
+        tapHeight: inputs[0].closest("label")!.getBoundingClientRect().height,
+        selectedChipFill: css(options[0]).backgroundColor,
+        unselectedChipFill: css(options[1]).backgroundColor,
+      };
+    });
+    expect(appearance.uncheckedAppearance).toBe("none");
+    expect(appearance.uncheckedFill).toBe("rgba(0, 0, 0, 0)");
+    expect(appearance.uncheckedBorder).toBe(appearance.foreground);
+    expect(appearance.checkedFill).toBe(appearance.foreground);
+    expect(appearance.checkedTick).toBe("1");
+    expect(appearance.uncheckedTick).toBe("0");
+    expect(appearance.tickColor).toBe(appearance.background);
+    expect(appearance.tapHeight).toBeGreaterThanOrEqual(44);
+    expect(appearance.selectedChipFill).toBe(appearance.foreground);
+    expect(appearance.unselectedChipFill).toBe(appearance.background);
+    await page.screenshot({ path: `test-results/reaction-contrast-${colorScheme}-${info.project.name}.png`, fullPage: true, animations: "disabled" });
+  });
+}
+
 test("toggling one checkbox leaves its siblings mounted and visually unchanged", async ({ page, request }, info) => {
   const key = `reaction-siblings-${info.project.name}`;
   await request.post("/api/content", { data: { key, content: "# Synthetic tidy\n\n1. [ ] First\n2. [ ] Second\n3. [ ] Third" } });
   await page.goto(`/?key=${key}&persist=1`);
   const first = page.getByRole("checkbox", { name: "First" });
   await expect(first).toBeEnabled();
-  const colors = await first.evaluate(input => ({ accent: getComputedStyle(input).accentColor, foreground: getComputedStyle(document.body).color }));
-  expect(colors.accent).toBe(colors.foreground);
+  const colors = await first.evaluate(input => ({ appearance: getComputedStyle(input).appearance, border: getComputedStyle(input).borderTopColor, foreground: getComputedStyle(document.body).color }));
+  expect(colors).toEqual({ appearance: "none", border: colors.foreground, foreground: colors.foreground });
   await page.route("**/api/responses", async route => {
     if (route.request().method() === "POST") await new Promise(resolve => setTimeout(resolve, 450));
     await route.continue();
