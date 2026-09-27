@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
     comments: locateThreads(note.content, note.comments).filter(
       (t) => status === "all" || t.resolved === (status === "resolved"),
     ),
+    responses: note.responses,
   });
 }
 export async function POST(request: NextRequest) {
@@ -96,5 +97,6 @@ export async function POST(request: NextRequest) {
     rev: before.rev + 1,
     content,
     comments: locateThreads(content, result.comments),
+    responses: before.responses,
   });
 }

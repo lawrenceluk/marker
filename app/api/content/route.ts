@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     return json({ error: "Key is required" }, 400);
   }
 
-  const note = await readAccessedNote(key);
+  const note = await readAccessedNote(key, true);
 
   // Same shape either way, so callers never have to branch on `exists` before
   // reading a field. A note that doesn't exist reads as rev 0, which is also
@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
   if (!note) {
     return json({
       content: null,
+      responses: [],
       exists: false,
       rev: 0,
       updated_at: null,
@@ -65,6 +66,7 @@ export async function GET(request: NextRequest) {
 
   return json({
     content: note.content,
+    responses: note.responses,
     exists: true,
     rev: note.rev,
     updated_at: note.updatedAt,

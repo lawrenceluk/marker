@@ -3,20 +3,22 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
 import { Check, MessageCircle, Minus, Plus, RotateCcw, Send, X } from "lucide-react";
-import { ContentViewer } from "./ContentViewer";
+import { ContentViewer, type ResponseChange } from "./ContentViewer";
 import { ToolbarButton } from "./ToolbarButton";
 import { plainQuote, selectionBubble } from "../lib/comment-presentation";
 import { selectSourceRange, sourceSelection, tapSourceOffset } from "../lib/comment-markup";
 import { adjacentSizeCandidate, heuristicRanking, tapCandidates, tapContext, type TapCandidate } from "../lib/tap-select";
 import type { CommentOperation, LocatedThread } from "../lib/comments";
+import { reactionBlocks, type ResponseEntry } from "../lib/responses";
 
-type Snapshot = { rev: number; content: string; comments: LocatedThread[] };
+type Snapshot = { rev: number; content: string; comments: LocatedThread[]; responses: ResponseEntry[] };
 type RankAnswer = { ranking: number[] };
 type AutoSelection = { candidates: TapCandidate[]; ranking: number[]; index: number; requestId: number };
 type Selection = {
@@ -30,6 +32,7 @@ type Selection = {
 export function CommentedViewer({
   content,
   rev,
+  initialResponses,
   onChange,
   onRevision,
   onComposingChange,
@@ -37,7 +40,8 @@ export function CommentedViewer({
 }: {
   content: string;
   rev: number;
-  onChange: (content: string, rev: number) => void;
+  initialResponses: ResponseEntry[];
+  onChange: (content: string, rev: number, responses: ResponseEntry[]) => void;
   onRevision: (rev: number) => void;
   onComposingChange: (composing: boolean) => void;
   toolbar: (commentsButton: ReactNode) => ReactNode;
@@ -56,6 +60,12 @@ export function CommentedViewer({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
+  const [reactionDrafts, setReactionDrafts] = useState<Record<string, ResponseChange>>({});
+  const [reactionBusy, setReactionBusy] = useState(false);
+  const [reactionError, setReactionError] = useState("");
+  const [reactionSent, setReactionSent] = useState(false);
+  const [reactionTextFocused, setReactionTextFocused] = useState(false);
+  const reactionSaveDelay = useRef(0);
   const readVersion = useRef(0);
   const root = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -63,6 +73,11 @@ export function CommentedViewer({
   const threads = snapshot?.rev === rev ? snapshot.comments : [];
   const thread = threads.find((t) => t.id === active);
   const openCount = threads.filter((t) => !t.resolved).length;
+  const blocks = useMemo(() => reactionBlocks(content), [content]);
+  const visibleResponses = snapshot?.rev === rev ? snapshot.responses : initialResponses;
+  const allSubmitted = blocks.length > 0 && blocks.every(block =>
+    typeof visibleResponses.find(entry => entry.block_id === block.id)?.submitted_at === "number",
+  );
   const load = useCallback(
     async (signal?: AbortSignal) => {
       const version = ++readVersion.current;
@@ -88,9 +103,9 @@ export function CommentedViewer({
     [rev, onRevision],
   );
   useEffect(() => {
-    onComposingChange(active !== null);
+    onComposingChange(active !== null || reactionTextFocused);
     return () => onComposingChange(false);
-  }, [active, onComposingChange]);
+  }, [active, reactionTextFocused, onComposingChange]);
   useEffect(() => {
     const controller = new AbortController();
     void load(controller.signal);
@@ -428,7 +443,7 @@ export function CommentedViewer({
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       setSnapshot(data);
-      onChange(data.content, data.rev);
+      onChange(data.content, data.rev, data.responses);
       setDraft("");
       setSelection(null);
       if (operation.action === "create") dialog.current?.close();
@@ -449,6 +464,51 @@ export function CommentedViewer({
         text: draft,
       });
   }
+  const writeResponses = useCallback(async (changes: ResponseChange[], submit: boolean) => {
+    if (reactionBusy || !snapshot || snapshot.rev !== rev) return;
+    setReactionBusy(true);
+    setReactionError("");
+    try {
+      const response = await fetch("/api/responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ if_rev: snapshot.rev, changes, submit }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 409 && Number.isSafeInteger(data.rev)) onRevision(data.rev);
+        throw new Error(data.error);
+      }
+      setSnapshot({ ...snapshot, rev: data.rev, responses: data.responses });
+      onChange(content, data.rev, data.responses);
+      for (const change of changes) setReactionDrafts(previous => {
+        const next = { ...previous };
+        if (next[change.block_id] === change) delete next[change.block_id];
+        return next;
+      });
+      if (submit) {
+        setReactionDrafts({});
+        setReactionSent(true);
+      } else setReactionSent(false);
+    } catch (error) {
+      setReactionError((error as Error).message);
+    } finally {
+      setReactionBusy(false);
+    }
+  }, [reactionBusy, snapshot, rev, onRevision, onChange, content]);
+  function changeReaction(change: ResponseChange, persist: boolean) {
+    setReactionDrafts(previous => ({ ...previous, [change.block_id]: change }));
+    setReactionSent(false);
+    reactionSaveDelay.current = persist ? 0 : 350;
+    setReactionError("");
+  }
+  useEffect(() => {
+    if (reactionBusy || reactionError || !snapshot || snapshot.rev !== rev) return;
+    const pending = blocks.find(block => reactionDrafts[block.id]);
+    if (!pending) return;
+    const timer = setTimeout(() => void writeResponses([reactionDrafts[pending.id]], false), reactionSaveDelay.current);
+    return () => clearTimeout(timer);
+  }, [blocks, reactionBusy, reactionError, reactionDrafts, snapshot, rev, writeResponses]);
   return (
     <>
       {toolbar(
@@ -512,8 +572,13 @@ export function CommentedViewer({
           if (nearby) { e.preventDefault(); void tapWord(e.clientX, e.clientY); }
         }}
       >
-        <ContentViewer content={content} comments={threads} />
+        <ContentViewer content={content} comments={threads} responses={visibleResponses} drafts={reactionDrafts} onReaction={changeReaction} onTextFocus={setReactionTextFocused} busy={!snapshot || snapshot.rev !== rev} />
       </div>
+      {blocks.length > 0 && <div className="reaction-send">
+        <button type="button" disabled={reactionBusy || !snapshot || snapshot.rev !== rev || (allSubmitted && !Object.keys(reactionDrafts).length)} onClick={() => void writeResponses(Object.values(reactionDrafts), true)}>{reactionBusy ? "Saving…" : "Send"}</button>
+        {(reactionSent || (allSubmitted && !Object.keys(reactionDrafts).length)) && <span role="status">Responses sent</span>}
+        {reactionError && <p role="alert">{reactionError} <button type="button" onClick={() => void load()}>Refresh responses</button></p>}
+      </div>}
       {pending && !active && <span className="tap-pending" role="status" aria-label="Choosing quote" style={{ left: pending.x, top: pending.y }} />}
       {selection && !active && (
         <ToolbarButton

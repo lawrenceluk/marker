@@ -1,5 +1,6 @@
 import { redis } from "./redis";
 import type { Thread } from "./comments";
+import type { ResponseEntry } from "./responses";
 import { remapComments } from "./remap-comments";
 import { storagePrefix } from "./namespace";
 
@@ -14,6 +15,7 @@ export type WriteMode = (typeof WRITE_MODES)[number];
 export type Note = {
   content: string;
   comments: Thread[];
+  responses: ResponseEntry[];
   rev: number;
   updatedAt: number | null;
   createdAt: number | null;
@@ -44,7 +46,7 @@ const legacyKey = (key: string) => `${storagePrefix()}content:${key}`;
 
 /**
  * KEYS: note hash, legacy string.
- * Returns [content, rev, updated_at, created_at, pttl, comments, last_accessed_at] or nil.
+ * Returns [content, rev, updated_at, created_at, pttl, comments, responses, last_accessed_at] or nil.
  */
 const READ_SCRIPT = `
 local h, legacy = KEYS[1], KEYS[2]
@@ -56,7 +58,7 @@ if redis.call('EXISTS', h) == 1 then
     redis.call('HSET', h, 'last_accessed_at', ARGV[3])
     accessed = ARGV[3]
   end
-  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]', accessed }
+  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]', ARGV[1] == '1' and (redis.call('HGET', h, 'responses') or '[]') or '[]', accessed }
 end
 
 local old = redis.call('GET', legacy)
@@ -66,9 +68,9 @@ if old then
     redis.call('HSET', h, 'content', old, 'rev', '0', 'updated_at', '', 'created_at', '', 'last_accessed_at', ARGV[3])
     if pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
     redis.call('DEL', legacy)
-    return { old, '0', '', '', tostring(pttl), '[]', ARGV[3] }
+    return { old, '0', '', '', tostring(pttl), '[]', '[]', ARGV[3] }
   end
-  return { old, '0', '', '', tostring(pttl), '[]', '' }
+  return { old, '0', '', '', tostring(pttl), '[]', '[]', '' }
 end
 
 return nil
@@ -83,19 +85,20 @@ local present = exists or old ~= false
 local rev = tonumber(redis.call('HGET', h, 'rev')) or 0
 local current = exists and (redis.call('HGET', h, 'content') or '') or old or ''
 local comments = redis.call('HGET', h, 'comments') or '[]'
-if ARGV[7] == '1' and not present then return {'missing'} end
-if (ARGV[7] == '1') ~= present or rev ~= tonumber(ARGV[1]) or current ~= ARGV[2] or comments ~= ARGV[3] then
+local responses = redis.call('HGET', h, 'responses') or '[]'
+if ARGV[9] == '1' and not present then return {'missing'} end
+if (ARGV[9] == '1') ~= present or rev ~= tonumber(ARGV[1]) or current ~= ARGV[2] or comments ~= ARGV[3] or responses ~= ARGV[4] then
   return {'conflict', tostring(rev), current}
 end
-if #ARGV[4] > tonumber(ARGV[9]) then return {'too_large', tostring(#ARGV[4])} end
+if #ARGV[5] > tonumber(ARGV[11]) then return {'too_large', tostring(#ARGV[5])} end
 local pttl = redis.call('PTTL', exists and h or legacy)
-local created = redis.call('HGET', h, 'created_at') or ARGV[6]
-redis.call('HSET', h, 'content', ARGV[4], 'comments', ARGV[5], 'rev', rev + 1, 'updated_at', ARGV[6], 'created_at', created)
-if ARGV[8] == '0' then redis.call('PERSIST', h)
-elseif ARGV[8] ~= '' then redis.call('EXPIRE', h, tonumber(ARGV[8]))
+local created = redis.call('HGET', h, 'created_at') or ARGV[8]
+redis.call('HSET', h, 'content', ARGV[5], 'comments', ARGV[6], 'responses', ARGV[7], 'rev', rev + 1, 'updated_at', ARGV[8], 'created_at', created)
+if ARGV[10] == '0' then redis.call('PERSIST', h)
+elseif ARGV[10] ~= '' then redis.call('EXPIRE', h, tonumber(ARGV[10]))
 elseif not exists and pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
 redis.call('DEL', legacy)
-return {'ok', tostring(rev + 1), tostring(redis.call('PTTL', h)), tostring(#ARGV[4])}
+return {'ok', tostring(rev + 1), tostring(redis.call('PTTL', h)), tostring(#ARGV[5])}
 `;
 
 /**
@@ -172,10 +175,11 @@ export async function readNote(
 
   if (!result) return null;
 
-  const [content, rev, updatedAt, createdAt, pttl, comments, lastAccessedAt] = result;
+  const [content, rev, updatedAt, createdAt, pttl, comments, responses, lastAccessedAt] = result;
   return {
     content,
     comments: JSON.parse(comments),
+    responses: JSON.parse(responses),
     rev: Number(rev) || 0,
     updatedAt: toNumberOrNull(updatedAt),
     createdAt: toNumberOrNull(createdAt),
@@ -194,6 +198,7 @@ async function commitNote(
   before: Note | null,
   content: string,
   comments: Thread[],
+  responses: ResponseEntry[],
   ttl?: number | null,
 ): Promise<WriteResult | { ok: false; reason: "missing" }> {
   const now = Date.now();
@@ -204,8 +209,10 @@ async function commitNote(
       String(before?.rev ?? 0),
       before?.content ?? "",
       JSON.stringify(before?.comments ?? []),
+      JSON.stringify(before?.responses ?? []),
       content,
       JSON.stringify(comments),
+      JSON.stringify(responses),
       String(now),
       before ? "1" : "0",
       ttl === undefined ? "" : String(ttl ?? 0),
@@ -255,7 +262,7 @@ export async function writeNote(
     if (size > MAX_CONTENT_BYTES)
       return { ok: false, reason: "too_large", size };
     const comments = remapComments(current, next, before?.comments ?? [], mode);
-    const result = await commitNote(key, before, next, comments, ttl);
+    const result = await commitNote(key, before, next, comments, before?.responses ?? [], ttl);
     if (result.ok || result.reason === "too_large") return result;
     if (ifRev !== undefined)
       return result.reason === "missing"
@@ -311,8 +318,16 @@ export async function commitComments(
   { status: "ok"; comments: Thread[] } | { status: "conflict" | "missing" }
 > {
   const mapped = remapComments(before.content, content, comments);
-  const result = await commitNote(key, before, content, mapped);
+  const result = await commitNote(key, before, content, mapped, before.responses);
   if (!result.ok)
     return { status: result.reason === "missing" ? "missing" : "conflict" };
   return { status: "ok", comments: mapped };
+}
+
+/** Responses use the same note hash, expiry, and revision as content/comments. */
+export async function commitResponses(key: string, before: Note, responses: ResponseEntry[]) {
+  const result = await commitNote(key, before, before.content, before.comments, responses);
+  return result.ok ? { status: "ok" as const, rev: result.rev } : {
+    status: result.reason === "missing" ? "missing" as const : "conflict" as const,
+  };
 }
