@@ -32,6 +32,7 @@ type Selection = {
 export function CommentedViewer({
   content,
   rev,
+  initialResponses,
   onChange,
   onRevision,
   onComposingChange,
@@ -39,7 +40,8 @@ export function CommentedViewer({
 }: {
   content: string;
   rev: number;
-  onChange: (content: string, rev: number) => void;
+  initialResponses: ResponseEntry[];
+  onChange: (content: string, rev: number, responses: ResponseEntry[]) => void;
   onRevision: (rev: number) => void;
   onComposingChange: (composing: boolean) => void;
   toolbar: (commentsButton: ReactNode) => ReactNode;
@@ -63,6 +65,7 @@ export function CommentedViewer({
   const [reactionError, setReactionError] = useState("");
   const [reactionSent, setReactionSent] = useState(false);
   const [reactionTextFocused, setReactionTextFocused] = useState(false);
+  const reactionSaveDelay = useRef(0);
   const readVersion = useRef(0);
   const root = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -71,8 +74,9 @@ export function CommentedViewer({
   const thread = threads.find((t) => t.id === active);
   const openCount = threads.filter((t) => !t.resolved).length;
   const blocks = useMemo(() => reactionBlocks(content), [content]);
-  const allSubmitted = blocks.length > 0 && snapshot?.rev === rev && blocks.every(block =>
-    typeof snapshot.responses.find(entry => entry.block_id === block.id)?.submitted_at === "number",
+  const visibleResponses = snapshot?.rev === rev ? snapshot.responses : initialResponses;
+  const allSubmitted = blocks.length > 0 && blocks.every(block =>
+    typeof visibleResponses.find(entry => entry.block_id === block.id)?.submitted_at === "number",
   );
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -439,7 +443,7 @@ export function CommentedViewer({
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
       setSnapshot(data);
-      onChange(data.content, data.rev);
+      onChange(data.content, data.rev, data.responses);
       setDraft("");
       setSelection(null);
       if (operation.action === "create") dialog.current?.close();
@@ -476,7 +480,7 @@ export function CommentedViewer({
         throw new Error(data.error);
       }
       setSnapshot({ ...snapshot, rev: data.rev, responses: data.responses });
-      onChange(content, data.rev);
+      onChange(content, data.rev, data.responses);
       for (const change of changes) setReactionDrafts(previous => {
         const next = { ...previous };
         if (next[change.block_id] === change) delete next[change.block_id];
@@ -495,12 +499,15 @@ export function CommentedViewer({
   function changeReaction(change: ResponseChange, persist: boolean) {
     setReactionDrafts(previous => ({ ...previous, [change.block_id]: change }));
     setReactionSent(false);
-    if (persist) setReactionError("");
+    reactionSaveDelay.current = persist ? 0 : 350;
+    setReactionError("");
   }
   useEffect(() => {
     if (reactionBusy || reactionError || !snapshot || snapshot.rev !== rev) return;
-    const pending = blocks.find(block => block.kind === "checkbox" && reactionDrafts[block.id]);
-    if (pending) void writeResponses([reactionDrafts[pending.id]], false);
+    const pending = blocks.find(block => reactionDrafts[block.id]);
+    if (!pending) return;
+    const timer = setTimeout(() => void writeResponses([reactionDrafts[pending.id]], false), reactionSaveDelay.current);
+    return () => clearTimeout(timer);
   }, [blocks, reactionBusy, reactionError, reactionDrafts, snapshot, rev, writeResponses]);
   return (
     <>
@@ -565,7 +572,7 @@ export function CommentedViewer({
           if (nearby) { e.preventDefault(); void tapWord(e.clientX, e.clientY); }
         }}
       >
-        <ContentViewer content={content} comments={threads} responses={snapshot?.rev === rev ? snapshot.responses : []} drafts={reactionDrafts} onReaction={changeReaction} onTextFocus={setReactionTextFocused} busy={!snapshot || snapshot.rev !== rev} />
+        <ContentViewer content={content} comments={threads} responses={visibleResponses} drafts={reactionDrafts} onReaction={changeReaction} onTextFocus={setReactionTextFocused} busy={!snapshot || snapshot.rev !== rev} />
       </div>
       {blocks.length > 0 && <div className="reaction-send">
         <button type="button" disabled={reactionBusy || !snapshot || snapshot.rev !== rev || (allSubmitted && !Object.keys(reactionDrafts).length)} onClick={() => void writeResponses(Object.values(reactionDrafts), true)}>{reactionBusy ? "Saving…" : "Send"}</button>

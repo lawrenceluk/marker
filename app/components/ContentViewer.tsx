@@ -49,7 +49,7 @@ const markdownComponents: Components = {
           const selected = selections.includes(option);
           return <button key={option} type="button" aria-pressed={selected} disabled={context.busy || !context.onReaction} className={selected ? "reaction-option selected" : "reaction-option"} onClick={() => {
             const next = block.mode === "single" ? (selected ? [] : [option]) : (selected ? selections.filter(item => item !== option) : [...selections, option]);
-            context.onReaction?.({ block_id: block.id, selections: next, free_text: next.includes("Other") ? freeText : "" }, false);
+            context.onReaction?.({ block_id: block.id, selections: next, free_text: next.includes("Other") ? freeText : "" }, true);
           }}>{option}</button>;
         })}
       </div>

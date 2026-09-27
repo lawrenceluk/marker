@@ -56,6 +56,9 @@ test("response drafts, submission, conflicts and read-back share the note revisi
     assert.equal(readback.responses.find((entry: { block_id: string }) => entry.block_id === ask).free_text, "Send a short checklist");
     assert.equal(typeof readback.responses[0].submitted_at, "number");
     assert.equal(readback.responses[0].active, true);
+    const contentApi = await import("../app/api/content/route");
+    const contentReadback = await (await contentApi.GET(new NextRequest("http://localhost/api/content?key=fixture"))).json();
+    assert.deepEqual(contentReadback.responses, (await notes.readNote("fixture", true))?.responses);
     assert.equal((await notes.readNote("fixture", true))?.comments.length, 0);
     assert.equal((await notes.writeNote("fixture", `${content}\n\nAgent reply`, { ifRev: 3 })).ok, true);
     assert.equal((await (await get()).json()).responses.length, 3);

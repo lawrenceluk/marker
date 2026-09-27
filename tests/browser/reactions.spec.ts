@@ -36,6 +36,15 @@ test("mobile tidy checkboxes and multi-select ask persist and submit", async ({ 
   await page.getByRole("button", { name: "Other" }).tap();
   await page.getByRole("textbox", { name: "Other answer for What should the next review include?" }).fill("A small action list");
   await expect(page.getByRole("textbox", { name: "Other answer for What should the next review include?" })).toHaveValue("A small action list");
+  await expect.poll(async () => {
+    const state = await (await request.get(`/api/responses?key=${key}`)).json();
+    return state.responses.find((entry: { block_id: string }) => entry.block_id === "ask:next-review")?.free_text;
+  }).toBe("A small action list");
+  await page.reload();
+  await expect(page.getByRole("button", { name: "A shorter summary" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Clear next steps" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Other" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("textbox", { name: "Other answer for What should the next review include?" })).toHaveValue("A small action list");
   await page.screenshot({ path: `test-results/reactions-${info.project.name}.png`, fullPage: true, animations: "disabled" });
   await page.getByRole("button", { name: "Send", exact: true }).tap();
   await expect(page.getByText("Responses sent")).toBeVisible();
@@ -46,8 +55,33 @@ test("mobile tidy checkboxes and multi-select ask persist and submit", async ({ 
     selections: ["A shorter summary", "Clear next steps", "Other"], free_text: "A small action list", active: true,
   });
   await page.reload();
+  await expect(page.getByText("Responses sent")).toBeVisible();
   await expect(page.getByRole("button", { name: "A shorter summary" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("textbox", { name: "Other answer for What should the next review include?" })).toHaveValue("A small action list");
+});
+
+test("saved checkboxes are checked in the server HTML before response hydration", async ({ page, request }, info) => {
+  const key = `reaction-first-paint-${info.project.name}`;
+  await request.post("/api/content", { data: { key, content: "# Review\n\n1. [ ] Tidy the inbox" } });
+  const state = await (await request.get(`/api/responses?key=${key}`)).json();
+  await request.post("/api/responses", { data: { key, if_rev: state.rev, changes: [
+    { block_id: state.blocks[0].id, selections: ["Tidy the inbox"], free_text: "" },
+  ], submit: false } });
+  const html = await (await request.get(`/?key=${key}&persist=1`)).text();
+  expect(html).toMatch(/type="checkbox"[^>]*checked=""/);
+  let releaseComments!: () => void;
+  const commentsHeld = new Promise<void>(resolve => { releaseComments = resolve; });
+  await page.route("**/api/comments?status=all", async route => {
+    await commentsHeld;
+    await route.continue();
+  });
+  try {
+    await page.goto(`/?key=${key}&persist=1`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("checkbox", { name: "Tidy the inbox" })).toBeChecked();
+  } finally {
+    releaseComments();
+  }
+  await expect(page.getByRole("checkbox", { name: "Tidy the inbox" })).toBeChecked();
 });
 
 test("toggling one checkbox leaves its siblings mounted and visually unchanged", async ({ page, request }, info) => {

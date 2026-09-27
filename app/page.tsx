@@ -18,7 +18,7 @@ import { previewFromMarkdown } from "./lib/preview";
 
 const readNote = cache(async (key: string) => {
   await ensurePreviewDemo(key);
-  return loadNote(key);
+  return loadNote(key, true);
 });
 
 const FALLBACK: Metadata = {
@@ -113,7 +113,7 @@ export default async function Home({
     {process.env.VERCEL_ENV === "preview" && <aside className="bg-amber-100 text-zinc-900 px-4 py-3 text-center text-sm">Preview sandbox · Separate note namespace · <a className="underline" href={persistPath(REACTION_DEMO_KEY)}>Open reaction demo</a> · <a className="underline" href={persistPath(DEMO_KEY)}>Open commenting demo</a></aside>}
     <NoteApp
       initialKeyLabel={key ? maskKey(key) : null}
-      initialNote={note ? { content: note.content, rev: note.rev } : null}
+      initialNote={note ? { content: note.content, rev: note.rev, responses: note.responses } : null}
       initialPersist={persist}
     />
     </>
