@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeKey, SESSION_COOKIE } from "@/app/lib/key";
 import { applyNoIndexHeaders } from "@/app/lib/robots";
-import { readNote, commitComments, MAX_CONTENT_BYTES } from "@/app/lib/notes";
+import { readNote, readAccessedNote, commitComments, MAX_CONTENT_BYTES } from "@/app/lib/notes";
 import { applyComments, locateThreads } from "@/app/lib/comments";
 
 function json(value: unknown, status = 200) {
@@ -19,11 +19,11 @@ function keyFor(request: NextRequest, explicit: unknown) {
 export async function GET(request: NextRequest) {
   const key = keyFor(request, request.nextUrl.searchParams.get("key"));
   if (!key) return json({ error: "Key is required" }, 400);
-  const note = await readNote(key, true);
-  if (!note) return json({ error: "Note not found" }, 404);
   const status = request.nextUrl.searchParams.get("status") ?? "open";
   if (!["open", "resolved", "all"].includes(status))
     return json({ error: "Invalid status" }, 400);
+  const note = await readAccessedNote(key, true);
+  if (!note) return json({ error: "Note not found" }, 404);
   return json({
     rev: note.rev,
     content: note.content,

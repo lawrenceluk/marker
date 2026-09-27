@@ -35,6 +35,9 @@ test("response drafts, submission, conflicts and read-back share the note revisi
     const initial = await (await get()).json();
     assert.equal(initial.blocks.length, 3);
     assert.deepEqual(initial.responses, []);
+    const firstAccess = (await notes.readNote("fixture"))?.lastAccessedAt;
+    assert.ok(firstAccess);
+    assert.equal(await notes.readRevision("fixture"), 1);
     const check = initial.blocks[0].id;
     const ask = "ask:next-step";
     const draft = await post({ key: "fixture", if_rev: 1, changes: [
@@ -59,6 +62,7 @@ test("response drafts, submission, conflicts and read-back share the note revisi
     const contentApi = await import("../app/api/content/route");
     const contentReadback = await (await contentApi.GET(new NextRequest("http://localhost/api/content?key=fixture"))).json();
     assert.deepEqual(contentReadback.responses, (await notes.readNote("fixture", true))?.responses);
+    assert.equal(contentReadback.last_accessed_at, firstAccess);
     assert.equal((await notes.readNote("fixture", true))?.comments.length, 0);
     assert.equal((await notes.writeNote("fixture", `${content}\n\nAgent reply`, { ifRev: 3 })).ok, true);
     assert.equal((await (await get()).json()).responses.length, 3);

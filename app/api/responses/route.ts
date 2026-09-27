@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeKey, SESSION_COOKIE } from "@/app/lib/key";
 import { applyNoIndexHeaders } from "@/app/lib/robots";
-import { commitResponses, readNote } from "@/app/lib/notes";
+import { commitResponses, readAccessedNote, readNote } from "@/app/lib/notes";
 import { applyResponseChanges, reactionBlocks } from "@/app/lib/responses";
 
 function json(value: unknown, status = 200) {
@@ -17,7 +17,7 @@ function keyFor(request: NextRequest, explicit: unknown) {
 export async function GET(request: NextRequest) {
   const key = keyFor(request, request.nextUrl.searchParams.get("key"));
   if (!key) return json({ error: "Key is required" }, 400);
-  const note = await readNote(key, true);
+  const note = await readAccessedNote(key, true);
   if (!note) return json({ error: "Note not found" }, 404);
   const blocks = reactionBlocks(note.content);
   const active = new Set(blocks.map(block => block.id));

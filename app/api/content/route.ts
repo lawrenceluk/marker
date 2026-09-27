@@ -12,7 +12,7 @@ import {
   WRITE_MODES,
   WriteMode,
   deleteNote,
-  readNote,
+  readAccessedNote,
   renameNote,
   writeNote,
 } from "@/app/lib/notes";
@@ -21,6 +21,7 @@ import { applyNoIndexHeaders } from "@/app/lib/robots";
 function json(data: unknown, status = 200) {
   const response = NextResponse.json(data, { status });
   applyNoIndexHeaders(response.headers);
+  response.headers.set("Cache-Control", "no-store, private");
   return response;
 }
 
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
     return json({ error: "Key is required" }, 400);
   }
 
-  const note = await readNote(key, true);
+  const note = await readAccessedNote(key, true);
 
   // Same shape either way, so callers never have to branch on `exists` before
   // reading a field. A note that doesn't exist reads as rev 0, which is also
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
       rev: 0,
       updated_at: null,
       created_at: null,
+      last_accessed_at: null,
       expires_at: null,
       size: 0,
     });
@@ -69,6 +71,7 @@ export async function GET(request: NextRequest) {
     rev: note.rev,
     updated_at: note.updatedAt,
     created_at: note.createdAt,
+    last_accessed_at: note.lastAccessedAt,
     expires_at: note.expiresAt,
     size: Buffer.byteLength(note.content, "utf8"),
   });
