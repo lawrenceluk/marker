@@ -32,16 +32,21 @@ test("Choice ranking uses the same bounded request in Preview and Production", a
       assert.equal(payload.state.nearby_passage, sample.context);
       assert.equal(payload.state.tapped_text, "focused");
       assert.ok(!JSON.stringify(payload).includes("synthetic-test-only"));
+      assert.equal(payload.questions.reaction.type, "choice");
+      assert.equal(Object.keys(payload.questions.reaction.criteria).length, 24);
       assert.match(payload.questions.span.instructions, /shortest meaningful phrase/u);
       assert.match(payload.questions.span.instructions, /full sentence only/u);
       const criteria = payload.questions.span.criteria as Record<string, { quote: string; scope: string }>;
       assert.ok(Object.values(criteria).some(option => option.scope === "phrase"));
       const scores = Object.fromEntries(Object.entries(criteria).map(([label, option]) => [label, option.quote === chosenText ? .9 : .025]));
-      return new Response(JSON.stringify({ answers: { span: { type: "choice", probabilities: scores } } }), { status: 200 });
+      const emojiScores = Object.fromEntries(Object.keys(payload.questions.reaction.criteria).map((label, index) => [label, index === 3 ? .7 : index === 6 ? .2 : index === 0 ? .1 : 0]));
+      return new Response(JSON.stringify({ answers: { span: { type: "choice", probabilities: scores }, reaction: { type: "choice", probabilities: emojiScores } } }), { status: 200 });
     }) as typeof fetch;
     const success = await (await post()).json();
     assert.equal(success.ranking[0], 1);
-    assert.deepEqual(Object.keys(success), ["ranking"]);
+    assert.deepEqual(success.emojis, ["😂", "🔥", "👍"]);
+    assert.equal(success.suggested, true);
+    assert.deepEqual(Object.keys(success), ["ranking", "emojis", "suggested"]);
     chosenText = sample.candidates[3].text;
     const fullSentence = await (await post()).json();
     assert.equal(fullSentence.ranking[0], 3, "an explicit full-sentence judgment remains possible");
@@ -81,14 +86,16 @@ test("missing key and timeout fall back to a clause", async () => {
     delete process.env.TYPESAFE_API_KEY;
     let result = await (await post()).json();
     assert.equal(result.ranking[0], 2);
-    assert.deepEqual(Object.keys(result), ["ranking"]);
+    assert.deepEqual(result.emojis, ["👍", "❤️", "👀"]);
+    assert.equal(result.suggested, false);
     process.env.TYPESAFE_API_KEY = "synthetic-test-only";
     global.fetch = (async (_url, init) => new Promise((_resolve, reject) => {
       init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")));
     })) as typeof fetch;
     result = await (await post()).json();
     assert.equal(result.ranking[0], 2);
-    assert.deepEqual(Object.keys(result), ["ranking"]);
+    assert.deepEqual(result.emojis, ["👍", "❤️", "👀"]);
+    assert.equal(result.suggested, false);
   } finally {
     process.env.VERCEL_ENV = oldEnv;
     process.env.TYPESAFE_API_KEY = oldKey;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { calibrateJevRanking, heuristicRanking, type TapCandidate } from "@/app/lib/tap-select";
+import { DEFAULT_EMOJI, emojiFromAnswer, emojiQuestion } from "@/app/lib/emoji-suggestions";
 
 // Run near TypeSafe's currently West Coast service.
 export const preferredRegion = "sfo1";
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
   try { body = JSON.parse(raw); } catch { return reply({ error: "Invalid request" }, 400); }
   if (!valid(body)) return reply({ error: "Invalid request" }, 400);
   const fallback = heuristicRanking(body.candidates);
-  const result = (ranking = fallback) => reply({ ranking });
+  const result = (ranking = fallback, emojis = DEFAULT_EMOJI, suggested = false) => reply({ ranking, emojis, suggested });
   const key = process.env.TYPESAFE_API_KEY;
   if (!key) return result();
   // Neutral labels and a deterministic, length-independent order reduce position bias.
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model: "jev-1.13.0",
         state: { nearby_passage: body.context, tapped_text: body.candidates.find(c => c.kind === "word")?.text ?? body.candidates[0].text },
-        questions: { span: {
+        questions: { reaction: emojiQuestion(), span: {
           type: "choice",
           instructions: "Which quote best captures the specific point a reader would comment on after tapping `tapped_text` in `nearby_passage`? Prefer the shortest meaningful phrase or word(s) that carry the point. A phrase such as the action, object, or claim is usually more useful than its surrounding paragraph. Choose a full sentence only when its wider claim or contrast is necessary to understand the comment target; do not choose it just because it is complete. Avoid syntax-only or vague fragments, but retain negation and qualifiers needed for meaning.",
           criteria,
@@ -90,7 +91,8 @@ export async function POST(request: Request) {
       return result();
     const byIndex = body.candidates.map((_, index) => scores.find(item => item.index === index)!.score);
     const calibrated = calibrateJevRanking(body.candidates, byIndex);
-    return result(calibrated.ranking);
+    const emojis = emojiFromAnswer(data?.answers?.reaction);
+    return result(calibrated.ranking, emojis ?? DEFAULT_EMOJI, emojis !== null);
   } catch {
     return result();
   } finally {

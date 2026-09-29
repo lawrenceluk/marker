@@ -9,7 +9,8 @@ import {
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
-import { Check, MessageCircle, Minus, Plus, RotateCcw, Send, X } from "lucide-react";
+import { Check, MessageCircle, Minus, Plus, RotateCcw, Search, Send, SmilePlus, X } from "lucide-react";
+import EmojiPicker, { Theme } from "emoji-picker-react";
 import { ContentViewer, type ResponseChange } from "./ContentViewer";
 import { ToolbarButton } from "./ToolbarButton";
 import { plainQuote, selectionBubble } from "../lib/comment-presentation";
@@ -17,9 +18,10 @@ import { selectSourceRange, sourceSelection, tapSourceOffset } from "../lib/comm
 import { adjacentSizeCandidate, heuristicRanking, tapCandidates, tapContext, type TapCandidate } from "../lib/tap-select";
 import type { CommentOperation, LocatedThread } from "../lib/comments";
 import { reactionBlocks, type ResponseEntry } from "../lib/responses";
+import { DEFAULT_EMOJI } from "../lib/emoji-suggestions";
 
 type Snapshot = { rev: number; content: string; comments: LocatedThread[]; responses: ResponseEntry[] };
-type RankAnswer = { ranking: number[] };
+type RankAnswer = { ranking: number[]; emojis?: string[]; suggested?: boolean };
 type AutoSelection = { candidates: TapCandidate[]; ranking: number[]; index: number; requestId: number };
 type Selection = {
   start: number;
@@ -48,6 +50,11 @@ export function CommentedViewer({
 }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const selectionStart = selection?.start;
+  const selectionEnd = selection?.end;
+  const [suggestedEmojis, setSuggestedEmojis] = useState(DEFAULT_EMOJI);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiSuggestionKey = useRef("");
   const autoSelection = useRef<AutoSelection | null>(null);
   const tapRequest = useRef(0);
   const rankAbort = useRef<AbortController | null>(null);
@@ -111,6 +118,25 @@ export function CommentedViewer({
     void load(controller.signal);
     return () => controller.abort();
   }, [load, rev]);
+
+  useEffect(() => {
+    if (selectionStart === undefined || selectionEnd === undefined) return;
+    const key = `${rev}:${selectionStart}:${selectionEnd}`;
+    if (emojiSuggestionKey.current === key) return;
+    emojiSuggestionKey.current = key;
+    setSuggestedEmojis(DEFAULT_EMOJI);
+    const controller = new AbortController();
+    void fetch("/api/emoji-suggest", {
+      method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
+      body: JSON.stringify({ selection: content.slice(selectionStart, selectionEnd), context: tapContext(content, selectionStart) }),
+      signal: controller.signal,
+    }).then(response => response.ok ? response.json() : null).then(data => {
+      if (!controller.signal.aborted && emojiSuggestionKey.current === key &&
+        Array.isArray(data?.emojis) && data.emojis.length === 3 && data.emojis.every((emoji: unknown) => typeof emoji === "string"))
+        setSuggestedEmojis(data.emojis);
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [selectionStart, selectionEnd, content, rev]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -386,6 +412,11 @@ export function CommentedViewer({
       new Set(ranking).size === candidates.length &&
       ranking.every(i => Number.isInteger(i) && i >= 0 && i < candidates.length);
     const finalRanking = valid ? ranking : baseline;
+    const picked = candidates[finalRanking[0]];
+    if (usable?.suggested && usable.emojis?.length === 3) {
+      emojiSuggestionKey.current = `${rev}:${picked.start}:${picked.end}`;
+      setSuggestedEmojis(usable.emojis);
+    } else emojiSuggestionKey.current = "";
     pendingTap.current = false;
     setPending(null);
     autoSelection.current = {
@@ -415,6 +446,7 @@ export function CommentedViewer({
       setActive(id);
       setDraft("");
       setError("");
+      setShowEmojiPicker(false);
     });
     const sheet = dialog.current!;
     if (!sheet.open) sheet.showModal();
@@ -463,6 +495,10 @@ export function CommentedViewer({
         end: selection.end,
         text: draft,
       });
+  }
+  function sendEmoji(emoji: string) {
+    if (!selection || busy) return;
+    void submit({ action: "create", start: selection.start, end: selection.end, text: emoji });
   }
   const writeResponses = useCallback(async (changes: ResponseChange[], submit: boolean) => {
     if (reactionBusy || !snapshot || snapshot.rev !== rev) return;
@@ -595,7 +631,7 @@ export function CommentedViewer({
           }}
           onClick={(e) => open("new", e.currentTarget.getBoundingClientRect())}
         >
-          <MessageCircle size={14} />
+          <SmilePlus size={15} />
         </ToolbarButton>
       )}
       {selection && !active && autoSelection.current && (() => {
@@ -616,6 +652,7 @@ export function CommentedViewer({
         onClose={() => {
           setActive(null);
           setSelection(null);
+          setShowEmojiPicker(false);
         }}
         onPointerDown={(e) => {
           if (e.target === e.currentTarget) {
@@ -729,6 +766,13 @@ export function CommentedViewer({
                 </div>
               ))}
             </div>
+            {!thread && selection && <div className="emoji-reactor" aria-label="React to selection">
+              <div className="emoji-quick-picks">
+                {suggestedEmojis.map((emoji, index) => <button type="button" key={`${index}-${emoji}`} disabled={busy} aria-label={`React with ${emoji}`} onClick={() => sendEmoji(emoji)}>{emoji}</button>)}
+                <button type="button" aria-label="Search emoji" aria-expanded={showEmojiPicker} onClick={() => setShowEmojiPicker(value => !value)}><Search size={19} /></button>
+              </div>
+              {showEmojiPicker && <EmojiPicker theme={Theme.AUTO} width="100%" height={310} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />}
+            </div>}
             <form
               className="comment-compose"
               onSubmit={(e) => {
