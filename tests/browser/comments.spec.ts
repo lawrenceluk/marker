@@ -43,7 +43,7 @@ test("select → icon → type → send, then agent edit/resolve and focused rep
       .sort((a, b) => b.bottom - a.bottom || b.right - a.right)[0]
       .toJSON(),
   );
-  expect(bounds!.width).toBe(touch ? 28 : 24);
+  expect(bounds!.width).toBe(touch ? 36 : 32);
   expect(bounds!.x - selected.right).toBeCloseTo(touch ? 14 : 4, 1);
   expect(
     Math.abs(

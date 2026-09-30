@@ -25,7 +25,7 @@ export function selectionBubble(
         : b.bottom - a.bottom,
     )[0];
   if (!rect) return null;
-  const size = touch ? 28 : 24,
+  const size = touch ? 36 : 32,
     gap = touch ? 14 : 4;
   const y = Math.max(
     4,

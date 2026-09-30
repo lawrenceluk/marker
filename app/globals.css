@@ -238,7 +238,7 @@ body {
 .comment-messages { max-height: min(38dvh, calc(var(--comment-viewport, 100dvh) - 148px)); overflow-y: auto; }
 .comment-compose { display: flex; align-items: flex-end; gap: 4px; }
 .emoji-reactor-bar { position: fixed; z-index: 21; display: flex; gap: 3px; padding: 3px; border: 1px solid var(--hairline); border-radius: 11px; background: var(--background); box-shadow: 0 3px 16px rgb(0 0 0 / .18); }
-.emoji-reactor-bar button { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; font-size: 22px; }
+.emoji-reactor-bar button { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 8px; font-size: 25px; }
 .emoji-reactor-bar button:hover, .emoji-reactor-bar button:focus-visible { background: color-mix(in srgb, var(--foreground) 10%, var(--background)); outline: 2px solid transparent; }
 .emoji-reactor-bar button:disabled { opacity: .5; }
 .emoji-selection[aria-expanded="true"] > span[aria-hidden="true"] { display: none; }

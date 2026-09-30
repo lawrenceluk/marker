@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("selection separates compact emoji reactions from the written comment composer", async ({ page, request }) => {
+test("selection separates compact emoji reactions from the written comment composer", async ({ page, request }, info) => {
   let key = `emoji-reactor-picker-${Date.now()}`;
   const content = "The tiny dinosaur won the design review. Everyone cheered.";
   await request.post("/api/content", { data: { key, content } });
@@ -18,9 +18,15 @@ test("selection separates compact emoji reactions from the written comment compo
   await page.getByRole("button", { name: "React to selection" }).click();
   await expect(page.getByRole("toolbar", { name: "Emoji reactions" })).toBeVisible();
   await expect(page.getByRole("dialog")).not.toBeVisible();
+  expect((await page.getByRole("button", { name: "React to selection" }).boundingBox())!.width).toBe(info.project.name === "iphone-webkit" ? 36 : 32);
+  expect((await page.getByRole("button", { name: "Search emoji" }).boundingBox())!.width).toBe(46);
   await page.screenshot({ path: `test-results/emoji-reactor-inline-${test.info().project.name}.png` });
   await expect(page.getByRole("button", { name: /^React with / })).toHaveCount(3);
   await page.getByRole("button", { name: "Search emoji" }).click();
+  await page.evaluate(() => {
+    window.visualViewport?.dispatchEvent(new Event("resize"));
+    window.dispatchEvent(new Event("scroll"));
+  });
   await expect(page.getByPlaceholder("Search")).toBeVisible();
   await page.getByPlaceholder("Search").fill("dinosaur");
   await expect(page.getByRole("button", { name: /brachiosaurus|tyrannosaurus/i }).first()).toBeVisible();

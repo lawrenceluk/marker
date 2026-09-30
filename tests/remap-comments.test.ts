@@ -129,18 +129,18 @@ test("bubble uses bottom-right visual rect, centers at text height, flips at vie
   ];
   assert.deepEqual(selectionBubble(rects, 300, 200)?.candidates[0], {
     x: 84,
-    y: 28,
+    y: 24,
   });
-  assert.equal(selectionBubble(rects, 300, 200)?.size, 24);
+  assert.equal(selectionBubble(rects, 300, 200)?.size, 32);
   assert.deepEqual(
     selectionBubble([{ left: 230, right: 298, top: 10, bottom: 30 }], 300, 200)
       ?.candidates[0],
-    { x: 202, y: 8 },
+    { x: 194, y: 4 },
   );
   assert.deepEqual(
     selectionBubble([{ left: 2, right: 298, top: 10, bottom: 30 }], 300, 200)
       ?.candidates[0],
-    { x: 272, y: 34 },
+    { x: 264, y: 34 },
   );
   assert.equal(selectionBubble(rects, 300, 200, true)?.candidates[0].x, 94);
 });

@@ -55,6 +55,7 @@ export function CommentedViewer({
   const [suggestedEmojis, setSuggestedEmojis] = useState(DEFAULT_EMOJI);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [visualBottom, setVisualBottom] = useState(0);
   const emojiOpenRef = useRef(false);
   const emojiSuggestionKey = useRef("");
   const autoSelection = useRef<AutoSelection | null>(null);
@@ -317,6 +318,8 @@ export function CommentedViewer({
     }
     function viewport() {
       const view = window.visualViewport;
+      const bottom = view ? view.offsetTop + view.height : window.innerHeight;
+      setVisualBottom(bottom);
       dialog.current?.style.setProperty(
         "--comment-bottom",
         `${view ? Math.max(0, window.innerHeight - view.height - view.offsetTop) : 0}px`,
@@ -325,7 +328,12 @@ export function CommentedViewer({
         "--comment-viewport",
         `${view?.height ?? window.innerHeight}px`,
       );
-      hide();
+      if (!emojiOpenRef.current) hide();
+    }
+    function scroll() {
+      // Focusing and scrolling inside the picker can move the visual viewport.
+      // Outside taps still dismiss the bar through pointerStart.
+      if (!emojiOpenRef.current) hide();
     }
     viewport();
     document.addEventListener("selectionchange", changed);
@@ -339,7 +347,7 @@ export function CommentedViewer({
     document.addEventListener("keydown", keyboard, true);
     document.addEventListener("keyup", keyboard, true);
     window.addEventListener("blur", cancel);
-    window.addEventListener("scroll", hide, true);
+    window.addEventListener("scroll", scroll, true);
     window.visualViewport?.addEventListener("resize", viewport);
     window.visualViewport?.addEventListener("scroll", viewport);
     return () => {
@@ -357,7 +365,7 @@ export function CommentedViewer({
       document.removeEventListener("keydown", keyboard, true);
       document.removeEventListener("keyup", keyboard, true);
       window.removeEventListener("blur", cancel);
-      window.removeEventListener("scroll", hide, true);
+      window.removeEventListener("scroll", scroll, true);
       window.visualViewport?.removeEventListener("resize", viewport);
       window.visualViewport?.removeEventListener("scroll", viewport);
     };
@@ -676,20 +684,22 @@ export function CommentedViewer({
         }}
       ><SmilePlus size={15} /></ToolbarButton>}
       {selection && !active && emojiOpen && (() => {
-        const viewBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
-        const barTop = selection.y + selection.size + 46 < viewBottom
-          ? selection.y + selection.size + 5 : Math.max(4, selection.y - 46);
+        const viewBottom = visualBottom || window.innerHeight;
+        const barTop = selection.y + selection.size + 56 < viewBottom
+          ? selection.y + selection.size + 5 : Math.max(4, selection.y - 56);
         const pickerWidth = Math.min(320, window.innerWidth - 16);
-        const pickerTop = barTop + 360 < viewBottom ? barTop + 46 : Math.max(8, barTop - 320);
+        const pickerHeight = Math.min(310, Math.max(180, viewBottom - 16));
+        const pickerTop = barTop + pickerHeight + 56 < viewBottom
+          ? barTop + 56 : Math.max(8, Math.min(barTop - pickerHeight - 5, viewBottom - pickerHeight - 8));
         return <>
-          <div className="emoji-reactor-bar" role="toolbar" aria-label="Emoji reactions" style={{ left: Math.max(4, Math.min(selection.x, window.innerWidth - 168)), top: barTop }}>
+          <div className="emoji-reactor-bar" role="toolbar" aria-label="Emoji reactions" style={{ left: Math.max(4, Math.min(selection.x, window.innerWidth - 208)), top: barTop }}>
             {suggestedEmojis.map((emoji, index) => <button type="button" key={`${index}-${emoji}`} disabled={busy} aria-label={`React with ${emoji}`} onClick={() => sendEmoji(emoji)}>{emoji}</button>)}
             <button type="button" aria-label="Search emoji" aria-expanded={showEmojiPicker} onClick={() => setShowEmojiPicker(value => !value)}><Search size={18} /></button>
           </div>
           {showEmojiPicker && <div className="emoji-picker-panel" style={{ left: Math.max(8, Math.min(selection.x, window.innerWidth - pickerWidth - 8)), top: pickerTop, width: pickerWidth }}>
-            <EmojiPicker theme={Theme.AUTO} width="100%" height={310} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />
+            <EmojiPicker theme={Theme.AUTO} width="100%" height={pickerHeight} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />
           </div>}
-          {error && <p className="emoji-reactor-error" role="alert" style={{ left: Math.max(8, Math.min(selection.x, window.innerWidth - 280)), top: barTop + 48 }}>{error}</p>}
+          {error && <p className="emoji-reactor-error" role="alert" style={{ left: Math.max(8, Math.min(selection.x, window.innerWidth - 280)), top: barTop + 58 }}>{error}</p>}
         </>;
       })()}
       {selection && !active && autoSelection.current && (() => {
