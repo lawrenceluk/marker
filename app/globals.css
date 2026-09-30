@@ -225,7 +225,7 @@ body {
 
 /* Comments use the reader's icon language; the native text-selection menu stays intact. */
 .comment-count { position: absolute; right: -4px; top: -5px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 8px; font-size: 10px; line-height: 14px; background: var(--foreground); color: var(--background); }
-.comment-selection { position: fixed; z-index: 20; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); color: var(--foreground); box-shadow: 0 2px 12px rgb(0 0 0 / .18); }
+.comment-selection, .emoji-selection { position: fixed; z-index: 20; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); color: var(--foreground); box-shadow: 0 2px 12px rgb(0 0 0 / .18); }
 .comment-sheet { position: fixed; inset: auto; margin: 0; left: clamp(8px, var(--comment-x, 8px), calc(100vw - 336px)); top: var(--comment-y, 20vh); width: min(328px, calc(100vw - 16px)); max-height: min(70dvh, calc(var(--comment-viewport, 100dvh) - 16px)); padding: 12px; border-radius: 12px; color: var(--foreground); background: var(--background); box-shadow: 0 4px 28px rgb(0 0 0 / .16); overflow-y: auto; }
 .comment-sheet::backdrop { background: rgb(0 0 0 / .06); }
 .comment-heading { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
@@ -237,17 +237,18 @@ body {
 .comment-row { display: block; width: 100%; text-align: left; padding: 8px 4px; border-radius: 6px; font-size: 14px; }
 .comment-messages { max-height: min(38dvh, calc(var(--comment-viewport, 100dvh) - 148px)); overflow-y: auto; }
 .comment-compose { display: flex; align-items: flex-end; gap: 4px; }
-.emoji-reactor { margin: 8px 0 12px; }
-.emoji-quick-picks { display: flex; align-items: center; gap: 8px; }
-.emoji-quick-picks button { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--hairline); border-radius: 12px; background: color-mix(in srgb, var(--foreground) 3%, var(--background)); font-size: 24px; }
-.emoji-quick-picks button:hover, .emoji-quick-picks button:focus-visible { background: color-mix(in srgb, var(--foreground) 10%, var(--background)); outline: 2px solid transparent; }
-.emoji-quick-picks button:disabled { opacity: .5; }
-.emoji-reactor .EmojiPickerReact { margin-top: 8px; max-width: 100%; }
+.emoji-reactor-bar { position: fixed; z-index: 21; display: flex; gap: 3px; padding: 3px; border: 1px solid var(--hairline); border-radius: 11px; background: var(--background); box-shadow: 0 3px 16px rgb(0 0 0 / .18); }
+.emoji-reactor-bar button { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 8px; font-size: 22px; }
+.emoji-reactor-bar button:hover, .emoji-reactor-bar button:focus-visible { background: color-mix(in srgb, var(--foreground) 10%, var(--background)); outline: 2px solid transparent; }
+.emoji-reactor-bar button:disabled { opacity: .5; }
+.emoji-selection[aria-expanded="true"] > span[aria-hidden="true"] { display: none; }
+.emoji-picker-panel { position: fixed; z-index: 22; max-width: calc(100vw - 16px); border-radius: 10px; box-shadow: 0 4px 22px rgb(0 0 0 / .2); }
+.emoji-reactor-error { position: fixed; z-index: 22; max-width: 272px; padding: 8px; border-radius: 8px; background: var(--background); color: #b91c1c; font-size: 12px; box-shadow: 0 2px 12px rgb(0 0 0 / .15); }
 .comment-compose textarea { flex: 1; min-width: 0; min-height: 36px; max-height: 120px; padding: 6px 2px; resize: vertical; outline: none; font-size: 16px; line-height: 24px; background: transparent; }
 [data-comments] { background: color-mix(in srgb, var(--color-yellow-500) 16%, transparent); color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--color-yellow-600) 50%, transparent); text-underline-offset: 3px; cursor: pointer; }
-@media (prefers-color-scheme: dark) { .comment-sheet, .comment-selection { box-shadow: 0 2px 24px rgb(0 0 0 / .5); outline: 1px solid var(--hairline); } }
+@media (prefers-color-scheme: dark) { .comment-sheet, .comment-selection, .emoji-selection { box-shadow: 0 2px 24px rgb(0 0 0 / .5); outline: 1px solid var(--hairline); } }
 @media (max-width: 640px) { .comment-sheet { left: 8px; top: auto; bottom: calc(var(--comment-bottom, 0px) + 8px); width: calc(100vw - 16px); padding-bottom: max(12px, env(safe-area-inset-bottom)); } }
-@media (hover: none) { .comment-icon > span[aria-hidden="true"], .comment-selection > span[aria-hidden="true"] { display: none; } }
+@media (hover: none) { .comment-icon > span[aria-hidden="true"], .comment-selection > span[aria-hidden="true"], .emoji-selection > span[aria-hidden="true"] { display: none; } }
 
 .note-toolbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--hairline); }
 .note-toolbar > :last-child:not(:first-child) { margin-left: auto; }

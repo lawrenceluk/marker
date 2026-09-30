@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
-import { Check, MessageCircle, Minus, Plus, RotateCcw, Search, Send, SmilePlus, X } from "lucide-react";
+import { Check, MessageCircle, MessageSquarePlus, Minus, Plus, RotateCcw, Search, Send, SmilePlus, X } from "lucide-react";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import { ContentViewer, type ResponseChange } from "./ContentViewer";
 import { ToolbarButton } from "./ToolbarButton";
@@ -53,7 +53,9 @@ export function CommentedViewer({
   const selectionStart = selection?.start;
   const selectionEnd = selection?.end;
   const [suggestedEmojis, setSuggestedEmojis] = useState(DEFAULT_EMOJI);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiOpenRef = useRef(false);
   const emojiSuggestionKey = useRef("");
   const autoSelection = useRef<AutoSelection | null>(null);
   const tapRequest = useRef(0);
@@ -146,8 +148,9 @@ export function CommentedViewer({
     let keyHeld = false;
     let touch = window.matchMedia("(pointer: coarse)").matches;
     function hitTesting(enabled: boolean) {
-      const button = document.querySelector<HTMLElement>(".comment-selection");
-      if (button) button.style.pointerEvents = enabled ? "" : "none";
+      document.querySelectorAll<HTMLElement>(".comment-selection, .emoji-selection").forEach(button => {
+        button.style.pointerEvents = enabled ? "" : "none";
+      });
     }
     function hide() {
       rankAbort.current?.abort();
@@ -162,6 +165,9 @@ export function CommentedViewer({
       setPending(null);
       tapRequest.current++;
       if (dialog.current?.open) return; // Keep the draft's source range.
+      emojiOpenRef.current = false;
+      setEmojiOpen(false);
+      setShowEmojiPicker(false);
       hitTesting(false); // Disable synchronously, before React removes the button.
       setSelection(null);
     }
@@ -188,7 +194,7 @@ export function CommentedViewer({
             p.x + bubble.size / 2,
             p.y + bubble.size / 2,
           );
-          if (!element || element.closest(".comment-selection")) return true;
+          if (!element || element.closest(".comment-selection, .emoji-selection, .emoji-reactor-bar, .emoji-picker-panel")) return true;
           for (
             let el: Element | null = element;
             el && el !== document.body;
@@ -220,7 +226,7 @@ export function CommentedViewer({
         }, touch ? 350 : 140);
     }
     function changed() {
-      if (dialog.current?.open) return;
+      if (dialog.current?.open || emojiOpenRef.current) return;
       if (pendingTap.current) { hitTesting(false); setSelection(null); return; }
       const source = root.current ? sourceSelection(root.current) : null;
       if (!source) return hide();
@@ -251,7 +257,7 @@ export function CommentedViewer({
     }
     function onBubble(event: Event) {
       return event.target instanceof Element &&
-        !!event.target.closest(".comment-selection, .comment-auto-chip");
+        !!event.target.closest(".comment-selection, .emoji-selection, .emoji-reactor-bar, .emoji-picker-panel, .comment-auto-chip");
     }
     function pointerStart(event: PointerEvent) {
       if (event.button !== 0 || onBubble(event)) return;
@@ -280,6 +286,13 @@ export function CommentedViewer({
       settle();
     }
     function keyboard(event: KeyboardEvent) {
+      if (event.key === "Escape" && emojiOpenRef.current) {
+        emojiOpenRef.current = false;
+        setEmojiOpen(false);
+        setShowEmojiPicker(false);
+        return;
+      }
+      if (emojiOpenRef.current && event.target instanceof Element && event.target.closest(".emoji-picker-panel")) return;
       if (!/^(Arrow|Home$|End$|Page)/.test(event.key)) return;
       touch = false;
       keyHeld = event.type === "keydown";
@@ -435,6 +448,8 @@ export function CommentedViewer({
   }
 
   function open(id: string, rect: { left: number; bottom: number }) {
+    emojiOpenRef.current = false;
+    setEmojiOpen(false);
     rankAbort.current?.abort();
     tapRequest.current++; // A late rank must not change an open composer.
     autoSelection.current = null;
@@ -478,6 +493,9 @@ export function CommentedViewer({
       onChange(data.content, data.rev, data.responses);
       setDraft("");
       setSelection(null);
+      emojiOpenRef.current = false;
+      setEmojiOpen(false);
+      setShowEmojiPicker(false);
       if (operation.action === "create") dialog.current?.close();
     } catch (e) {
       setError((e as Error).message);
@@ -631,9 +649,49 @@ export function CommentedViewer({
           }}
           onClick={(e) => open("new", e.currentTarget.getBoundingClientRect())}
         >
-          <SmilePlus size={15} />
+          <MessageSquarePlus size={15} />
         </ToolbarButton>
       )}
+      {selection && !active && <ToolbarButton
+        label="React to selection"
+        className="emoji-selection group"
+        aria-expanded={emojiOpen}
+        style={{
+          left: selection.x + selection.size * 2 + 4 <= window.innerWidth - 4
+            ? selection.x + selection.size + 4 : selection.x - selection.size - 4,
+          top: selection.y,
+          width: selection.size,
+          height: selection.size,
+        }}
+        onPointerDown={e => {
+          emojiOpenRef.current = true;
+          if (e.pointerType === "mouse") e.preventDefault();
+        }}
+        onClick={() => {
+          const next = !emojiOpen;
+          emojiOpenRef.current = next;
+          setEmojiOpen(next);
+          setShowEmojiPicker(false);
+          setError("");
+        }}
+      ><SmilePlus size={15} /></ToolbarButton>}
+      {selection && !active && emojiOpen && (() => {
+        const viewBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
+        const barTop = selection.y + selection.size + 46 < viewBottom
+          ? selection.y + selection.size + 5 : Math.max(4, selection.y - 46);
+        const pickerWidth = Math.min(320, window.innerWidth - 16);
+        const pickerTop = barTop + 360 < viewBottom ? barTop + 46 : Math.max(8, barTop - 320);
+        return <>
+          <div className="emoji-reactor-bar" role="toolbar" aria-label="Emoji reactions" style={{ left: Math.max(4, Math.min(selection.x, window.innerWidth - 168)), top: barTop }}>
+            {suggestedEmojis.map((emoji, index) => <button type="button" key={`${index}-${emoji}`} disabled={busy} aria-label={`React with ${emoji}`} onClick={() => sendEmoji(emoji)}>{emoji}</button>)}
+            <button type="button" aria-label="Search emoji" aria-expanded={showEmojiPicker} onClick={() => setShowEmojiPicker(value => !value)}><Search size={18} /></button>
+          </div>
+          {showEmojiPicker && <div className="emoji-picker-panel" style={{ left: Math.max(8, Math.min(selection.x, window.innerWidth - pickerWidth - 8)), top: pickerTop, width: pickerWidth }}>
+            <EmojiPicker theme={Theme.AUTO} width="100%" height={310} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />
+          </div>}
+          {error && <p className="emoji-reactor-error" role="alert" style={{ left: Math.max(8, Math.min(selection.x, window.innerWidth - 280)), top: barTop + 48 }}>{error}</p>}
+        </>;
+      })()}
       {selection && !active && autoSelection.current && (() => {
         const state = autoSelection.current;
         const size = state.candidates[state.index].end - state.candidates[state.index].start;
@@ -766,13 +824,6 @@ export function CommentedViewer({
                 </div>
               ))}
             </div>
-            {!thread && selection && <div className="emoji-reactor" aria-label="React to selection">
-              <div className="emoji-quick-picks">
-                {suggestedEmojis.map((emoji, index) => <button type="button" key={`${index}-${emoji}`} disabled={busy} aria-label={`React with ${emoji}`} onClick={() => sendEmoji(emoji)}>{emoji}</button>)}
-                <button type="button" aria-label="Search emoji" aria-expanded={showEmojiPicker} onClick={() => setShowEmojiPicker(value => !value)}><Search size={19} /></button>
-              </div>
-              {showEmojiPicker && <EmojiPicker theme={Theme.AUTO} width="100%" height={310} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />}
-            </div>}
             <form
               className="comment-compose"
               onSubmit={(e) => {
