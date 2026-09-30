@@ -18,11 +18,13 @@ test("selection separates compact emoji reactions from the written comment compo
   await page.getByRole("button", { name: "React to selection" }).click();
   await expect(page.getByRole("toolbar", { name: "Emoji reactions" })).toBeVisible();
   await expect(page.getByRole("dialog")).not.toBeVisible();
-  expect((await page.getByRole("button", { name: "React to selection" }).boundingBox())!.width).toBe(info.project.name === "iphone-webkit" ? 36 : 32);
+  await expect(page.getByRole("button", { name: "React to selection" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Comment on selection" })).toHaveCount(0);
   expect((await page.getByRole("button", { name: "Search emoji" }).boundingBox())!.width).toBe(46);
   await page.screenshot({ path: `test-results/emoji-reactor-inline-${test.info().project.name}.png` });
   await expect(page.getByRole("button", { name: /^React with / })).toHaveCount(3);
   await page.getByRole("button", { name: "Search emoji" }).click();
+  await expect(page.getByRole("button", { name: "React to selection" })).toHaveCount(0);
   await page.evaluate(() => {
     window.visualViewport?.dispatchEvent(new Event("resize"));
     window.dispatchEvent(new Event("scroll"));
@@ -55,6 +57,14 @@ test("selection separates compact emoji reactions from the written comment compo
   await select(0, 8);
   await page.getByRole("button", { name: "React to selection" }).click();
   await expect(page.getByRole("toolbar", { name: "Emoji reactions" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("toolbar", { name: "Emoji reactions" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Comment on selection" })).toBeVisible();
+  await page.getByRole("button", { name: "React to selection" }).click();
+  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(20, page.viewportSize()!.height - 30);
+  else await page.mouse.click(20, page.viewportSize()!.height - 30);
+  await expect(page.getByRole("toolbar", { name: "Emoji reactions" })).toHaveCount(0);
+  await select(0, 8);
   await page.getByRole("button", { name: "Comment on selection" }).click();
   await expect(page.getByRole("toolbar", { name: "Emoji reactions" })).not.toBeVisible();
   await expect(page.getByLabel("Comment as You")).toBeFocused();

@@ -262,6 +262,11 @@ export function CommentedViewer({
     }
     function pointerStart(event: PointerEvent) {
       if (event.button !== 0 || onBubble(event)) return;
+      if (emojiOpenRef.current) {
+        window.getSelection()?.removeAllRanges();
+        hide();
+        return;
+      }
       if (event.pointerType === "touch") return beginTouch();
       touch = false;
       held = true;
@@ -642,7 +647,7 @@ export function CommentedViewer({
         {reactionError && <p role="alert">{reactionError} <button type="button" onClick={() => void load()}>Refresh responses</button></p>}
       </div>}
       {pending && !active && <span className="tap-pending" role="status" aria-label="Choosing quote" style={{ left: pending.x, top: pending.y }} />}
-      {selection && !active && (
+      {selection && !active && !emojiOpen && (
         <ToolbarButton
           label="Comment on selection"
           className="comment-selection group"
@@ -660,7 +665,7 @@ export function CommentedViewer({
           <MessageSquarePlus size={15} />
         </ToolbarButton>
       )}
-      {selection && !active && <ToolbarButton
+      {selection && !active && !emojiOpen && <ToolbarButton
         label="React to selection"
         className="emoji-selection group"
         aria-expanded={emojiOpen}
@@ -702,7 +707,7 @@ export function CommentedViewer({
           {error && <p className="emoji-reactor-error" role="alert" style={{ left: Math.max(8, Math.min(selection.x, window.innerWidth - 280)), top: barTop + 58 }}>{error}</p>}
         </>;
       })()}
-      {selection && !active && autoSelection.current && (() => {
+      {selection && !active && !emojiOpen && autoSelection.current && (() => {
         const state = autoSelection.current;
         const size = state.candidates[state.index].end - state.candidates[state.index].start;
         const smaller = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start < size);

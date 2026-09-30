@@ -117,6 +117,18 @@ test("tap or double-click ranks a whole span, steps size, and opens the normal c
   else await page.getByRole("button", { name: "Larger selection" }).click();
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe(content.split(". ")[0] + ".");
   await expect(bubble).toBeVisible();
+  const reactor = page.getByRole("button", { name: "React to selection" });
+  if (info.project.name === "iphone-webkit") await reactor.tap();
+  else await reactor.click();
+  await expect(page.getByRole("toolbar", { name: "Emoji reactions" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Smaller selection" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Larger selection" })).toHaveCount(0);
+  await expect(bubble).toHaveCount(0);
+  await expect(reactor).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("toolbar", { name: "Emoji reactions" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Smaller selection" })).toBeVisible();
+  await expect(bubble).toBeVisible();
   if (info.project.name === "iphone-webkit") await bubble.tap();
   else await bubble.click();
   await expect(page.getByLabel("Comment as You")).toBeFocused();
