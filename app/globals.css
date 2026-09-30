@@ -29,10 +29,10 @@ body {
 }
 
 /* Metadata is separate from prose so YAML cannot become a Markdown heading. */
-.metadata-callout { margin: 0 0 1.25rem; border: 1px solid var(--hairline); border-radius: 0.6rem; background: color-mix(in srgb, var(--foreground) 2%, var(--background)); font-size: 0.8rem; line-height: 1.5; color: color-mix(in srgb, var(--foreground) 75%, var(--background)); overflow-wrap: anywhere; }
-.metadata-callout summary { padding: 0.65rem 0.85rem; cursor: pointer; font-weight: 550; min-height: 44px; }
-.metadata-callout summary:focus-visible { outline: 2px solid var(--foreground); outline-offset: -3px; border-radius: 0.4rem; }
-.metadata-content { padding: 0 0.85rem 0.85rem; }
+.metadata-callout { margin: 0 0 1.25rem; font-size: 0.8rem; line-height: 1.5; color: color-mix(in srgb, var(--foreground) 75%, var(--background)); overflow-wrap: anywhere; }
+.metadata-callout summary { width: fit-content; padding: 0.65rem 0; cursor: pointer; font-weight: 550; min-height: 44px; }
+.metadata-callout summary:focus-visible { outline: 2px solid var(--foreground); outline-offset: 3px; border-radius: 0.2rem; }
+.metadata-content { padding: 0.65rem 0.85rem; border: 1px solid var(--hairline); border-radius: 0.6rem; background: color-mix(in srgb, var(--foreground) 2%, var(--background)); font-family: var(--font-geist-mono, ui-monospace), SFMono-Regular, Menlo, monospace; }
 .metadata-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 0.35rem 0.8rem; padding: 0.25rem 0; }
 .metadata-field dt { font-weight: 550; color: var(--foreground); }
 .metadata-field dd { min-width: 0; white-space: pre-wrap; }
