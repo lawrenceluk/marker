@@ -1,3 +1,5 @@
+import { bodyMarkdown } from "./frontmatter";
+
 export type ReactionBlock =
   | { id: string; kind: "checkbox"; label: string; checked: boolean; offset: number }
   | { id: string; kind: "ask"; question: string; mode: "single" | "multi"; options: string[]; other: boolean; offset: number };
@@ -59,7 +61,7 @@ export function reactionBlocks(content: string): ReactionBlock[] {
   const blocks: ReactionBlock[] = [];
   const seenChecks = new Map<string, number>();
   const seenAsks = new Set<string>();
-  const lines = content.split("\n");
+  const lines = bodyMarkdown(content).split("\n");
   let offset = 0;
   let fence: { mark: string; length: number } | null = null;
   for (let i = 0; i < lines.length; i++) {

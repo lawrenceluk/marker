@@ -603,12 +603,14 @@ export function CommentedViewer({
         ref={root}
         className="tap-select"
         onMouseDownCapture={(e) => {
+          if ((e.target as HTMLElement).closest(".metadata-callout")) return;
           if (!window.matchMedia("(pointer: coarse)").matches && e.detail >= 2) {
             suppressDoubleClick.current = true;
             e.preventDefault(); // The browser must not flash its native word selection.
           }
         }}
         onDoubleClick={(e) => {
+          if ((e.target as HTMLElement).closest(".metadata-callout")) return;
           if (!window.matchMedia("(pointer: coarse)").matches) {
             e.preventDefault();
             suppressDoubleClick.current = false;
@@ -616,6 +618,7 @@ export function CommentedViewer({
           }
         }}
         onClick={(e) => {
+          if ((e.target as HTMLElement).closest(".metadata-callout")) { lastTouchTap.current = null; return; }
           if (window.getSelection()?.toString()) { lastTouchTap.current = null; return; }
           const mark = (e.target as HTMLElement).closest<HTMLElement>(
             "[data-comments]",

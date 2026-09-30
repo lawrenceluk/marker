@@ -4,6 +4,8 @@
  * this is only a truncated plaintext prefix for og:title / og:description.
  */
 
+import { frontMatter } from "./frontmatter";
+
 export const TITLE_MAX = 70;
 export const DESCRIPTION_MAX = 200;
 
@@ -19,7 +21,7 @@ export type NotePreview = {
 };
 
 function stripMarkdown(markdown: string): string {
-  let text = markdown.slice(0, SOURCE_MAX).replace(/\r\n|\r/g, "\n");
+  let text = markdown.slice(frontMatter(markdown)?.end ?? 0).slice(0, SOURCE_MAX).replace(/\r\n|\r/g, "\n");
 
   // Fenced code: keep the inner text (it may be the paste).
   text = text.replace(/```[\w-]*\n?([\s\S]*?)```/g, "$1");

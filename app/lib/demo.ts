@@ -5,6 +5,36 @@ import { applyComments } from "./comments";
 
 export const DEMO_KEY = "commenting-demo-v1";
 export const REACTION_DEMO_KEY = "reaction-demo-v1";
+export const METADATA_DEMO_KEY = "metadata-demo-v1";
+const METADATA_CONTENT = `---
+title: A small launch plan
+status: draft
+last-updated: 2026-09-30
+ready: false
+tags: [planning, design, review]
+review:
+  owner: Demo team
+  round: 2
+summary: |
+  A synthetic note for trying the Metadata section.
+  Expand it to see the fields, then collapse it again.
+---
+# A small launch plan
+
+Metadata starts collapsed. Tap **Metadata** above to expand its fields. This is synthetic test material shared on this Preview.
+
+Select a little text to leave a comment or emoji reaction. The quote stays attached to the original Markdown.
+
+1. [ ] Review the launch plan
+
+## Regular Markdown
+
+Links like [example.com](https://example.com), lists, and code still render normally.
+
+\`\`\`yaml
+status: this fenced example stays code
+\`\`\`
+`;
 const REACTION_CONTENT = [
   "# Weekly tidy — reaction demo",
   "",
@@ -53,6 +83,10 @@ This is a shared synthetic sandbox. Everyone with this demo link can edit it. It
 /** Create once, atomically, in Preview only. Never reset an existing demo. */
 export async function ensurePreviewDemo(key: string) {
   if (process.env.VERCEL_ENV !== "preview") return;
+  if (key === METADATA_DEMO_KEY) {
+    await seedPreviewNote(key, METADATA_CONTENT, []);
+    return;
+  }
   if (key === REACTION_DEMO_KEY) {
     await seedPreviewNote(key, REACTION_CONTENT, []);
     return;
