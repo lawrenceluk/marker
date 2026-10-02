@@ -201,3 +201,29 @@ test("toggling one checkbox leaves its siblings mounted and visually unchanged",
   await expect(page.getByRole("checkbox", { name: "Second" })).toBeChecked();
   await expect(page.getByRole("checkbox", { name: "Third" })).toBeChecked();
 });
+
+
+test("failed autosave retains the choice and explicit refresh resumes saving", async ({ page, request }, info) => {
+  const key = `choice-retry-${info.project.name}`;
+  await request.post("/api/content", { data: { key, content: "# Draft recovery\n- [ ] Keep this choice" } });
+  await page.goto(`/?key=${key}&persist=1`);
+  let fail = true;
+  await page.route("**/api/drafts", async route => {
+    if (route.request().method() === "POST" && fail) {
+      fail = false;
+      await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Synthetic save failure" }) });
+    } else await route.continue();
+  });
+  const checkbox = page.getByRole("checkbox", { name: "Keep this choice" });
+  await expect(checkbox).toBeEnabled();
+  await checkbox.tap();
+  await expect(page.getByRole("status").filter({ hasText: "Choices not saved" })).toBeVisible();
+  await expect(checkbox).toBeChecked();
+  expect((await (await request.get(`/api/drafts?key=${key}`)).json()).responses).toEqual([]);
+  await page.getByRole("button", { name: "Refresh choices", exact: true }).tap();
+  await expect.poll(async () => (await (await request.get(`/api/drafts?key=${key}`)).json()).responses.length).toBe(1);
+  await expect(page.getByRole("status").filter({ hasText: "Choices saved as drafts" })).toBeVisible();
+  await page.reload();
+  await expect(checkbox).toBeChecked();
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toHaveCount(0);
+});
