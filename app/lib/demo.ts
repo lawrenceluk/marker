@@ -38,7 +38,7 @@ status: this fenced example stays code
 const REACTION_CONTENT = [
   "# Weekly tidy — reaction demo",
   "",
-  "Tap a checkbox or choose an answer, then press Send. This is synthetic test material shared on this Preview.",
+  "Tap a checkbox or choose an answer; choices save as drafts. Respond in chat. This is synthetic test material shared on this Preview.",
   "",
   "## Tidy list",
   "",

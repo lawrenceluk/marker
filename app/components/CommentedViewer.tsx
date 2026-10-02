@@ -73,7 +73,6 @@ export function CommentedViewer({
   const [reactionDrafts, setReactionDrafts] = useState<Record<string, ResponseChange>>({});
   const [reactionBusy, setReactionBusy] = useState(false);
   const [reactionError, setReactionError] = useState("");
-  const [reactionSent, setReactionSent] = useState(false);
   const [reactionTextFocused, setReactionTextFocused] = useState(false);
   const reactionSaveDelay = useRef(0);
   const readVersion = useRef(0);
@@ -85,9 +84,6 @@ export function CommentedViewer({
   const openCount = threads.filter((t) => !t.resolved).length;
   const blocks = useMemo(() => reactionBlocks(content), [content]);
   const visibleResponses = snapshot?.rev === rev ? snapshot.responses : initialResponses;
-  const allSubmitted = blocks.length > 0 && blocks.every(block =>
-    typeof visibleResponses.find(entry => entry.block_id === block.id)?.submitted_at === "number",
-  );
   const load = useCallback(
     async (signal?: AbortSignal) => {
       const version = ++readVersion.current;
@@ -531,15 +527,15 @@ export function CommentedViewer({
     if (!selection || busy) return;
     void submit({ action: "create", start: selection.start, end: selection.end, text: emoji });
   }
-  const writeResponses = useCallback(async (changes: ResponseChange[], submit: boolean) => {
+  const writeResponses = useCallback(async (changes: ResponseChange[]) => {
     if (reactionBusy || !snapshot || snapshot.rev !== rev) return;
     setReactionBusy(true);
     setReactionError("");
     try {
-      const response = await fetch("/api/responses", {
+      const response = await fetch("/api/drafts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ if_rev: snapshot.rev, changes, submit }),
+        body: JSON.stringify({ if_rev: snapshot.rev, changes }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -553,10 +549,6 @@ export function CommentedViewer({
         if (next[change.block_id] === change) delete next[change.block_id];
         return next;
       });
-      if (submit) {
-        setReactionDrafts({});
-        setReactionSent(true);
-      } else setReactionSent(false);
     } catch (error) {
       setReactionError((error as Error).message);
     } finally {
@@ -565,7 +557,6 @@ export function CommentedViewer({
   }, [reactionBusy, snapshot, rev, onRevision, onChange, content]);
   function changeReaction(change: ResponseChange, persist: boolean) {
     setReactionDrafts(previous => ({ ...previous, [change.block_id]: change }));
-    setReactionSent(false);
     reactionSaveDelay.current = persist ? 0 : 350;
     setReactionError("");
   }
@@ -573,7 +564,7 @@ export function CommentedViewer({
     if (reactionBusy || reactionError || !snapshot || snapshot.rev !== rev) return;
     const pending = blocks.find(block => reactionDrafts[block.id]);
     if (!pending) return;
-    const timer = setTimeout(() => void writeResponses([reactionDrafts[pending.id]], false), reactionSaveDelay.current);
+    const timer = setTimeout(() => void writeResponses([reactionDrafts[pending.id]]), reactionSaveDelay.current);
     return () => clearTimeout(timer);
   }, [blocks, reactionBusy, reactionError, reactionDrafts, snapshot, rev, writeResponses]);
   return (
@@ -644,10 +635,9 @@ export function CommentedViewer({
       >
         <ContentViewer content={content} comments={threads} responses={visibleResponses} drafts={reactionDrafts} onReaction={changeReaction} onTextFocus={setReactionTextFocused} busy={!snapshot || snapshot.rev !== rev} />
       </div>
-      {blocks.length > 0 && <div className="reaction-send">
-        <button type="button" disabled={reactionBusy || !snapshot || snapshot.rev !== rev || (allSubmitted && !Object.keys(reactionDrafts).length)} onClick={() => void writeResponses(Object.values(reactionDrafts), true)}>{reactionBusy ? "Saving…" : "Send"}</button>
-        {(reactionSent || (allSubmitted && !Object.keys(reactionDrafts).length)) && <span role="status">Responses sent</span>}
-        {reactionError && <p role="alert">{reactionError} <button type="button" onClick={() => void load()}>Refresh responses</button></p>}
+      {blocks.length > 0 && <div className="reaction-status">
+        <span role="status">{reactionBusy || Object.keys(reactionDrafts).length ? "Saving choices…" : "Choices saved as drafts. Respond in chat."}</span>
+        {reactionError && <p role="alert">{reactionError} <button type="button" onClick={() => void load()}>Refresh choices</button></p>}
       </div>}
       {pending && !active && <span className="tap-pending" role="status" aria-label="Choosing quote" style={{ left: pending.x, top: pending.y }} />}
       {selection && !active && !emojiOpen && (

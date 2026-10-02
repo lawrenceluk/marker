@@ -2,8 +2,10 @@ import { test, expect } from "@playwright/test";
 
 test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
-test("mobile tidy checkboxes and multi-select ask persist and submit", async ({ page, request }, info) => {
+test("mobile tidy checkboxes and multi-select ask persist without Send", async ({ page, request }, info) => {
   const key = `reactions-${info.project.name}`;
+  expect((await request.get(`/api/responses?key=${key}`)).status()).toBe(404);
+  expect((await request.post("/api/responses/receipt", { data: { key } })).status()).toBe(404);
   const content = [
     "# Weekly tidy demo",
     "",
@@ -28,7 +30,7 @@ test("mobile tidy checkboxes and multi-select ask persist and submit", async ({ 
   await expect(checkbox).toBeVisible();
   await checkbox.tap();
   await expect(checkbox).toBeChecked();
-  await expect.poll(async () => (await (await request.get(`/api/responses?key=${key}`)).json()).responses.length).toBe(1);
+  await expect.poll(async () => (await (await request.get(`/api/drafts?key=${key}`)).json()).responses.length).toBe(1);
   await page.reload();
   await expect(checkbox).toBeChecked();
   await page.getByRole("button", { name: "A shorter summary" }).tap();
@@ -37,7 +39,7 @@ test("mobile tidy checkboxes and multi-select ask persist and submit", async ({ 
   await page.getByRole("textbox", { name: "Other answer for What should the next review include?" }).fill("A small action list");
   await expect(page.getByRole("textbox", { name: "Other answer for What should the next review include?" })).toHaveValue("A small action list");
   await expect.poll(async () => {
-    const state = await (await request.get(`/api/responses?key=${key}`)).json();
+    const state = await (await request.get(`/api/drafts?key=${key}`)).json();
     return state.responses.find((entry: { block_id: string }) => entry.block_id === "ask:next-review")?.free_text;
   }).toBe("A small action list");
   await page.reload();
@@ -46,16 +48,16 @@ test("mobile tidy checkboxes and multi-select ask persist and submit", async ({ 
   await expect(page.getByRole("button", { name: "Other" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("textbox", { name: "Other answer for What should the next review include?" })).toHaveValue("A small action list");
   await page.screenshot({ path: `test-results/reactions-${info.project.name}.png`, fullPage: true, animations: "disabled" });
-  await page.getByRole("button", { name: "Send", exact: true }).tap();
-  await expect(page.getByText("Responses sent")).toBeVisible();
-  const state = await (await request.get(`/api/responses?key=${key}`)).json();
-  expect(state.responses).toHaveLength(4);
-  expect(state.responses.every((entry: { submitted_at: number | null }) => typeof entry.submitted_at === "number")).toBe(true);
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("status").filter({ hasText: "Choices saved as drafts" })).toBeVisible();
+  const state = await (await request.get(`/api/drafts?key=${key}`)).json();
+  expect(state.responses).toHaveLength(2);
+  expect(state.responses.every((entry: Record<string, unknown>) => !("submitted_at" in entry))).toBe(true);
   expect(state.responses.find((entry: { block_id: string }) => entry.block_id === "ask:next-review")).toMatchObject({
     selections: ["A shorter summary", "Clear next steps", "Other"], free_text: "A small action list", active: true,
   });
   await page.reload();
-  await expect(page.getByText("Responses sent")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "A shorter summary" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("textbox", { name: "Other answer for What should the next review include?" })).toHaveValue("A small action list");
 });
@@ -63,10 +65,10 @@ test("mobile tidy checkboxes and multi-select ask persist and submit", async ({ 
 test("saved checkboxes are checked in the server HTML before response hydration", async ({ page, request }, info) => {
   const key = `reaction-first-paint-${info.project.name}`;
   await request.post("/api/content", { data: { key, content: "# Review\n\n1. [ ] Tidy the inbox" } });
-  const state = await (await request.get(`/api/responses?key=${key}`)).json();
-  await request.post("/api/responses", { data: { key, if_rev: state.rev, changes: [
+  const state = await (await request.get(`/api/drafts?key=${key}`)).json();
+  await request.post("/api/drafts", { data: { key, if_rev: state.rev, changes: [
     { block_id: state.blocks[0].id, selections: ["Tidy the inbox"], free_text: "" },
-  ], submit: false } });
+  ] } });
   const html = await (await request.get(`/?key=${key}&persist=1`)).text();
   expect(html).toMatch(/type="checkbox"[^>]*checked=""/);
   let releaseComments!: () => void;
@@ -103,11 +105,11 @@ for (const colorScheme of ["light", "dark"] as const) {
       "```",
     ].join("\n");
     await request.post("/api/content", { data: { key, content } });
-    const state = await (await request.get(`/api/responses?key=${key}`)).json();
-    await request.post("/api/responses", { data: { key, if_rev: state.rev, changes: [
+    const state = await (await request.get(`/api/drafts?key=${key}`)).json();
+    await request.post("/api/drafts", { data: { key, if_rev: state.rev, changes: [
       { block_id: state.blocks[1].id, selections: ["Already done"], free_text: "" },
       { block_id: "ask:direction", selections: ["Keep going"], free_text: "" },
-    ], submit: false } });
+    ] } });
     await page.goto(`/?key=${key}&persist=1`);
     const unchecked = page.getByRole("checkbox", { name: "Still to do" });
     const checked = page.getByRole("checkbox", { name: "Already done" });
@@ -155,7 +157,7 @@ test("toggling one checkbox leaves its siblings mounted and visually unchanged",
   await expect(first).toBeEnabled();
   const colors = await first.evaluate(input => ({ appearance: getComputedStyle(input).appearance, border: getComputedStyle(input).borderTopColor, foreground: getComputedStyle(document.body).color }));
   expect(colors).toEqual({ appearance: "none", border: colors.foreground, foreground: colors.foreground });
-  await page.route("**/api/responses", async route => {
+  await page.route("**/api/drafts", async route => {
     if (route.request().method() === "POST") await new Promise(resolve => setTimeout(resolve, 450));
     await route.continue();
   });
@@ -183,7 +185,7 @@ test("toggling one checkbox leaves its siblings mounted and visually unchanged",
       return { samples, mutations, sameNode: input === document.querySelectorAll<HTMLInputElement>(".reaction-task input")[1] };
     } };
   });
-  const saved = page.waitForResponse(response => response.url().endsWith("/api/responses") && response.request().method() === "POST");
+  const saved = page.waitForResponse(response => response.url().endsWith("/api/drafts") && response.request().method() === "POST");
   await first.tap();
   await saved;
   const outcome = await monitor.evaluate(value => value.finish());
@@ -194,7 +196,7 @@ test("toggling one checkbox leaves its siblings mounted and visually unchanged",
   await expect(first).toBeChecked();
   await page.getByRole("checkbox", { name: "Second" }).tap();
   await page.getByRole("checkbox", { name: "Third" }).tap();
-  await expect.poll(async () => (await (await request.get(`/api/responses?key=${key}`)).json()).responses.length).toBe(3);
+  await expect.poll(async () => (await (await request.get(`/api/drafts?key=${key}`)).json()).responses.length).toBe(3);
   await page.reload();
   await expect(page.getByRole("checkbox", { name: "Second" })).toBeChecked();
   await expect(page.getByRole("checkbox", { name: "Third" })).toBeChecked();

@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
+  if ("submit" in body) return json({ error: "Choices are drafts; respond in chat" }, 400);
   const key = keyFor(request, body.key);
   if (!key) return json({ error: "Key is required" }, 400);
   if (!Number.isSafeInteger(body.if_rev) || (body.if_rev as number) < 0) return json({ error: "if_rev is required" }, 400);
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
   if (before.rev !== body.if_rev) return json({ error: "Note or responses changed; reload and review before retrying", rev: before.rev }, 409);
   let responses;
   try {
-    responses = applyResponseChanges(reactionBlocks(before.content), before.responses, body.changes, body.submit);
+    responses = applyResponseChanges(reactionBlocks(before.content), before.responses, body.changes);
   } catch (error) {
     return json({ error: (error as Error).message }, 400);
   }

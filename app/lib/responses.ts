@@ -10,7 +10,6 @@ export type ResponseEntry = {
   selections: string[];
   free_text: string;
   updated_at: number;
-  submitted_at: number | null;
 };
 
 const MAX_BLOCKS = 100;
@@ -104,8 +103,8 @@ export function reactionBlocks(content: string): ReactionBlock[] {
   return blocks.slice(0, MAX_BLOCKS);
 }
 
-export function applyResponseChanges(blocks: ReactionBlock[], previous: ResponseEntry[], changes: unknown, submit: unknown): ResponseEntry[] {
-  if (!Array.isArray(changes) || changes.length > MAX_BLOCKS || typeof submit !== "boolean" || (!changes.length && !submit)) throw new Error("Invalid response changes");
+export function applyResponseChanges(blocks: ReactionBlock[], previous: ResponseEntry[], changes: unknown): ResponseEntry[] {
+  if (!Array.isArray(changes) || changes.length > MAX_BLOCKS || !changes.length) throw new Error("Invalid response changes");
   const byId = new Map(blocks.map(block => [block.id, block]));
   const next = new Map(previous.map(entry => [entry.block_id, entry]));
   const seen = new Set<string>();
@@ -122,15 +121,7 @@ export function applyResponseChanges(blocks: ReactionBlock[], previous: Response
     } else if (selections.length > (block.mode === "single" ? 1 : block.options.length + 1) ||
                selections.some(item => !block.options.includes(item) && !(block.other && item === "Other")) ||
                (free_text && (!block.other || !selections.includes("Other")))) throw new Error("Invalid ask response");
-    next.set(block.id, { block_id: block.id, kind: block.kind, selections, free_text, updated_at: now, submitted_at: null });
-  }
-  if (submit) for (const block of blocks) {
-    const entry = next.get(block.id) ?? {
-      block_id: block.id, kind: block.kind,
-      selections: block.kind === "checkbox" && block.checked ? [block.label] : [],
-      free_text: "", updated_at: now, submitted_at: null,
-    };
-    next.set(block.id, { ...entry, submitted_at: now });
+    next.set(block.id, { block_id: block.id, kind: block.kind, selections, free_text, updated_at: now });
   }
   const result = [...next.values()];
   if (result.length > MAX_BLOCKS || Buffer.byteLength(JSON.stringify(result)) > MAX_RESPONSE_BYTES) throw new Error("Responses exceed the note limit");

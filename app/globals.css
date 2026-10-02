@@ -156,11 +156,9 @@ body {
 .reaction-other { width: 100%; margin-top: 0.75rem; border: 1px solid var(--hairline); border-radius: 0.65rem; padding: 0.65rem 0.75rem; background: var(--background); }
 .reaction-other:focus-visible, .reaction-option:focus-visible { outline: 2px solid var(--foreground); outline-offset: 2px; }
 .prose .reaction-hint { color: color-mix(in srgb, var(--foreground) 55%, transparent); font-size: 0.75rem; margin: 0.7rem 0 0; }
-.reaction-send { display: flex; align-items: center; flex-wrap: wrap; gap: 0.8rem; margin: 1rem 0 2rem; font-size: 0.85rem; }
-.reaction-send > button { border-radius: 999px; padding: 0.65rem 1.5rem; min-height: 2.75rem; color: var(--background); background: var(--foreground); font-weight: 600; }
-.reaction-send > button:disabled { opacity: 0.55; }
-.reaction-send p { color: #b91c1c; width: 100%; }
-.reaction-send p button { text-decoration: underline; }
+.reaction-status { display: flex; align-items: center; flex-wrap: wrap; gap: 0.8rem; margin: 1rem 0 2rem; font-size: 0.85rem; }
+.reaction-status p { color: #b91c1c; width: 100%; }
+.reaction-status p button { text-decoration: underline; }
 
 .prose blockquote {
   border-left: 4px solid var(--color-zinc-300);

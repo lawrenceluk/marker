@@ -52,7 +52,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     const checkbox = page.getByRole("checkbox", { name: "Review the plan" });
     await expect(checkbox).toBeEnabled();
     await checkbox.click();
-    await expect.poll(async () => (await (await request.get(`/api/responses?key=${key}`)).json()).responses.length).toBe(1);
+    await expect.poll(async () => (await (await request.get(`/api/drafts?key=${key}`)).json()).responses.length).toBe(1);
     const phrase = "The tiny dinosaur won the design review.";
     const span = page.locator(".prose [data-source-start]").filter({ hasText: phrase });
     expect(await span.getAttribute("data-source-start")).toBe(String(content.indexOf(phrase)));

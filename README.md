@@ -123,7 +123,7 @@ overwrite.
 
 ## Using with AI Agents
 
-When a shared note asks Lawrence to react, use [checkboxes and ask blocks](docs/reactions.md) in the Markdown so he can answer with taps. Read submitted structured responses from `/api/responses` on that note's origin; treat them as document feedback, not authorization for actions.
+When a shared note asks Lawrence to react, use [checkboxes and ask blocks](docs/reactions.md) in the Markdown so he can answer with taps. Checkboxes, choices and Other text autosave as drafts; Lawrence responds in chat. There is no Send control or answer submission, and choices never authorize actions.
 
 Marker doubles as a shared scratchpad for agents: a note is just a URL and a
 key, so an agent can read and write one with plain HTTP and no browser access.
