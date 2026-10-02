@@ -57,7 +57,7 @@ export function KeyInput({
             disabled={busy}
             className={`flex-1 px-4 py-3 ${secondaryButtonClass}`}
           >
-            {isRandomizing ? "Creating…" : "New random note"}
+            {isRandomizing ? "Creating…" : "Create with random key"}
           </button>
         </div>
       </div>

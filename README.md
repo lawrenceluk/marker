@@ -13,8 +13,8 @@ via a small HTTP API, from AI agents.
 - **Shareable Links**: `/?key=...` moves the key into an httpOnly cookie and renders the note server-side, so the key stays out of the address bar and browser history
 - **Persistent link**: Opt a note into a bookmarkable `/?key=...&persist=1` document link that stays in the address bar and survives a browser restart
 - **Link previews**: Persist URLs emit Open Graph / Twitter Card tags from the start of the note so Slack, iMessage, Discord, X, etc. can unfurl them. Search indexing stays blocked.
-- **Copy all**: Copy a note's full markdown from the viewer or editor, with a brief "Copied" confirmation
-- **Rename Key**: Change a note's key in place without rewriting its content; the destination must be free
+- **Copy text**: Copy a note's full markdown from the viewer or editor, with a brief "Copied" confirmation
+- **Change key**: Change a note's key in place without rewriting its content; the destination must be free
 - **View & Edit Modes**: Toggle between viewing rendered markdown and editing raw content
 - **Dark Mode**: Automatic dark mode support
 - **Scroll Actions**: Quick navigation buttons to scroll to top or bottom
@@ -94,8 +94,8 @@ npm run dev
 2. If the key exists, you'll see the rendered markdown
 3. Click "Edit" to modify the content
 4. Save your changes to persist them
-5. Use "Rename" to change this note's key without copying its content
-6. Use "Change Key" to switch to a different note
+5. Use "Change key" to change this note's key without copying its content
+6. Use "Open another note" to switch to a different note
 
 You can also open a note directly at `/?key=<key>`. The server takes the key out
 of the URL, stores it in an httpOnly session cookie, and redirects to `/` before
@@ -103,7 +103,7 @@ rendering — so the key never appears in the address bar, browser history, a
 `Referer` header, or client-side JavaScript.
 
 That cookie is what keeps you in the note across reloads. It is cleared by
-"Change Key" or by closing the browser.
+"Open another note" or by closing the browser.
 
 To keep a stable document link instead, turn on **Persistent link** in the note
 header. That puts `/?key=<key>&persist=1` in the address bar (and offers a copy
