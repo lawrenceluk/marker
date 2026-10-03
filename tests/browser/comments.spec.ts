@@ -44,12 +44,13 @@ test("select → icon → type → send, then agent edit/resolve and focused rep
       .toJSON(),
   );
   expect(bounds!.width).toBe(touch ? 36 : 32);
-  expect(bounds!.x - selected.right).toBeCloseTo(touch ? 14 : 4, 1);
-  expect(
-    Math.abs(
-      bounds!.y + bounds!.height / 2 - (selected.top + selected.bottom) / 2,
-    ),
-  ).toBeLessThan(1);
+  if (touch) {
+    expect(bounds!.y - selected.bottom).toBeCloseTo(14, 1);
+    expect(bounds!.x).toBeGreaterThanOrEqual(4);
+  } else {
+    expect(bounds!.x - selected.right).toBeCloseTo(4, 1);
+    expect(Math.abs(bounds!.y + bounds!.height / 2 - (selected.top + selected.bottom) / 2)).toBeLessThan(1);
+  }
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
     page.viewportSize()!.width,
   );

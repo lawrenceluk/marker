@@ -13,7 +13,8 @@ import { Check, MessageCircle, MessageSquarePlus, Minus, Plus, RotateCcw, Search
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import { ContentViewer, type ResponseChange } from "./ContentViewer";
 import { ToolbarButton } from "./ToolbarButton";
-import { plainQuote, selectionBubble } from "../lib/comment-presentation";
+import { SelectionActionButton } from "./SelectionActionButton";
+import { plainQuote, selectionBubble, selectionRevealScroll } from "../lib/comment-presentation";
 import { selectSourceRange, sourceSelection, tapSourceOffset } from "../lib/comment-markup";
 import { adjacentSizeCandidate, heuristicRanking, tapCandidates, tapContext, type TapCandidate } from "../lib/tap-select";
 import type { CommentOperation, LocatedThread } from "../lib/comments";
@@ -29,6 +30,7 @@ type Selection = {
   x: number;
   y: number;
   size: number;
+  above?: boolean;
   text: string;
 };
 export function CommentedViewer({
@@ -141,6 +143,7 @@ export function CommentedViewer({
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     let frame = 0;
+    let revealUntil = 0;
     let shown: { start: number; end: number } | null = null;
     let held = false;
     let keyHeld = false;
@@ -169,7 +172,7 @@ export function CommentedViewer({
       hitTesting(false); // Disable synchronously, before React removes the button.
       setSelection(null);
     }
-    function position(follow = false) {
+    function position(follow = false, settled = false) {
       if ((!follow && held) || keyHeld || dialog.current?.open) return;
       const nativeSource = root.current ? sourceSelection(root.current) : null;
       const chosen = autoSelection.current;
@@ -183,25 +186,50 @@ export function CommentedViewer({
             window.innerWidth,
             window.innerHeight,
             window.matchMedia("(pointer: coarse)").matches,
+            window.visualViewport ? {
+              left: window.visualViewport.offsetLeft,
+              top: window.visualViewport.offsetTop,
+              right: window.visualViewport.offsetLeft + window.visualViewport.width,
+              bottom: window.visualViewport.offsetTop + window.visualViewport.height,
+            } : undefined,
           )
         : null;
+      if (source && bubble && !bubble.candidates.length && touch && settled && !held && range && root.current) {
+        // Only after settling: expose the end of a long selection with enough
+        // clearance for all actions. Mobile bottom padding makes this possible
+        // even at the document end. Never fight an active native handle drag.
+        const bottom = Math.max(...Array.from(range.getClientRects(), r => r.bottom));
+        const viewBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
+        const delta = selectionRevealScroll(bottom, viewBottom);
+        if (delta > 0 && window.innerHeight >= 160) {
+          revealUntil = performance.now() + 250;
+          hitTesting(false);
+          setSelection(null);
+          window.scrollBy({ top: delta, behavior: "instant" });
+          clearTimeout(timer);
+          timer = setTimeout(() => position(true), 100);
+          return;
+        }
+      }
       // Avoid visible fixed/absolute extension controls when the page can observe them.
       const spot =
         bubble?.candidates.find((p) => {
-          const element = document.elementFromPoint(
-            p.x + bubble.size / 2,
-            p.y + bubble.size / 2,
-          );
-          if (!element || element.closest(".comment-selection, .emoji-selection, .emoji-reactor-bar, .emoji-picker-panel")) return true;
-          for (
-            let el: Element | null = element;
-            el && el !== document.body;
-            el = el.parentElement
-          ) {
-            if (["fixed", "absolute"].includes(getComputedStyle(el).position))
-              return false;
-          }
-          return true;
+          const centers = window.matchMedia("(pointer: coarse)").matches
+            ? [p.x + bubble.size / 2, p.x + bubble.size * 1.5 + 4]
+            : [p.x + bubble.size / 2];
+          return centers.every(x => {
+            const element = document.elementFromPoint(x, p.y + bubble.size / 2);
+            if (!element || element.closest(".comment-selection, .emoji-selection, .emoji-reactor-bar, .emoji-picker-panel")) return true;
+            for (
+              let el: Element | null = element;
+              el && el !== document.body;
+              el = el.parentElement
+            ) {
+              if (["fixed", "absolute"].includes(getComputedStyle(el).position))
+                return false;
+            }
+            return true;
+          });
         }) ?? bubble?.candidates[0];
       shown = source && spot && bubble ? source : null;
       setSelection(
@@ -219,7 +247,7 @@ export function CommentedViewer({
       clearTimeout(timer);
       if ((!held && !keyHeld) || (touch && shown))
         timer = setTimeout(() => {
-          position(touch && !!shown);
+          position(touch && !!shown, true);
           hitTesting(true); // Never leave a settled native adjustment untappable.
         }, touch ? 350 : 140);
     }
@@ -228,7 +256,7 @@ export function CommentedViewer({
       if (pendingTap.current) { hitTesting(false); setSelection(null); return; }
       const source = root.current ? sourceSelection(root.current) : null;
       if (!source) return hide();
-      if (autoSelection.current) { position(true); return; }
+      if (autoSelection.current) { position(true, true); return; }
       if (touch && shown && source.start < shown.end && source.end > shown.start) {
         // iOS often exposes only selectionchange for native handle drags.
         // Follow overlapping ranges; a disjoint range is a fresh selection.
@@ -284,7 +312,7 @@ export function CommentedViewer({
       beginTouch();
     }
     function touchEnd(event: TouchEvent) {
-      if (!held || event.touches.length) return;
+      if (onBubble(event) || !held || event.touches.length) return;
       held = false;
       settle();
     }
@@ -330,9 +358,10 @@ export function CommentedViewer({
         "--comment-viewport",
         `${view?.height ?? window.innerHeight}px`,
       );
-      if (!emojiOpenRef.current) hide();
+      if (!emojiOpenRef.current && performance.now() >= revealUntil) hide();
     }
     function scroll() {
+      if (performance.now() < revealUntil) return;
       // Focusing and scrolling inside the picker can move the visual viewport.
       // Outside taps still dismiss the bar through pointerStart.
       if (!emojiOpenRef.current) hide();
@@ -642,7 +671,7 @@ export function CommentedViewer({
       </div>}
       {pending && !active && <span className="tap-pending" role="status" aria-label="Choosing quote" style={{ left: pending.x, top: pending.y }} />}
       {selection && !active && !emojiOpen && (
-        <ToolbarButton
+        <SelectionActionButton
           label="Comment on selection"
           className="comment-selection group"
           style={{
@@ -652,27 +681,27 @@ export function CommentedViewer({
             height: selection.size,
           }}
           onPointerDown={(e) => {
-            if (e.pointerType === "mouse") e.preventDefault();
+            e.preventDefault();
           }}
           onClick={(e) => open("new", e.currentTarget.getBoundingClientRect())}
         >
           <MessageSquarePlus size={15} />
-        </ToolbarButton>
+        </SelectionActionButton>
       )}
-      {selection && !active && !emojiOpen && <ToolbarButton
+      {selection && !active && !emojiOpen && <SelectionActionButton
         label="React to selection"
         className="emoji-selection group"
         aria-expanded={emojiOpen}
         style={{
-          left: selection.x + selection.size * 2 + 4 <= window.innerWidth - 4
+          left: window.matchMedia("(pointer: coarse)").matches || selection.x + selection.size * 2 + 4 <= window.innerWidth - 4
             ? selection.x + selection.size + 4 : selection.x - selection.size - 4,
           top: selection.y,
           width: selection.size,
           height: selection.size,
         }}
         onPointerDown={e => {
-          emojiOpenRef.current = true;
-          if (e.pointerType === "mouse") e.preventDefault();
+          if (e.pointerType === "mouse") emojiOpenRef.current = true;
+          e.preventDefault();
         }}
         onClick={() => {
           const next = !emojiOpen;
@@ -681,11 +710,12 @@ export function CommentedViewer({
           setShowEmojiPicker(false);
           setError("");
         }}
-      ><SmilePlus size={15} /></ToolbarButton>}
+      ><SmilePlus size={15} /></SelectionActionButton>}
       {selection && !active && emojiOpen && (() => {
         const viewBottom = visualBottom || window.innerHeight;
-        const barTop = selection.y + selection.size + 56 < viewBottom
-          ? selection.y + selection.size + 5 : Math.max(4, selection.y - 56);
+        const barTop = selection.above ? selection.y - 59
+          : selection.y + selection.size + 56 < viewBottom
+            ? selection.y + selection.size + 5 : Math.max(4, selection.y - 56);
         const pickerWidth = Math.min(320, window.innerWidth - 16);
         const pickerHeight = Math.min(310, Math.max(180, viewBottom - 16));
         const pickerTop = barTop + pickerHeight + 56 < viewBottom
@@ -698,7 +728,13 @@ export function CommentedViewer({
           {showEmojiPicker && <div className="emoji-picker-panel" style={{ left: Math.max(8, Math.min(selection.x, window.innerWidth - pickerWidth - 8)), top: pickerTop, width: pickerWidth }}>
             <EmojiPicker theme={Theme.AUTO} width="100%" height={pickerHeight} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />
           </div>}
-          {error && <p className="emoji-reactor-error" role="alert" style={{ left: Math.max(8, Math.min(selection.x, window.innerWidth - 280)), top: barTop + 58 }}>{error}</p>}
+          {error && <p className="emoji-reactor-error" role="alert" style={{
+            left: selection.above !== undefined ? selection.x : Math.max(8, Math.min(selection.x, window.innerWidth - 280)),
+            top: selection.above !== undefined ? selection.y : barTop + 58,
+            maxWidth: selection.above !== undefined ? 208 : undefined,
+            maxHeight: selection.above !== undefined ? 36 : undefined,
+            overflow: "auto",
+          }}>{error}</p>}
         </>;
       })()}
       {selection && !active && !emojiOpen && autoSelection.current && (() => {
@@ -707,7 +743,7 @@ export function CommentedViewer({
         const smaller = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start < size);
         const larger = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start > size);
         const viewBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
-        return <div className="comment-auto-tools" style={{ left: Math.max(4, Math.min(selection.x - 64, window.innerWidth - 72)), top: Math.max(4, Math.min(selection.y + selection.size + 5, viewBottom - 64)) }}>
+        return <div className="comment-auto-tools" style={{ left: selection.above !== undefined ? selection.x : Math.max(4, Math.min(selection.x - 64, window.innerWidth - 72)), top: Math.max(4, Math.min(selection.above ? selection.y - 29 : selection.y + selection.size + 5, viewBottom - 64)) }}>
           <button type="button" className="comment-auto-chip" aria-label="Smaller selection" disabled={!smaller} onPointerDown={e => { if (e.pointerType === "mouse") e.preventDefault(); }} onClick={() => stepAuto(-1)}><Minus size={13} /></button>
           <button type="button" className="comment-auto-chip" aria-label="Larger selection" disabled={!larger} onPointerDown={e => { if (e.pointerType === "mouse") e.preventDefault(); }} onClick={() => stepAuto(1)}><Plus size={13} /></button>
         </div>;

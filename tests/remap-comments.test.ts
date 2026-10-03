@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { locate, quoteAt } from "../app/lib/anchors";
 import { applyComments, locateThreads } from "../app/lib/comments";
 import { mapAnchor, remapComments } from "../app/lib/remap-comments";
-import { plainQuote, selectionBubble } from "../app/lib/comment-presentation";
+import { plainQuote, selectionBubble, selectionRevealScroll } from "../app/lib/comment-presentation";
 
 const repeated =
   "first: same phrase\nsecond: same phrase\nthird: same phrase\nfourth: same phrase";
@@ -142,5 +142,41 @@ test("bubble uses bottom-right visual rect, centers at text height, flips at vie
       ?.candidates[0],
     { x: 264, y: 34 },
   );
-  assert.equal(selectionBubble(rects, 300, 200, true)?.candidates[0].x, 94);
+  assert.deepEqual(selectionBubble(rects, 300, 200, true)?.candidates[0], { x: 4, y: 64, above: false });
+});
+
+test("touch actions fit as a pair, avoid all selection rects, and respect visual viewport", () => {
+  for (const rects of [
+    [{ left: 10, right: 298, top: 10, bottom: 30 }],
+    [{ left: 2, right: 298, top: 160, bottom: 180 }],
+    [{ left: 10, right: 290, top: 130, bottom: 150 }, { left: 10, right: 280, top: 150, bottom: 170 }],
+  ]) {
+    const bubble = selectionBubble(rects, 300, 200, true)!;
+    assert.ok(bubble.candidates.length);
+    for (const p of bubble.candidates) {
+      const top = "above" in p && p.above ? p.y - 64 : p.y;
+      assert.ok(p.x >= 4 && p.x + 208 <= 296);
+      assert.ok(top >= 4 && top + 100 <= 196);
+      assert.ok(rects.every(r => p.x + 208 <= r.left || p.x >= r.right || top + 100 <= r.top || top >= r.bottom));
+    }
+  }
+  assert.deepEqual(selectionBubble([{ left: 0, right: 300, top: 0, bottom: 200 }], 300, 200, true)!.candidates, []);
+  const viewport = { left: 20, right: 280, top: 20, bottom: 200 };
+  const bubble = selectionBubble([{ left: 50, right: 200, top: 30, bottom: 50 }], 300, 200, true, viewport)!;
+  assert.ok(bubble.candidates.length);
+  for (const p of bubble.candidates) {
+    assert.ok(p.x >= 24 && p.x + 208 <= 276);
+    assert.ok(p.y >= 24 && p.y + 100 <= 196);
+  }
+});
+
+test("long-selection reveal leaves space despite fractional scroll rounding", () => {
+  for (const bottom of [546, 546.5, 546.9, 1300.4]) {
+    const scroll = selectionRevealScroll(bottom, 664);
+    assert.ok(scroll > 0);
+    // Even one pixel less than the requested scroll must leave safe clearance.
+    const bubble = selectionBubble([{ left: 2, right: 388, top: -300 - scroll, bottom: bottom - scroll + 1 }], 390, 664, true)!;
+    assert.ok(bubble.candidates.length);
+    assert.equal("above" in bubble.candidates[0] && bubble.candidates[0].above, false);
+  }
 });

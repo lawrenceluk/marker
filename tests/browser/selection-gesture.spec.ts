@@ -59,8 +59,8 @@ test("selection bubble waits for gesture completion and never intercepts a drag"
       const selected = await page.evaluate(() => Array.from(window.getSelection()!.getRangeAt(0).getClientRects())
         .sort((a, b) => b.bottom - a.bottom || b.right - a.right)[0].toJSON());
       const box = await icon.boundingBox();
-      expect(box!.x - selected.right).toBeCloseTo(14, 1);
-      expect(box!.y + box!.height / 2).toBeCloseTo((selected.top + selected.bottom) / 2, 1);
+      expect(box!.y - selected.bottom).toBeCloseTo(14, 1);
+      expect(box!.x).toBeGreaterThanOrEqual(4);
       await expect(icon).toHaveCSS("pointer-events", "none");
     }
     await page.clock.runFor(370);
