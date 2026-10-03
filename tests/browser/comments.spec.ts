@@ -86,7 +86,8 @@ test("select → icon → type → send, then agent edit/resolve and focused rep
         moved &&
         (moved.x + moved.width <= bounds!.x ||
           moved.x >= bounds!.x + bounds!.width ||
-          moved.y >= bounds!.y + bounds!.height)
+          moved.y >= bounds!.y + bounds!.height ||
+          moved.y + moved.height <= bounds!.y)
       );
     })
     .toBeTruthy();

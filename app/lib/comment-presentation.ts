@@ -17,6 +17,7 @@ export function selectionBubble(
   height: number,
   touch = false,
   viewport = { left: 0, top: 0, right: width, bottom: height },
+  safeAreaRight = 0,
 ) {
   const rect = rects
     .filter((r) => r.right > r.left && r.bottom > r.top)
@@ -34,23 +35,20 @@ export function selectionBubble(
     const groupWidth = 208, groupHeight = 100;
     const bounds = viewport;
     const lines = rects.filter(r => r.right > r.left && r.bottom > r.top);
-    const clampX = (x: number) => Math.max(bounds.left + 4, Math.min(x, bounds.right - groupWidth - 4));
+    const right = bounds.right - 16 - Math.max(0, safeAreaRight);
+    const x = right - groupWidth;
     const bottom = Math.max(...lines.map(r => r.bottom));
     const top = Math.min(...lines.map(r => r.top));
     // Prefer below all selected text, away from iOS's native callout above.
-    // Edge candidates find free space for selections near the viewport bottom.
+    // Keep the right edge fixed; only vertical candidates may avoid selection.
     // Filter after clamping: clamping a bottom placement upward can cause overlap.
-    const xs = [...new Set([
-      clampX(rect.right - groupWidth), bounds.left + 4, bounds.right - groupWidth - 4,
-      ...lines.flatMap(r => [r.right + gap, r.left - gap - groupWidth]),
-    ])];
     const ys = [...new Set([
       bottom + gap, top - gap - groupHeight,
       ...lines.flatMap(r => [r.bottom + gap, r.top - gap - groupHeight]),
       bounds.bottom - groupHeight - 4, bounds.top + 4,
     ])];
-    const candidates = ys.flatMap(y => xs.map(x => ({ x, y }))).filter(p =>
-      p.x >= bounds.left + 4 && p.x + groupWidth <= bounds.right - 4 &&
+    const candidates = ys.map(y => ({ x, y })).filter(p =>
+      p.x >= bounds.left + 4 && p.x + groupWidth <= right &&
       p.y >= bounds.top + 4 && p.y + groupHeight <= bounds.bottom - 4 &&
       lines.every(r => p.x + groupWidth <= r.left - gap || p.x >= r.right + gap ||
         p.y + groupHeight <= r.top - gap || p.y >= r.bottom + gap),
@@ -58,7 +56,7 @@ export function selectionBubble(
     // No safe space means no buttons, rather than covering the selection.
     return { size, candidates: candidates.map(p => {
       const above = p.y + groupHeight <= top - gap;
-      return { x: p.x, y: above ? p.y + groupHeight - size : p.y, above };
+      return { x: p.x + groupWidth - (size * 2 + 4), y: above ? p.y + groupHeight - size : p.y, above };
     }) };
   }
   const y = Math.max(

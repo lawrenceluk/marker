@@ -280,6 +280,9 @@ body {
 
 /* Touch selection actions must not become native selection/callout targets. */
 @media (pointer: coarse) {
-  .tap-select { padding-bottom: 128px; }
-  .comment-selection, .emoji-selection { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .tap-select { padding-bottom: 128px; --selection-safe-right: env(safe-area-inset-right, 0px); }
+  body:has(.comment-selection, .emoji-selection, .emoji-reactor-bar, .comment-auto-tools) .scroll-actions { visibility: hidden; pointer-events: none; }
+  .comment-auto-tools { gap: 4px; }
+  .comment-auto-chip { width: 36px; height: 36px; }
+  .comment-selection, .emoji-selection, .comment-auto-chip { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 }

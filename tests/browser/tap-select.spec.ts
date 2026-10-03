@@ -110,6 +110,19 @@ test("tap or double-click ranks a whole span, steps size, and opens the normal c
   await expect(page.getByRole("status", { name: "Choosing quote" })).toHaveCount(0);
   await expect(bubble).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(content.split(". ")[0] + ".");
+  if (info.project.name === "iphone-webkit") {
+    const commentBox = (await bubble.boundingBox())!;
+    const reactionBox = (await page.getByRole("button", { name: "React to selection" }).boundingBox())!;
+    expect(reactionBox.x + reactionBox.width).toBeCloseTo(page.viewportSize()!.width - 16, 1);
+    for (const name of ["Smaller selection", "Larger selection"]) {
+      const chip = page.getByRole("button", { name });
+      const box = (await chip.boundingBox())!;
+      expect(box.width).toBe(commentBox.width);
+      expect(box.height).toBe(commentBox.height);
+      expect(box.x).toBe(name === "Smaller selection" ? commentBox.x : reactionBox.x);
+      await expect(chip.locator("svg")).toHaveAttribute("width", "15");
+    }
+  }
   if (info.project.name === "iphone-webkit") await page.getByRole("button", { name: "Smaller selection" }).tap();
   else await page.getByRole("button", { name: "Smaller selection" }).click();
   expect((await page.evaluate(() => window.getSelection()?.toString()))!.length).toBeLessThan(content.split(". ")[0].length);

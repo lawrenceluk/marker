@@ -24,6 +24,7 @@ test("mobile selection actions avoid every highlighted line and accept touch tap
     await expect(comment).toBeVisible();
     await expect(reaction).toBeVisible();
     const rects = await page.evaluate(() => Array.from(window.getSelection()!.getRangeAt(0).getClientRects(), r => r.toJSON()));
+    expect((await reaction.boundingBox())!.x + 36).toBeCloseTo(page.viewportSize()!.width - 16, 1);
     for (const button of [comment, reaction]) {
       const box = (await button.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(4);
@@ -93,8 +94,15 @@ for (const scenario of ["bottom", "long"] as const) {
     };
     await clear(comment);
     await clear(reaction);
+    await expect(page.getByRole("button", { name: "Scroll to top" })).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "Scroll to bottom" })).not.toBeVisible();
+    expect((await reaction.boundingBox())!.x + 36).toBeCloseTo(page.viewportSize()!.width - 16, 1);
     expect(await page.evaluate(() => window.getSelection()!.toString())).toBe(content);
-    if (scenario === "long") expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(initialScroll);
+    if (scenario === "long") {
+      expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(initialScroll);
+      const bottom = await page.evaluate(() => Math.max(...Array.from(window.getSelection()!.getRangeAt(0).getClientRects(), r => r.bottom)));
+      expect((await comment.boundingBox())!.y - bottom).toBeCloseTo(14, 1);
+    }
     await reaction.tap();
     const bar = page.getByRole("toolbar", { name: "Emoji reactions" });
     await expect(bar).toBeVisible();

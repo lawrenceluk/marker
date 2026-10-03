@@ -142,7 +142,7 @@ test("bubble uses bottom-right visual rect, centers at text height, flips at vie
       ?.candidates[0],
     { x: 264, y: 34 },
   );
-  assert.deepEqual(selectionBubble(rects, 300, 200, true)?.candidates[0], { x: 4, y: 64, above: false });
+  assert.deepEqual(selectionBubble(rects, 300, 200, true)?.candidates[0], { x: 208, y: 64, above: false });
 });
 
 test("touch actions fit as a pair, avoid all selection rects, and respect visual viewport", () => {
@@ -155,9 +155,9 @@ test("touch actions fit as a pair, avoid all selection rects, and respect visual
     assert.ok(bubble.candidates.length);
     for (const p of bubble.candidates) {
       const top = "above" in p && p.above ? p.y - 64 : p.y;
-      assert.ok(p.x >= 4 && p.x + 208 <= 296);
+      assert.ok(p.x - 132 >= 4 && p.x + 76 === 284);
       assert.ok(top >= 4 && top + 100 <= 196);
-      assert.ok(rects.every(r => p.x + 208 <= r.left || p.x >= r.right || top + 100 <= r.top || top >= r.bottom));
+      assert.ok(rects.every(r => p.x + 76 <= r.left || p.x - 132 >= r.right || top + 100 <= r.top || top >= r.bottom));
     }
   }
   assert.deepEqual(selectionBubble([{ left: 0, right: 300, top: 0, bottom: 200 }], 300, 200, true)!.candidates, []);
@@ -165,7 +165,7 @@ test("touch actions fit as a pair, avoid all selection rects, and respect visual
   const bubble = selectionBubble([{ left: 50, right: 200, top: 30, bottom: 50 }], 300, 200, true, viewport)!;
   assert.ok(bubble.candidates.length);
   for (const p of bubble.candidates) {
-    assert.ok(p.x >= 24 && p.x + 208 <= 276);
+    assert.ok(p.x - 132 >= 24 && p.x + 76 === 264);
     assert.ok(p.y >= 24 && p.y + 100 <= 196);
   }
 });
@@ -178,5 +178,15 @@ test("long-selection reveal leaves space despite fractional scroll rounding", ()
     const bubble = selectionBubble([{ left: 2, right: 388, top: -300 - scroll, bottom: bottom - scroll + 1 }], 390, 664, true)!;
     assert.ok(bubble.candidates.length);
     assert.equal("above" in bubble.candidates[0] && bubble.candidates[0].above, false);
+  }
+});
+
+test("touch actions stay right-pinned with safe-area inset and only move vertically", () => {
+  const rects = [{ left: 280, right: 388, top: 300, bottom: 640 }];
+  const bubble = selectionBubble(rects, 390, 664, true, undefined, 20)!;
+  assert.ok(bubble.candidates.length);
+  for (const p of bubble.candidates) {
+    assert.equal(p.x + 76, 354); // 16px comfortable inset plus 20px safe area.
+    assert.ok(p.y + bubble.size <= 286 || p.y >= 654);
   }
 });

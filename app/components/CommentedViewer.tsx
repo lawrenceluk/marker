@@ -192,6 +192,7 @@ export function CommentedViewer({
               right: window.visualViewport.offsetLeft + window.visualViewport.width,
               bottom: window.visualViewport.offsetTop + window.visualViewport.height,
             } : undefined,
+            parseFloat(root.current ? getComputedStyle(root.current).getPropertyValue("--selection-safe-right") : "0") || 0,
           )
         : null;
       if (source && bubble && !bubble.candidates.length && touch && settled && !held && range && root.current) {
@@ -220,6 +221,8 @@ export function CommentedViewer({
           return centers.every(x => {
             const element = document.elementFromPoint(x, p.y + bubble.size / 2);
             if (!element || element.closest(".comment-selection, .emoji-selection, .emoji-reactor-bar, .emoji-picker-panel")) return true;
+            // These mobile arrows hide as soon as selection controls mount.
+            if (window.matchMedia("(pointer: coarse)").matches && element.closest(".scroll-actions")) return true;
             for (
               let el: Element | null = element;
               el && el !== document.body;
@@ -721,7 +724,7 @@ export function CommentedViewer({
         const pickerTop = barTop + pickerHeight + 56 < viewBottom
           ? barTop + 56 : Math.max(8, Math.min(barTop - pickerHeight - 5, viewBottom - pickerHeight - 8));
         return <>
-          <div className="emoji-reactor-bar" role="toolbar" aria-label="Emoji reactions" style={{ left: Math.max(4, Math.min(selection.x, window.innerWidth - 208)), top: barTop }}>
+          <div className="emoji-reactor-bar" role="toolbar" aria-label="Emoji reactions" style={{ left: selection.above !== undefined ? selection.x - 132 : Math.max(4, Math.min(selection.x, window.innerWidth - 208)), top: barTop }}>
             {suggestedEmojis.map((emoji, index) => <button type="button" key={`${index}-${emoji}`} disabled={busy} aria-label={`React with ${emoji}`} onClick={() => sendEmoji(emoji)}>{emoji}</button>)}
             <button type="button" aria-label="Search emoji" aria-expanded={showEmojiPicker} onClick={() => setShowEmojiPicker(value => !value)}><Search size={18} /></button>
           </div>
@@ -729,7 +732,7 @@ export function CommentedViewer({
             <EmojiPicker theme={Theme.AUTO} width="100%" height={pickerHeight} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />
           </div>}
           {error && <p className="emoji-reactor-error" role="alert" style={{
-            left: selection.above !== undefined ? selection.x : Math.max(8, Math.min(selection.x, window.innerWidth - 280)),
+            left: selection.above !== undefined ? selection.x - 132 : Math.max(8, Math.min(selection.x, window.innerWidth - 280)),
             top: selection.above !== undefined ? selection.y : barTop + 58,
             maxWidth: selection.above !== undefined ? 208 : undefined,
             maxHeight: selection.above !== undefined ? 36 : undefined,
@@ -743,9 +746,14 @@ export function CommentedViewer({
         const smaller = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start < size);
         const larger = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start > size);
         const viewBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
-        return <div className="comment-auto-tools" style={{ left: selection.above !== undefined ? selection.x : Math.max(4, Math.min(selection.x - 64, window.innerWidth - 72)), top: Math.max(4, Math.min(selection.above ? selection.y - 29 : selection.y + selection.size + 5, viewBottom - 64)) }}>
+        return <div className="comment-auto-tools" style={{ left: selection.above !== undefined ? selection.x : Math.max(4, Math.min(selection.x - 64, window.innerWidth - 72)), top: Math.max(4, Math.min(selection.above ? selection.y - 41 : selection.y + selection.size + 5, viewBottom - 64)) }}>
+          {selection.above !== undefined ? <>
+            <SelectionActionButton label="Smaller selection" className="comment-auto-chip" disabled={!smaller} onPointerDown={e => e.preventDefault()} onClick={() => stepAuto(-1)}><Minus size={15} /></SelectionActionButton>
+            <SelectionActionButton label="Larger selection" className="comment-auto-chip" disabled={!larger} onPointerDown={e => e.preventDefault()} onClick={() => stepAuto(1)}><Plus size={15} /></SelectionActionButton>
+          </> : <>
           <button type="button" className="comment-auto-chip" aria-label="Smaller selection" disabled={!smaller} onPointerDown={e => { if (e.pointerType === "mouse") e.preventDefault(); }} onClick={() => stepAuto(-1)}><Minus size={13} /></button>
           <button type="button" className="comment-auto-chip" aria-label="Larger selection" disabled={!larger} onPointerDown={e => { if (e.pointerType === "mouse") e.preventDefault(); }} onClick={() => stepAuto(1)}><Plus size={13} /></button>
+          </>}
         </div>;
       })()}
       <dialog
