@@ -165,3 +165,49 @@ test("external revisions nudge without replacing text; drafts defer it and own w
   await checkRevision(page);
   await expect(updated).toHaveCount(0);
 });
+
+test("the update pill is pinned at the top while scrolled, clear of the toolbar, and stays until refresh", async ({ page, request }, info) => {
+  const touch = info.project.name === "iphone-webkit";
+  const key = `nudge-sticky-${info.project.name}-${Date.now()}`;
+  const paragraphs = Array.from({ length: 40 }, (_, i) => `Paragraph ${i + 1} of a long note that needs scrolling.`);
+  await request.post("/api/content", { data: { key, content: paragraphs.join("\n\n") } });
+  await page.goto(`/?key=${key}&persist=1`);
+  await expect(page.locator(".prose")).toContainText("Paragraph 40");
+  const updated = page.getByRole("button", { name: "Note updated · Refresh", exact: true });
+  await request.post("/api/content", { data: { key, content: `${paragraphs.join("\n\n")}\n\nAdded elsewhere.`, mode: "overwrite" } });
+  await checkRevision(page);
+  await expect(updated).toBeVisible();
+
+  // At the top it sits in the flow, below the toolbar.
+  const toolbar = (await page.getByRole("navigation", { name: "Note actions" }).boundingBox())!;
+  const top = (await updated.boundingBox())!;
+  expect(top.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height);
+  expect(await updated.evaluate(el => getComputedStyle(el).fontSize)).toBe("14px");
+  expect(top.height).toBeGreaterThanOrEqual(32);
+
+  // Scrolled to the bottom, it stays pinned near the top of the viewport and centered.
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(500);
+  const viewport = page.viewportSize()!;
+  const pinned = (await updated.boundingBox())!;
+  expect(pinned.y).toBeGreaterThanOrEqual(0);
+  expect(pinned.y).toBeLessThanOrEqual(16);
+  expect(Math.abs(pinned.x + pinned.width / 2 - viewport.width / 2)).toBeLessThan(2);
+  await page.screenshot({ animations: "disabled", path: `test-results/nudge-sticky-${info.project.name}.png` });
+
+  // It only covers its own box: text beside it is still the hit target, and scrolling still works.
+  const beside = await page.evaluate(({ y }) => document.elementFromPoint(12, y)?.closest(".update-nudge") === null, { y: pinned.y + pinned.height / 2 });
+  expect(beside).toBe(true);
+  const scrolled = await page.evaluate(() => window.scrollY);
+  if (touch) await page.evaluate(() => window.scrollBy(0, -300));
+  else await page.mouse.wheel(0, -300);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(scrolled);
+  await expect(updated).toBeInViewport();
+
+  await page.waitForTimeout(300);
+  await checkRevision(page);
+  await expect(updated).toBeVisible();
+  await activate(updated, touch);
+  await expect(page.locator(".prose")).toContainText("Added elsewhere.");
+  await expect(updated).toHaveCount(0);
+});

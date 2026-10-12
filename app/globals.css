@@ -268,7 +268,9 @@ body {
 .toolbar-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border-radius: 6px; font-size: 14px; text-align: left; }
 .toolbar-menu-item:hover, .toolbar-menu-item:focus-visible { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
 .toolbar-menu-item:disabled { opacity: .35; }
-.update-nudge { display: block; margin: -8px auto 16px; padding: 5px 10px; border-radius: 999px; font-size: 12px; color: var(--foreground); background: color-mix(in srgb, var(--foreground) 6%, var(--background)); }
+/* Sticky in <main>: in place under the toolbar at the top, pinned to the viewport once scrolled. Below selection tools (z 21+). */
+.update-nudge { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: block; width: fit-content; max-width: calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); margin: -8px auto 16px; padding: 7px 14px; border-radius: 999px; font-size: 14px; line-height: 20px; color: var(--foreground); background: color-mix(in srgb, var(--foreground) 6%, var(--background)); box-shadow: 0 2px 12px rgb(0 0 0 / .12); touch-action: manipulation; }
+@media (prefers-color-scheme: dark) { .update-nudge { box-shadow: 0 2px 12px rgb(0 0 0 / .5); outline: 1px solid var(--hairline); } }
 .tap-select { touch-action: manipulation; }
 .comment-auto-tools { position: fixed; z-index: 21; display: flex; align-items: center; gap: 3px; max-width: min(260px, calc(100vw - 8px)); color: var(--foreground); }
 .comment-auto-chip { display: inline-grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); box-shadow: 0 2px 12px rgb(0 0 0 / .18); }
