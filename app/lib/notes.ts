@@ -4,6 +4,7 @@ import type { ResponseEntry } from "./responses";
 import { remapComments } from "./remap-comments";
 import { storagePrefix } from "./namespace";
 import { previewFromMarkdown } from "./preview";
+import { ASSET_LIB, parseAssets, type StoredAsset } from "./assetIndex";
 
 /** Maximum size of a stored note, in bytes. */
 export const MAX_CONTENT_BYTES = 1024 * 1024; // 1 MiB
@@ -28,6 +29,9 @@ export type Note = {
   cid: string | null;
   tags: string[];
   creatorName: string | null;
+  /** R2 prefix for this note's images, or null if it never had one. Never send to a client. */
+  assetNs: string | null;
+  assets: Record<string, StoredAsset>;
 };
 
 /**
@@ -73,9 +77,10 @@ export type RenameResult =
 /**
  * Note hash: `content`, `comments`, `responses`, `rev`, `updated_at`,
  * `created_at`, `last_accessed_at`, `title`, and — only for notes with a
- * creator — `cid`, `tags`, `meta_updated_at`.
+ * creator — `cid`, `tags`, `meta_updated_at`; for notes with images,
+ * `asset_ns` and `assets` (see assetIndex.ts).
  */
-const noteKey = (key: string) => `${storagePrefix()}note:${key}`;
+export const noteKey = (key: string) => `${storagePrefix()}note:${key}`;
 /** Pre-metadata schema: a bare string. Read through to it, migrate on write. */
 const legacyKey = (key: string) => `${storagePrefix()}content:${key}`;
 
@@ -193,20 +198,20 @@ end
 /**
  * KEYS: note hash, legacy string. ARGV: comments?, access?, now, prefix.
  * Returns [content, rev, updated_at, created_at, pttl, comments, responses,
- * last_accessed_at, cid, tags, creator_name] or nil.
+ * last_accessed_at, cid, tags, creator_name, asset_ns, assets] or nil.
  */
 const READ_SCRIPT = `
 local h, legacy = KEYS[1], KEYS[2]
 
 if redis.call('EXISTS', h) == 1 then
-  local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at', 'last_accessed_at', 'cid', 'tags')
+  local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at', 'last_accessed_at', 'cid', 'tags', 'asset_ns', 'assets')
   local accessed = f[5] or ''
   if ARGV[2] == '1' and (accessed == '' or tonumber(ARGV[3]) - (tonumber(accessed) or 0) >= ${ACCESS_THROTTLE_MS}) then
     redis.call('HSET', h, 'last_accessed_at', ARGV[3])
     accessed = ARGV[3]
   end
   local name = f[6] and redis.call('HGET', ARGV[4] .. 'cidx:' .. f[6] .. ':meta', 'name') or ''
-  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]', ARGV[1] == '1' and (redis.call('HGET', h, 'responses') or '[]') or '[]', accessed, f[6] or '', f[7] or '', name or '' }
+  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]', ARGV[1] == '1' and (redis.call('HGET', h, 'responses') or '[]') or '[]', accessed, f[6] or '', f[7] or '', name or '', f[8] or '', f[9] or '' }
 end
 
 local old = redis.call('GET', legacy)
@@ -216,9 +221,9 @@ if old then
     redis.call('HSET', h, 'content', old, 'rev', '0', 'updated_at', '', 'created_at', '', 'last_accessed_at', ARGV[3])
     if pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
     redis.call('DEL', legacy)
-    return { old, '0', '', '', tostring(pttl), '[]', '[]', ARGV[3], '', '', '' }
+    return { old, '0', '', '', tostring(pttl), '[]', '[]', ARGV[3], '', '', '', '', '' }
   end
-  return { old, '0', '', '', tostring(pttl), '[]', '[]', '', '', '', '' }
+  return { old, '0', '', '', tostring(pttl), '[]', '[]', '', '', '', '', '', '' }
 end
 
 return nil
@@ -226,11 +231,13 @@ return nil
 
 /**
  * All writes commit content + anchors under the snapshot revision. TTL stays
- * inside Lua, and so does creator index maintenance (ARGV 13–18).
+ * inside Lua, and so does creator index maintenance (ARGV 13–18) and image
+ * reference tracking, which only runs for notes that have images.
  */
 const COMMIT_SCRIPT = `
 local PREFIX = ARGV[13]
 ${CREATOR_LIB}
+${ASSET_LIB}
 local h, legacy = KEYS[1], KEYS[2]
 local exists = redis.call('EXISTS', h) == 1
 local old = not exists and redis.call('GET', legacy) or false
@@ -254,6 +261,7 @@ elseif ARGV[10] ~= '' then redis.call('EXPIRE', h, tonumber(ARGV[10]))
 elseif not exists and pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
 redis.call('DEL', legacy)
 creator_apply(h, ARGV[19], plan, ARGV[8], ARGV[8], ARGV[17])
+asset_refs(h, ARGV[19], ARGV[5], tonumber(ARGV[8]))
 local has, tags = creator_result(h)
 return {'ok', tostring(rev + 1), tostring(redis.call('PTTL', h)), tostring(#ARGV[5]), has, tags}
 `;
@@ -283,13 +291,27 @@ local has, tags, name = creator_result(h)
 return {'ok', has, tags, name}
 `;
 
-/** KEYS: note hash, legacy string. ARGV: prefix, note key. Drops index entries with the note. */
+/**
+ * KEYS: note hash, legacy string. ARGV: prefix, note key, now. Drops index
+ * entries with the note. Returns [asset_ns, asset ids...] so the caller can
+ * delete the objects; the sweep is queued to purge the prefix if that fails.
+ */
 const DELETE_SCRIPT = `
 local PREFIX = ARGV[1]
 ${CREATOR_LIB}
-local f = redis.call('HMGET', KEYS[1], 'cid', 'tags')
+${ASSET_LIB}
+local f = redis.call('HMGET', KEYS[1], 'cid', 'tags', 'asset_ns', 'assets')
 if f[1] then unindex(f[1], ARGV[2], decode_tags(f[2])) end
-return redis.call('DEL', KEYS[1], KEYS[2])
+local out = { f[3] or '' }
+if f[3] then
+  for id in pairs(decode_assets(f[4]) or {}) do out[#out + 1] = id end
+  local bytes = tonumber(redis.call('HGET', asset_key('nsbytes'), f[3])) or 0
+  if bytes > 0 then redis.call('DECRBY', asset_key('bytes'), bytes) end
+  redis.call('HDEL', asset_key('nsbytes'), f[3])
+  redis.call('ZADD', asset_key('sweep'), ARGV[3], f[3] .. '|' .. ARGV[2])
+end
+redis.call('DEL', KEYS[1], KEYS[2])
+return out
 `;
 
 /**
@@ -325,6 +347,15 @@ if redis.call('EXISTS', oldH) == 1 then
     end
     for _, t in ipairs(decode_tags(f[2])) do
       if redis.call('SREM', z .. ':t:' .. t, ARGV[2]) == 1 then redis.call('SADD', z .. ':t:' .. t, ARGV[3]) end
+    end
+  end
+  local ns = redis.call('HGET', newH, 'asset_ns')
+  if ns then
+    local sweep = PREFIX .. 'assets:sweep'
+    local due = redis.call('ZSCORE', sweep, ns .. '|' .. ARGV[2])
+    if due then
+      redis.call('ZREM', sweep, ns .. '|' .. ARGV[2])
+      redis.call('ZADD', sweep, due, ns .. '|' .. ARGV[3])
     end
   end
 end
@@ -403,7 +434,7 @@ export async function readNote(
 
   if (!result) return null;
 
-  const [content, rev, updatedAt, createdAt, pttl, comments, responses, lastAccessedAt, cid, tags, creatorName] = result;
+  const [content, rev, updatedAt, createdAt, pttl, comments, responses, lastAccessedAt, cid, tags, creatorName, assetNs, assets] = result;
   return {
     content,
     comments: JSON.parse(comments),
@@ -416,6 +447,8 @@ export async function readNote(
     cid: cid || null,
     tags: cid ? parseTags(tags) : [],
     creatorName: cid ? creatorName || null : null,
+    assetNs: assetNs || null,
+    assets: parseAssets(assets),
   };
 }
 
@@ -544,8 +577,9 @@ export async function renameNote(
 }
 
 /** Remove both the hash note and any legacy string for this key, and its index entries. */
-export async function deleteNote(key: string): Promise<void> {
-  await redis.eval(DELETE_SCRIPT, [noteKey(key), legacyKey(key)], [storagePrefix(), key]);
+export async function deleteNote(key: string): Promise<{ assetNs: string | null; assetIds: string[] }> {
+  const [ns, ...ids] = await redis.eval<string[], string[]>(DELETE_SCRIPT, [noteKey(key), legacyKey(key)], [storagePrefix(), key, String(Date.now())]);
+  return { assetNs: ns || null, assetIds: ids };
 }
 
 /** Change creator, name or tags without touching content, rev or updated_at. One EVAL. */

@@ -27,6 +27,8 @@ function stripMarkdown(markdown: string): string {
   text = text.replace(/```[\w-]*\n?([\s\S]*?)```/g, "$1");
   text = text.replace(/~~~[\w-]*\n?([\s\S]*?)~~~/g, "$1");
 
+  // Uploaded images drop out entirely (their alt is often a filename); others keep their alt text.
+  text = text.replace(/!\[[^\]]*\]\(\s*marker-asset:[^)]*\)/g, "");
   text = text.replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1");
   text = text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
   text = text.replace(/\[([^\]]+)\]\[[^\]]*\]/g, "$1");

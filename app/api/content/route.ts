@@ -25,6 +25,9 @@ import {
   parseCreatorParams,
   requestCreatorId,
 } from "@/app/lib/creators";
+import { r2Config } from "@/app/lib/r2";
+import { assetSummaries } from "@/app/lib/assets";
+import { deleteAssetObjects, runAfter } from "@/app/lib/assetJobs";
 
 function json(data: unknown, status = 200) {
   const response = NextResponse.json(data, { status });
@@ -73,6 +76,7 @@ export async function GET(request: NextRequest) {
       creator_name: null,
       creator_linked: false,
       tags: [],
+      assets: [],
     });
   }
 
@@ -87,6 +91,7 @@ export async function GET(request: NextRequest) {
     expires_at: note.expiresAt,
     size: Buffer.byteLength(note.content, "utf8"),
     ...creatorFields(request, note),
+    assets: assetSummaries(r2Config(), note),
   });
 }
 
@@ -272,7 +277,9 @@ export async function DELETE(request: NextRequest) {
     return json({ error: "Key is required" }, 400);
   }
 
-  await deleteNote(key);
+  const { assetNs, assetIds } = await deleteNote(key);
+  const config = r2Config();
+  if (config && assetNs && assetIds.length) runAfter(() => deleteAssetObjects(config, assetNs, assetIds));
 
   const response = json({ success: true });
   clearSessionCookies(response.cookies);
