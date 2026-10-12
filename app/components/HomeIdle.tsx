@@ -5,12 +5,15 @@ import { KeyInput } from "./KeyInput";
 import { secondaryButtonClass } from "./controlStyles";
 import { MARKER_AGENT_PROMPT } from "../lib/agentPrompt";
 import { REACTION_AGENT_PROMPT } from "../lib/reactionAgentPrompt";
+import type { FolderSummary } from "../lib/folders";
+import { RememberedFolders } from "./RememberedFolders";
 
 interface HomeIdleProps {
   onSubmit: (key: string) => void;
   onRandomize: () => void;
   isLoading: boolean;
   isRandomizing?: boolean;
+  folders?: FolderSummary[];
 }
 
 export function HomeIdle({
@@ -18,6 +21,7 @@ export function HomeIdle({
   onRandomize,
   isLoading,
   isRandomizing = false,
+  folders,
 }: HomeIdleProps) {
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-8">
@@ -45,6 +49,7 @@ export function HomeIdle({
         isLoading={isLoading}
         isRandomizing={isRandomizing}
       />
+      <RememberedFolders initial={folders} />
     </div>
   );
 }

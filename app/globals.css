@@ -286,3 +286,10 @@ body {
   .comment-auto-chip { width: 36px; height: 36px; }
   .comment-selection, .emoji-selection, .comment-auto-chip { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 }
+
+/* Creator folder tags: chips on /c, pills inside a note. */
+.creator-tag { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 32px; padding: 0.2rem 0.7rem; border: 1px solid var(--hairline); border-radius: 999px; font-size: 0.8rem; color: color-mix(in srgb, var(--foreground) 80%, var(--background)); }
+a.creator-tag:hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
+.creator-tag-on { border-color: var(--foreground); color: var(--foreground); background: color-mix(in srgb, var(--foreground) 8%, transparent); font-weight: 550; }
+.creator-tag-small { min-height: 0; padding: 0 0.5rem; font-size: 0.7rem; }
+.note-creator { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 1rem; font-size: 0.85rem; color: color-mix(in srgb, var(--foreground) 70%, var(--background)); }

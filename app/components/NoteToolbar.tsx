@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, type ReactNode } from "react";
-import { Ellipsis, Home, KeyRound, Pencil, Search, Share2 } from "lucide-react";
+import { Ellipsis, Home, KeyRound, Pencil, Search, Share2, Tags } from "lucide-react";
 import { CopyButton } from "./CopyButton";
 import { DeleteButton } from "./DeleteButton";
 import { ToolbarButton } from "./ToolbarButton";
@@ -60,12 +60,14 @@ interface NoteToolbarProps {
   onEdit?: () => void;
   onDelete?: () => void | Promise<void>;
   deleteDisabled?: boolean;
+  /** Present only when the viewer holds this note's creator id. */
+  onEditTags?: () => void;
 }
 
 export function NoteToolbar({
   commentsButton, onHome, showNoteTools = true, persist = false, shareUrl = null,
   onPersistToggle, persistDisabled = false, onRename, onChangeKey, content = "",
-  onEdit, onDelete, deleteDisabled = false,
+  onEdit, onDelete, deleteDisabled = false, onEditTags,
 }: NoteToolbarProps) {
   return <nav aria-label="Note actions" className="note-toolbar">
     <ToolbarButton label="Home" onClick={onHome} tooltipAlign="start"><Home size={18} /></ToolbarButton>
@@ -82,6 +84,7 @@ export function NoteToolbar({
         <button type="button" className="toolbar-menu-item" onClick={event => { closeMenu(event.currentTarget); onChangeKey?.(); }}><Search size={18} aria-hidden="true" />Open another note</button>
         <CopyButton text={content} label="Copy text" icon="with-label" className="toolbar-menu-item" />
         <button type="button" className="toolbar-menu-item" onClick={event => { closeMenu(event.currentTarget); onRename?.(); }}><KeyRound size={18} aria-hidden="true" />Change key</button>
+        {onEditTags && <button type="button" className="toolbar-menu-item" onClick={event => { closeMenu(event.currentTarget); onEditTags(); }}><Tags size={18} aria-hidden="true" />Edit tags</button>}
         {onDelete && <DeleteButton onDelete={onDelete} disabled={deleteDisabled} menu />}
       </ToolbarMenu>
     </>}

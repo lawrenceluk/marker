@@ -40,7 +40,7 @@ test("five actions fit one row; share and more preserve note actions", async ({ 
   await activate(toggle, touch);
   await expect(toggle).not.toBeChecked();
   await expect(share.locator("[data-copy-status]")).toBeDisabled();
-  await expect(page).toHaveURL(/\/$/);
+  await expect(page).toHaveURL(/\/n$/);
   await activate(toggle, touch);
   await expect(toggle).toBeChecked();
   await expect(page).toHaveURL(new RegExp(`key=${key}&persist=1`));

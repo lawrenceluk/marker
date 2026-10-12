@@ -3,11 +3,14 @@ import type { Thread } from "./comments";
 import type { ResponseEntry } from "./responses";
 import { remapComments } from "./remap-comments";
 import { storagePrefix } from "./namespace";
+import { previewFromMarkdown } from "./preview";
 
 /** Maximum size of a stored note, in bytes. */
 export const MAX_CONTENT_BYTES = 1024 * 1024; // 1 MiB
 export const MAX_TTL_SECONDS = 60 * 60 * 24 * 365; // 1 year
 const ACCESS_THROTTLE_MS = 60 * 60 * 1000;
+/** Index cap per creator; the least recently updated note is evicted past it. */
+export const MAX_CREATOR_NOTES = 2000;
 
 export const WRITE_MODES = ["overwrite", "append", "prepend"] as const;
 export type WriteMode = (typeof WRITE_MODES)[number];
@@ -21,7 +24,27 @@ export type Note = {
   createdAt: number | null;
   lastAccessedAt: number | null;
   expiresAt: number | null;
+  /** sha256 hex of the creator id, or null. Never send this to a client. */
+  cid: string | null;
+  tags: string[];
+  creatorName: string | null;
 };
+
+/**
+ * A requested change to a note's creator and tags. Ids are already hashed:
+ * `target` is the new creator's cid, `proofs` every cid the caller holds.
+ */
+export type CreatorChange = {
+  op: "" | "set" | "clear";
+  target?: string;
+  proofs: string[];
+  /** Folder title for the resulting creator; empty leaves it unchanged. */
+  name?: string;
+  /** Replacement tags; undefined leaves them unchanged. */
+  tags?: string[];
+};
+
+type CreatorDenied = { ok: false; reason: "forbidden" } | { ok: false; reason: "no_creator" };
 
 export type WriteResult =
   | {
@@ -30,35 +53,160 @@ export type WriteResult =
       updatedAt: number;
       expiresAt: number | null;
       size: number;
+      hasCreator: boolean;
+      tags: string[];
     }
   | { ok: false; reason: "conflict"; rev: number; content: string }
-  | { ok: false; reason: "too_large"; size: number };
+  | { ok: false; reason: "too_large"; size: number }
+  | CreatorDenied;
+
+export type MetaResult =
+  | { ok: true; hasCreator: boolean; tags: string[]; creatorName: string | null }
+  | { ok: false; reason: "not_found" }
+  | CreatorDenied;
 
 export type RenameResult =
   | { ok: true }
   | { ok: false; reason: "exists" }
   | { ok: false; reason: "not_found" };
 
-/** Note hash: fields `content`, `rev`, `updated_at`, `created_at`, `last_accessed_at`. */
+/**
+ * Note hash: `content`, `comments`, `responses`, `rev`, `updated_at`,
+ * `created_at`, `last_accessed_at`, `title`, and — only for notes with a
+ * creator — `cid`, `tags`, `meta_updated_at`.
+ */
 const noteKey = (key: string) => `${storagePrefix()}note:${key}`;
 /** Pre-metadata schema: a bare string. Read through to it, migrate on write. */
 const legacyKey = (key: string) => `${storagePrefix()}content:${key}`;
 
 /**
- * KEYS: note hash, legacy string.
- * Returns [content, rev, updated_at, created_at, pttl, comments, responses, last_accessed_at] or nil.
+ * Creator index helpers shared by every script that can change a note's
+ * membership. Index keys live under `{prefix}cidx:<cid>`:
+ *   (zset) member = note key, score = updated_at
+ *   :t:<tag> (set) note keys carrying the tag
+ *   :tags (hash) tag -> count, field removed at zero
+ *   :meta (hash) name, created_at, updated_at
+ * Each script declares `local PREFIX` before this chunk. Index keys are
+ * derived from note fields, so they cannot all be passed in KEYS.
+ */
+const CREATOR_LIB = `
+local function cidx(c) return PREFIX .. 'cidx:' .. c end
+local function note_hash(m) return PREFIX .. 'note:' .. m end
+local function decode_tags(s)
+  if not s or s == '' then return {} end
+  local ok, v = pcall(cjson.decode, s)
+  if ok and type(v) == 'table' then return v end
+  return {}
+end
+local function untag(c, m, t)
+  if redis.call('SREM', cidx(c) .. ':t:' .. t, m) == 1 then
+    if redis.call('HINCRBY', cidx(c) .. ':tags', t, -1) <= 0 then redis.call('HDEL', cidx(c) .. ':tags', t) end
+  end
+end
+local function addtag(c, m, t)
+  if redis.call('SADD', cidx(c) .. ':t:' .. t, m) == 1 then redis.call('HINCRBY', cidx(c) .. ':tags', t, 1) end
+end
+local function unindex(c, m, tags)
+  redis.call('ZREM', cidx(c), m)
+  for _, t in ipairs(tags) do untag(c, m, t) end
+end
+-- Remove m from c's index. If the note no longer belongs to c (expired,
+-- recreated, moved), its tags are unknown, so check every tag c uses.
+local function drop(c, m, clear)
+  local f = redis.call('HMGET', note_hash(m), 'cid', 'tags')
+  local tags = f[1] == c and decode_tags(f[2]) or redis.call('HKEYS', cidx(c) .. ':tags')
+  unindex(c, m, tags)
+  if clear and f[1] == c then redis.call('HDEL', note_hash(m), 'cid', 'tags') end
+end
+-- Past the cap the least recently updated notes leave the index. The notes
+-- themselves stay, detached from the creator so later writes don't re-add them.
+local function evict(c)
+  local over = redis.call('ZCARD', cidx(c)) - ${MAX_CREATOR_NOTES}
+  if over <= 0 then return end
+  for _, m in ipairs(redis.call('ZRANGE', cidx(c), 0, over - 1)) do drop(c, m, true) end
+end
+local function parse_proofs(s)
+  local proofs = {}
+  for p in string.gmatch(s, '%x+') do proofs[p] = true end
+  return proofs
+end
+-- op: '' keeps the creator, 'set' assigns target, 'clear' removes it.
+-- Leaving a creator needs proof of that creator; tag edits need proof of the
+-- resulting creator. tags_arg is '' (unchanged) or a normalized JSON array.
+local function creator_plan(h, op, target, proofs, tags_arg)
+  local f = redis.call('HMGET', h, 'cid', 'tags')
+  local cur = f[1]
+  local plan = { cur = cur, final = cur, old = decode_tags(f[2]), tags_arg = tags_arg }
+  if op == 'set' then
+    if cur and cur ~= target and not proofs[cur] then return nil, 'forbidden' end
+    plan.final = target
+  elseif op == 'clear' then
+    if cur and not proofs[cur] then return nil, 'forbidden' end
+    plan.final = false
+  end
+  plan.new = plan.final and plan.old or {}
+  if tags_arg ~= '' then
+    if not plan.final then
+      if tags_arg ~= '[]' then return nil, 'no_creator' end
+    elseif not proofs[plan.final] then return nil, 'forbidden' end
+    plan.new = decode_tags(tags_arg)
+  end
+  return plan
+end
+local function creator_apply(h, m, plan, score, now, name)
+  local cur, final = plan.cur, plan.final
+  local moved = cur ~= final
+  if cur and moved then
+    unindex(cur, m, plan.old)
+    redis.call('HSET', cidx(cur) .. ':meta', 'updated_at', now)
+  elseif cur and plan.tags_arg ~= '' then
+    local keep = {}
+    for _, t in ipairs(plan.new) do keep[t] = true end
+    for _, t in ipairs(plan.old) do if not keep[t] then untag(cur, m, t) end end
+  end
+  if final then
+    local added = redis.call('ZADD', cidx(final), score, m)
+    if moved or plan.tags_arg ~= '' or name ~= '' then
+      for _, t in ipairs(plan.new) do addtag(final, m, t) end
+      local meta = cidx(final) .. ':meta'
+      redis.call('HSETNX', meta, 'created_at', now)
+      redis.call('HSET', meta, 'updated_at', now)
+      if name ~= '' then redis.call('HSET', meta, 'name', name) end
+      if moved then redis.call('HSET', h, 'cid', final) end
+      if plan.tags_arg == '[]' then redis.call('HDEL', h, 'tags')
+      elseif plan.tags_arg ~= '' then redis.call('HSET', h, 'tags', plan.tags_arg) end
+      redis.call('HSET', h, 'meta_updated_at', now)
+    end
+    if added == 1 then evict(final) end
+  elseif cur then
+    redis.call('HDEL', h, 'cid', 'tags')
+    redis.call('HSET', h, 'meta_updated_at', now)
+  end
+end
+local function creator_result(h)
+  local f = redis.call('HMGET', h, 'cid', 'tags')
+  local name = f[1] and redis.call('HGET', cidx(f[1]) .. ':meta', 'name') or ''
+  return f[1] and '1' or '0', f[2] or '[]', name or ''
+end
+`;
+
+/**
+ * KEYS: note hash, legacy string. ARGV: comments?, access?, now, prefix.
+ * Returns [content, rev, updated_at, created_at, pttl, comments, responses,
+ * last_accessed_at, cid, tags, creator_name] or nil.
  */
 const READ_SCRIPT = `
 local h, legacy = KEYS[1], KEYS[2]
 
 if redis.call('EXISTS', h) == 1 then
-  local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at', 'last_accessed_at')
+  local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at', 'last_accessed_at', 'cid', 'tags')
   local accessed = f[5] or ''
   if ARGV[2] == '1' and (accessed == '' or tonumber(ARGV[3]) - (tonumber(accessed) or 0) >= ${ACCESS_THROTTLE_MS}) then
     redis.call('HSET', h, 'last_accessed_at', ARGV[3])
     accessed = ARGV[3]
   end
-  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]', ARGV[1] == '1' and (redis.call('HGET', h, 'responses') or '[]') or '[]', accessed }
+  local name = f[6] and redis.call('HGET', ARGV[4] .. 'cidx:' .. f[6] .. ':meta', 'name') or ''
+  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]', ARGV[1] == '1' and (redis.call('HGET', h, 'responses') or '[]') or '[]', accessed, f[6] or '', f[7] or '', name or '' }
 end
 
 local old = redis.call('GET', legacy)
@@ -68,16 +216,21 @@ if old then
     redis.call('HSET', h, 'content', old, 'rev', '0', 'updated_at', '', 'created_at', '', 'last_accessed_at', ARGV[3])
     if pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
     redis.call('DEL', legacy)
-    return { old, '0', '', '', tostring(pttl), '[]', '[]', ARGV[3] }
+    return { old, '0', '', '', tostring(pttl), '[]', '[]', ARGV[3], '', '', '' }
   end
-  return { old, '0', '', '', tostring(pttl), '[]', '[]', '' }
+  return { old, '0', '', '', tostring(pttl), '[]', '[]', '', '', '', '' }
 end
 
 return nil
 `;
 
-/** All writes commit content + anchors under the snapshot revision. TTL stays inside Lua. */
+/**
+ * All writes commit content + anchors under the snapshot revision. TTL stays
+ * inside Lua, and so does creator index maintenance (ARGV 13–18).
+ */
 const COMMIT_SCRIPT = `
+local PREFIX = ARGV[13]
+${CREATOR_LIB}
 local h, legacy = KEYS[1], KEYS[2]
 local exists = redis.call('EXISTS', h) == 1
 local old = not exists and redis.call('GET', legacy) or false
@@ -91,22 +244,62 @@ if (ARGV[9] == '1') ~= present or rev ~= tonumber(ARGV[1]) or current ~= ARGV[2]
   return {'conflict', tostring(rev), current}
 end
 if #ARGV[5] > tonumber(ARGV[11]) then return {'too_large', tostring(#ARGV[5])} end
+local plan, denied = creator_plan(h, ARGV[14], ARGV[15], parse_proofs(ARGV[16]), ARGV[18])
+if not plan then return {denied} end
 local pttl = redis.call('PTTL', exists and h or legacy)
 local created = redis.call('HGET', h, 'created_at') or ARGV[8]
-redis.call('HSET', h, 'content', ARGV[5], 'comments', ARGV[6], 'responses', ARGV[7], 'rev', rev + 1, 'updated_at', ARGV[8], 'created_at', created)
+redis.call('HSET', h, 'content', ARGV[5], 'comments', ARGV[6], 'responses', ARGV[7], 'rev', rev + 1, 'updated_at', ARGV[8], 'created_at', created, 'title', ARGV[12])
 if ARGV[10] == '0' then redis.call('PERSIST', h)
 elseif ARGV[10] ~= '' then redis.call('EXPIRE', h, tonumber(ARGV[10]))
 elseif not exists and pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
 redis.call('DEL', legacy)
-return {'ok', tostring(rev + 1), tostring(redis.call('PTTL', h)), tostring(#ARGV[5])}
+creator_apply(h, ARGV[19], plan, ARGV[8], ARGV[8], ARGV[17])
+local has, tags = creator_result(h)
+return {'ok', tostring(rev + 1), tostring(redis.call('PTTL', h)), tostring(#ARGV[5]), has, tags}
 `;
 
 /**
- * KEYS: old hash, old legacy, new hash, new legacy.
+ * KEYS: note hash, legacy string. ARGV: prefix, note key, op, target, proofs,
+ * name, tags, now. Metadata only: rev, content and updated_at are untouched.
+ */
+const META_SCRIPT = `
+local PREFIX = ARGV[1]
+${CREATOR_LIB}
+local h, legacy = KEYS[1], KEYS[2]
+if redis.call('EXISTS', h) == 0 then
+  local old = redis.call('GET', legacy)
+  if not old then return {'not_found'} end
+  local pttl = redis.call('PTTL', legacy)
+  redis.call('HSET', h, 'content', old, 'rev', '0', 'updated_at', '', 'created_at', '')
+  if pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
+  redis.call('DEL', legacy)
+end
+local plan, denied = creator_plan(h, ARGV[3], ARGV[4], parse_proofs(ARGV[5]), ARGV[7])
+if not plan then return {denied} end
+local f = redis.call('HMGET', h, 'updated_at', 'created_at')
+local score = tonumber(f[1]) or tonumber(f[2]) or tonumber(ARGV[8])
+creator_apply(h, ARGV[2], plan, score, ARGV[8], ARGV[6])
+local has, tags, name = creator_result(h)
+return {'ok', has, tags, name}
+`;
+
+/** KEYS: note hash, legacy string. ARGV: prefix, note key. Drops index entries with the note. */
+const DELETE_SCRIPT = `
+local PREFIX = ARGV[1]
+${CREATOR_LIB}
+local f = redis.call('HMGET', KEYS[1], 'cid', 'tags')
+if f[1] then unindex(f[1], ARGV[2], decode_tags(f[2])) end
+return redis.call('DEL', KEYS[1], KEYS[2])
+`;
+
+/**
+ * KEYS: old hash, old legacy, new hash, new legacy. ARGV: prefix, old key, new key.
  * Moves a note to a new key without rewriting content. RENAME keeps hash
- * fields, rev, and TTL. Destination must be free.
+ * fields, rev, and TTL. Destination must be free. Index members follow.
  */
 const RENAME_SCRIPT = `
+local PREFIX = ARGV[1]
+${CREATOR_LIB}
 local oldH, oldLegacy, newH, newLegacy = KEYS[1], KEYS[2], KEYS[3], KEYS[4]
 
 if oldH == newH then
@@ -122,6 +315,18 @@ local moved = false
 if redis.call('EXISTS', oldH) == 1 then
   redis.call('RENAME', oldH, newH)
   moved = true
+  local f = redis.call('HMGET', newH, 'cid', 'tags')
+  if f[1] then
+    local z = cidx(f[1])
+    local score = redis.call('ZSCORE', z, ARGV[2])
+    if score then
+      redis.call('ZREM', z, ARGV[2])
+      redis.call('ZADD', z, score, ARGV[3])
+    end
+    for _, t in ipairs(decode_tags(f[2])) do
+      if redis.call('SREM', z .. ':t:' .. t, ARGV[2]) == 1 then redis.call('SADD', z .. ':t:' .. t, ARGV[3]) end
+    end
+  end
 end
 
 if redis.call('EXISTS', oldLegacy) == 1 then
@@ -157,6 +362,29 @@ function toNumberOrNull(value: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+export function parseTags(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const tags = JSON.parse(raw);
+    return Array.isArray(tags) ? tags.filter((t): t is string => typeof t === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+const NO_CHANGE: CreatorChange = { op: "", proofs: [] };
+
+/** ARGV tail shared by the commit and meta scripts: op, target, proofs, name, tags. */
+function creatorArgs(change: CreatorChange): string[] {
+  return [
+    change.op,
+    change.target ?? "",
+    change.proofs.join(" "),
+    change.name ?? "",
+    change.tags === undefined ? "" : JSON.stringify(change.tags),
+  ];
+}
+
 /** One field, one Redis command; legacy/missing notes both have revision zero. */
 export async function readRevision(key: string): Promise<number> {
   return Number(await redis.hget(noteKey(key), "rev")) || 0;
@@ -170,12 +398,12 @@ export async function readNote(
   const result = await redis.eval<string[], string[] | null>(
     READ_SCRIPT,
     [noteKey(key), legacyKey(key)],
-    [includeComments ? "1" : "0", recordAccess ? "1" : "0", String(Date.now())],
+    [includeComments ? "1" : "0", recordAccess ? "1" : "0", String(Date.now()), storagePrefix()],
   );
 
   if (!result) return null;
 
-  const [content, rev, updatedAt, createdAt, pttl, comments, responses, lastAccessedAt] = result;
+  const [content, rev, updatedAt, createdAt, pttl, comments, responses, lastAccessedAt, cid, tags, creatorName] = result;
   return {
     content,
     comments: JSON.parse(comments),
@@ -185,6 +413,9 @@ export async function readNote(
     createdAt: toNumberOrNull(createdAt),
     lastAccessedAt: toNumberOrNull(lastAccessedAt),
     expiresAt: expiryFromPttl(Number(pttl), Date.now()),
+    cid: cid || null,
+    tags: cid ? parseTags(tags) : [],
+    creatorName: cid ? creatorName || null : null,
   };
 }
 
@@ -200,6 +431,7 @@ async function commitNote(
   comments: Thread[],
   responses: ResponseEntry[],
   ttl?: number | null,
+  creator: CreatorChange = NO_CHANGE,
 ): Promise<WriteResult | { ok: false; reason: "missing" }> {
   const now = Date.now();
   const result = await redis.eval<string[], string[]>(
@@ -217,9 +449,15 @@ async function commitNote(
       before ? "1" : "0",
       ttl === undefined ? "" : String(ttl ?? 0),
       String(MAX_CONTENT_BYTES),
+      previewFromMarkdown(content)?.title ?? "",
+      storagePrefix(),
+      ...creatorArgs(creator),
+      key,
     ],
   );
   if (result[0] === "missing") return { ok: false, reason: "missing" };
+  if (result[0] === "forbidden" || result[0] === "no_creator")
+    return { ok: false, reason: result[0] };
   if (result[0] === "conflict")
     return {
       ok: false,
@@ -235,15 +473,17 @@ async function commitNote(
     updatedAt: now,
     expiresAt: expiryFromPttl(Number(result[2]), now),
     size: Number(result[3]),
+    hasCreator: result[4] === "1",
+    tags: result[4] === "1" ? parseTags(result[5]) : [],
   };
 }
 
 export async function writeNote(
   key: string,
   content: string,
-  options: { mode?: WriteMode; ifRev?: number; ttl?: number | null } = {},
+  options: { mode?: WriteMode; ifRev?: number; ttl?: number | null; creator?: CreatorChange } = {},
 ): Promise<WriteResult> {
-  const { mode = "overwrite", ifRev, ttl } = options;
+  const { mode = "overwrite", ifRev, ttl, creator } = options;
   for (let attempt = 0; attempt < 8; attempt++) {
     const before = await readNote(key, true);
     const current = before?.content ?? "",
@@ -262,8 +502,8 @@ export async function writeNote(
     if (size > MAX_CONTENT_BYTES)
       return { ok: false, reason: "too_large", size };
     const comments = remapComments(current, next, before?.comments ?? [], mode);
-    const result = await commitNote(key, before, next, comments, before?.responses ?? [], ttl);
-    if (result.ok || result.reason === "too_large") return result;
+    const result = await commitNote(key, before, next, comments, before?.responses ?? [], ttl, creator);
+    if (result.ok || (result.reason !== "missing" && result.reason !== "conflict")) return result;
     if (ifRev !== undefined)
       return result.reason === "missing"
         ? { ok: false, reason: "conflict", rev: 0, content: "" }
@@ -290,7 +530,7 @@ export async function renameNote(
   const result = await redis.eval<string[], string[]>(
     RENAME_SCRIPT,
     [noteKey(from), legacyKey(from), noteKey(to), legacyKey(to)],
-    [],
+    [storagePrefix(), from, to],
   );
 
   const [status] = result;
@@ -303,9 +543,27 @@ export async function renameNote(
   return { ok: true };
 }
 
-/** Remove both the hash note and any legacy string for this key. */
+/** Remove both the hash note and any legacy string for this key, and its index entries. */
 export async function deleteNote(key: string): Promise<void> {
-  await redis.del(noteKey(key), legacyKey(key));
+  await redis.eval(DELETE_SCRIPT, [noteKey(key), legacyKey(key)], [storagePrefix(), key]);
+}
+
+/** Change creator, name or tags without touching content, rev or updated_at. One EVAL. */
+export async function updateNoteMeta(key: string, change: CreatorChange): Promise<MetaResult> {
+  const result = await redis.eval<string[], string[]>(
+    META_SCRIPT,
+    [noteKey(key), legacyKey(key)],
+    [storagePrefix(), key, ...creatorArgs(change), String(Date.now())],
+  );
+  if (result[0] === "not_found" || result[0] === "forbidden" || result[0] === "no_creator")
+    return { ok: false, reason: result[0] };
+  const hasCreator = result[1] === "1";
+  return {
+    ok: true,
+    hasCreator,
+    tags: hasCreator ? parseTags(result[2]) : [],
+    creatorName: hasCreator ? result[3] || null : null,
+  };
 }
 
 /** Operations and mapped anchors share the content commit; no separate anchor write. */

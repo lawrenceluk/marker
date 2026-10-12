@@ -15,7 +15,9 @@ import { ContentEditor } from "./ContentEditor";
 import { NoteToolbar } from "./NoteToolbar";
 import { RenameKey } from "./RenameKey";
 import { ScrollActions } from "./ScrollActions";
+import { NoteCreator, creatorFromResponse, type NoteCreatorInfo } from "./NoteCreator";
 import type { ResponseEntry } from "../lib/responses";
+import type { FolderSummary } from "../lib/folders";
 
 type AppState = "idle" | "loading" | "viewing" | "editing";
 
@@ -31,6 +33,10 @@ interface NoteAppProps {
   initialNote: { content: string; rev: number; responses: ResponseEntry[] } | null;
   /** Whether this session is a persistent document link. */
   initialPersist: boolean;
+  /** Creator name and tags of the initial note, if it has a creator. */
+  initialCreator?: NoteCreatorInfo | null;
+  /** Remembered folders for Home; undefined means Home fetches them itself. */
+  initialFolders?: FolderSummary[];
 }
 
 const RANDOMIZE_ATTEMPTS = 16;
@@ -39,6 +45,8 @@ export function NoteApp({
   initialKeyLabel,
   initialNote,
   initialPersist,
+  initialCreator = null,
+  initialFolders,
 }: NoteAppProps) {
   const [appState, setAppState] = useState<AppState>(
     initialKeyLabel ? (initialNote ? "viewing" : "editing") : "idle"
@@ -64,6 +72,9 @@ export function NoteApp({
   const [isReloading, setIsReloading] = useState(false);
   const [deleteResetKey, setDeleteResetKey] = useState(0);
   const [isComposing, setIsComposing] = useState(false);
+  const [creator, setCreator] = useState<NoteCreatorInfo | null>(initialCreator);
+  const [isEditingTags, setIsEditingTags] = useState(false);
+  const [isSavingTags, setIsSavingTags] = useState(false);
   const { updated, noticeRevision } = useNoteRevision(
     rev, (appState === "viewing" || appState === "editing") && !isNew,
     rawKey ?? initialKeyLabel,
@@ -95,6 +106,14 @@ export function NoteApp({
       .catch(() => {});
   }, [initialPersist]);
 
+  // Opening a note from Home pushes `/n`; going Back to `/` should show Home,
+  // which the server decides.
+  useEffect(() => {
+    const onPop = () => window.location.reload();
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   const handleCommentChange = useCallback((next: string, revision: number, nextResponses: ResponseEntry[]) => {
     setContent(next);
     setOriginalContent(next);
@@ -106,8 +125,18 @@ export function NoteApp({
     window.history.replaceState(null, "", persistPath(key));
   }
 
+  /** Back to the session note's URL; `/` would reopen on Home. */
   function hidePersistUrl() {
+    window.history.replaceState(null, "", "/n");
+  }
+
+  function showHomeUrl() {
     window.history.replaceState(null, "", "/");
+  }
+
+  /** Reloading a note opened from Home keeps it open. */
+  function showSessionUrl() {
+    if (window.location.pathname !== "/n") window.history.pushState(null, "", "/n");
   }
 
   async function handleKeySubmit(key: string) {
@@ -134,6 +163,9 @@ export function NoteApp({
         throw new Error(data.error || "Couldn't open note. Try again.");
       }
 
+      setCreator(creatorFromResponse(data));
+      setIsEditingTags(false);
+      showSessionUrl();
       if (data.exists) {
         setContent(data.content || "");
         setOriginalContent(data.content || "");
@@ -180,6 +212,8 @@ export function NoteApp({
         }
 
         if (!data.exists) {
+          showSessionUrl();
+          setCreator(null);
           setRawKey(key);
           setPersist(false);
           setContent("");
@@ -264,6 +298,8 @@ export function NoteApp({
       setIsRenaming(false);
       setForceOverwrite(false);
       setDeleteResetKey((k) => k + 1);
+      setCreator(creatorFromResponse(data));
+      setIsEditingTags(false);
 
       if (data.exists) {
         setContent(data.content || "");
@@ -303,7 +339,7 @@ export function NoteApp({
     } catch {
       // Still reset the UI even if the cookie clear fails.
     }
-    hidePersistUrl();
+    showHomeUrl();
     setAppState("idle");
     setRawKey(null);
     setPersist(false);
@@ -314,6 +350,8 @@ export function NoteApp({
     setForceOverwrite(false);
     setIsNew(false);
     setIsRenaming(false);
+    setCreator(null);
+    setIsEditingTags(false);
     setError(null);
   }
 
@@ -328,7 +366,7 @@ export function NoteApp({
         throw new Error(data.error || "Couldn't delete note. Try again.");
       }
 
-      hidePersistUrl();
+      showHomeUrl();
       setAppState("idle");
       setRawKey(null);
       setPersist(false);
@@ -339,6 +377,8 @@ export function NoteApp({
       setForceOverwrite(false);
       setIsNew(false);
       setIsRenaming(false);
+      setCreator(null);
+      setIsEditingTags(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't delete note. Try again.");
     } finally {
@@ -382,6 +422,34 @@ export function NoteApp({
       setError(err instanceof Error ? err.message : "Couldn't change key. Try again.");
     } finally {
       setIsSavingRename(false);
+    }
+  }
+
+  /** The folder cookie is the proof; the note key comes from the session cookie. */
+  async function handleSaveTags(tags: string[]) {
+    setIsSavingTags(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/meta", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags }),
+      });
+      const data: { error?: string; tags?: string[]; has_creator?: boolean; creator_name?: string | null } = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Couldn't save tags. Try again.");
+      }
+      setCreator(current => current && {
+        ...current,
+        hasCreator: Boolean(data.has_creator),
+        name: data.creator_name ?? current.name,
+        tags: data.tags ?? [],
+      });
+      setIsEditingTags(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save tags. Try again.");
+    } finally {
+      setIsSavingTags(false);
     }
   }
 
@@ -435,6 +503,7 @@ export function NoteApp({
 
         {appState === "idle" && (
           <HomeIdle
+            folders={initialFolders}
             onSubmit={handleKeySubmit}
             onRandomize={handleRandomize}
             isLoading={false}
@@ -472,7 +541,21 @@ export function NoteApp({
               onEdit={handleEdit}
               onDelete={handleDelete}
               deleteDisabled={isDeleting || isReloading}
+              onEditTags={creator?.hasCreator && creator.linked ? () => {
+                setIsEditingTags(true);
+                setError(null);
+              } : undefined}
             />
+            {creator && (
+              <NoteCreator
+                key={isEditingTags ? "editing" : "viewing"}
+                info={creator}
+                editing={isEditingTags}
+                isSaving={isSavingTags}
+                onSave={tags => void handleSaveTags(tags)}
+                onCancel={() => setIsEditingTags(false)}
+              />
+            )}
             {updated && !isComposing && (
               <button type="button" className="update-nudge" disabled={isReloading} onClick={() => void handleReload()}>
                 {isReloading ? "Refreshing…" : "Note updated · Refresh"}
@@ -505,7 +588,7 @@ export function NoteApp({
           />
         )}
       </main>
-      <ScrollActions />
+      {appState !== "idle" && <ScrollActions />}
     </div>
   );
 }
