@@ -147,12 +147,15 @@ the id exists and then redirects to a clean `/c` (other query parameters such
 as `tag` are kept). The id does not stay in the address bar or history. People
 can also open `/c` and paste the id.
 
-The folder shows the creator name as the title, tag chips with counts (select
-several to AND them), and the notes sorted by Updated, Created or Title.
+The folder shows a Home button, the creator name as the title, tag chips with
+counts, and the notes sorted by Updated, Created or Title. Tapping a chip adds
+or removes it from the filter (selected tags AND together). Double-tapping,
+double-clicking or long-pressing a chip shows only that tag. Quick taps are
+combined into one listing request.
 Opening a row opens the note at `/n` in a normal one-off browser session.
 Inside a note, the creator name and tag pills appear under the toolbar. When
 the browser's folder cookie matches the note's creator, the name links back to
-the folder and **More → Edit tags** is available. "Forget this folder" on `/c`
+the folder and **More → Edit tags** is available. **⋯ → Forget this folder** on `/c`
 removes the cookie and drops the folder from the home page list.
 
 ## Folders on the home page
@@ -169,7 +172,7 @@ them under **Folders**, most recently visited first, with each folder's
   remembered id in the cookie, makes it the active `marker_creator`, moves it
   to the front of the list and redirects to `/c`. A ref that doesn't match the
   browser's own cookie redirects to `/`.
-- **Forget** posts to `/api/creator/folders`, which removes the entry (and
+- **⋯ → Forget folder** on a row posts to `/api/creator/folders`, which removes the entry (and
   clears `marker_creator` if it was the active folder), then redirects to `/`.
 - Folders whose index no longer exists drop out of the list.
 - Counts come from the index size, so notes that expired since the folder was

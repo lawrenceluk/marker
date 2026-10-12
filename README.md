@@ -122,7 +122,7 @@ to `/`.
 
 The home page also has a **Folders** section listing the creator folders this
 browser has opened (most recent first, up to 10), with each folder's name and
-note count and a Forget button. See [docs/creators.md](docs/creators.md).
+note count and a ⋯ menu to forget it. See [docs/creators.md](docs/creators.md).
 
 To keep a stable document link instead, turn on **Persistent link** in the note
 header. That puts `/?key=<key>&persist=1` in the address bar (and offers a copy
