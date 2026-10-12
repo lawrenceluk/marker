@@ -13,6 +13,8 @@ import {
   persistPath,
 } from "./lib/key";
 import { readNote as loadNote } from "./lib/notes";
+import { CREATOR_COOKIE, normalizeCreatorId } from "./lib/creatorId";
+import { creatorHash } from "./lib/creators";
 import { requestOrigin } from "./lib/origin";
 import { previewFromMarkdown } from "./lib/preview";
 
@@ -107,6 +109,15 @@ export default async function Home({
     ? (normalizeKey(params.key) ?? cookieKey)
     : cookieKey;
   const note = key ? await readNote(key, true) : null;
+  const creatorId = normalizeCreatorId(cookieStore.get(CREATOR_COOKIE)?.value);
+  const creator = note?.cid
+    ? {
+        hasCreator: true,
+        name: note.creatorName,
+        tags: note.tags,
+        linked: creatorId !== null && creatorHash(creatorId) === note.cid,
+      }
+    : null;
 
   return (
     <>
@@ -115,6 +126,7 @@ export default async function Home({
       initialKeyLabel={key ? maskKey(key) : null}
       initialNote={note ? { content: note.content, rev: note.rev, responses: note.responses } : null}
       initialPersist={persist}
+      initialCreator={creator}
     />
     </>
   );

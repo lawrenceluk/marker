@@ -15,6 +15,7 @@ import { ContentEditor } from "./ContentEditor";
 import { NoteToolbar } from "./NoteToolbar";
 import { RenameKey } from "./RenameKey";
 import { ScrollActions } from "./ScrollActions";
+import { NoteCreator, creatorFromResponse, type NoteCreatorInfo } from "./NoteCreator";
 import type { ResponseEntry } from "../lib/responses";
 
 type AppState = "idle" | "loading" | "viewing" | "editing";
@@ -31,6 +32,8 @@ interface NoteAppProps {
   initialNote: { content: string; rev: number; responses: ResponseEntry[] } | null;
   /** Whether this session is a persistent document link. */
   initialPersist: boolean;
+  /** Creator name and tags of the initial note, if it has a creator. */
+  initialCreator?: NoteCreatorInfo | null;
 }
 
 const RANDOMIZE_ATTEMPTS = 16;
@@ -39,6 +42,7 @@ export function NoteApp({
   initialKeyLabel,
   initialNote,
   initialPersist,
+  initialCreator = null,
 }: NoteAppProps) {
   const [appState, setAppState] = useState<AppState>(
     initialKeyLabel ? (initialNote ? "viewing" : "editing") : "idle"
@@ -64,6 +68,9 @@ export function NoteApp({
   const [isReloading, setIsReloading] = useState(false);
   const [deleteResetKey, setDeleteResetKey] = useState(0);
   const [isComposing, setIsComposing] = useState(false);
+  const [creator, setCreator] = useState<NoteCreatorInfo | null>(initialCreator);
+  const [isEditingTags, setIsEditingTags] = useState(false);
+  const [isSavingTags, setIsSavingTags] = useState(false);
   const { updated, noticeRevision } = useNoteRevision(
     rev, (appState === "viewing" || appState === "editing") && !isNew,
     rawKey ?? initialKeyLabel,
@@ -134,6 +141,8 @@ export function NoteApp({
         throw new Error(data.error || "Couldn't open note. Try again.");
       }
 
+      setCreator(creatorFromResponse(data));
+      setIsEditingTags(false);
       if (data.exists) {
         setContent(data.content || "");
         setOriginalContent(data.content || "");
@@ -264,6 +273,8 @@ export function NoteApp({
       setIsRenaming(false);
       setForceOverwrite(false);
       setDeleteResetKey((k) => k + 1);
+      setCreator(creatorFromResponse(data));
+      setIsEditingTags(false);
 
       if (data.exists) {
         setContent(data.content || "");
@@ -314,6 +325,8 @@ export function NoteApp({
     setForceOverwrite(false);
     setIsNew(false);
     setIsRenaming(false);
+    setCreator(null);
+    setIsEditingTags(false);
     setError(null);
   }
 
@@ -339,6 +352,8 @@ export function NoteApp({
       setForceOverwrite(false);
       setIsNew(false);
       setIsRenaming(false);
+      setCreator(null);
+      setIsEditingTags(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't delete note. Try again.");
     } finally {
@@ -382,6 +397,34 @@ export function NoteApp({
       setError(err instanceof Error ? err.message : "Couldn't change key. Try again.");
     } finally {
       setIsSavingRename(false);
+    }
+  }
+
+  /** The folder cookie is the proof; the note key comes from the session cookie. */
+  async function handleSaveTags(tags: string[]) {
+    setIsSavingTags(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/meta", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags }),
+      });
+      const data: { error?: string; tags?: string[]; has_creator?: boolean; creator_name?: string | null } = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Couldn't save tags. Try again.");
+      }
+      setCreator(current => current && {
+        ...current,
+        hasCreator: Boolean(data.has_creator),
+        name: data.creator_name ?? current.name,
+        tags: data.tags ?? [],
+      });
+      setIsEditingTags(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save tags. Try again.");
+    } finally {
+      setIsSavingTags(false);
     }
   }
 
@@ -472,7 +515,21 @@ export function NoteApp({
               onEdit={handleEdit}
               onDelete={handleDelete}
               deleteDisabled={isDeleting || isReloading}
+              onEditTags={creator?.hasCreator && creator.linked ? () => {
+                setIsEditingTags(true);
+                setError(null);
+              } : undefined}
             />
+            {creator && (
+              <NoteCreator
+                key={isEditingTags ? "editing" : "viewing"}
+                info={creator}
+                editing={isEditingTags}
+                isSaving={isSavingTags}
+                onSave={tags => void handleSaveTags(tags)}
+                onCancel={() => setIsEditingTags(false)}
+              />
+            )}
             {updated && !isComposing && (
               <button type="button" className="update-nudge" disabled={isReloading} onClick={() => void handleReload()}>
                 {isReloading ? "Refreshing…" : "Note updated · Refresh"}
