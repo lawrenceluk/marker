@@ -48,7 +48,7 @@ export default async function CreatorFolder({ searchParams }: { searchParams: Pr
   const sort = CREATOR_SORTS.includes(params.sort as CreatorSort) ? (params.sort as CreatorSort) : "updated";
   const cursor = Math.max(0, Number(params.cursor) || 0);
 
-  let error = params.error ? ERRORS[params.error] ?? null : null;
+  let error = params.error ? ERRORS[params.error] ?? null : "error" in filter ? filter.error : null;
   let listing: CreatorListing | null = null;
   if (id) {
     const result = await listCreatorNotes(id, { tags, sort, cursor, client: clientFingerprint(await headers()) });
