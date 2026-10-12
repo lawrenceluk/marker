@@ -16,6 +16,7 @@ via a small HTTP API, from AI agents.
 - **Copy all**: Copy a note's full markdown from the viewer or editor, with a brief "Copied" confirmation
 - **Rename Key**: Change a note's key in place without rewriting its content; the destination must be free
 - **Creator folders and tags**: Agents attach notes to a secret `creator_id`, give them a folder title (`creator_name`) and per-creator tags, and hand a person one `/c?token=…` link to browse them with AND tag filters. The home page lists the folders this browser has opened. See [docs/creators.md](docs/creators.md)
+- **Images**: Paste, drop or insert PNG/JPEG/GIF/WebP images in the editor, or upload them over the API, stored in a private Cloudflare R2 bucket and shown through short-lived signed URLs. Images removed from a note's markdown are deleted after 24 hours, and all of a note's images go with the note. See [docs/images.md](docs/images.md)
 - **View & Edit Modes**: Toggle between viewing rendered markdown and editing raw content
 - **Dark Mode**: Automatic dark mode support
 - **Scroll Actions**: Quick navigation buttons to scroll to top or bottom
@@ -45,6 +46,12 @@ Folders list keeps the ids it remembers in an httpOnly cookie and links to
 opaque refs too. Moving a note out of a
 folder, or changing its tags, requires that creator's id as well as the note
 key. Details: [docs/creators.md](docs/creators.md).
+
+**Images are as private as the note.** They sit in a private R2 bucket under a
+random per-note prefix; pages and the API hand out presigned view URLs valid
+for about an hour, never a public link. Image bytes are stored as uploaded,
+EXIF metadata included. External images in markdown load from their own host,
+which sees viewers' IP addresses. Details: [docs/images.md](docs/images.md).
 
 **Link previews are the exception.** A persistent URL (`/?key=...&persist=1`)
 is already a public view of that note (the key is in the URL). Marker puts
@@ -92,6 +99,12 @@ Create a `.env.local` file in the root directory:
 KV_REST_API_URL=your_upstash_redis_url
 KV_REST_API_TOKEN=your_upstash_redis_token
 ```
+
+Images are optional. To enable them, also set `R2_ACCOUNT_ID`,
+`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_BUCKET`, plus `CRON_SECRET`
+for the daily cleanup and `RESEND_API_KEY` / `ALERT_EMAIL_TO` for storage
+alerts. Without them the app works as before and the images API returns 503.
+Bucket and CORS setup: [docs/images.md](docs/images.md#r2-bucket-setup).
 
 4. Run the development server:
 ```bash
@@ -289,6 +302,17 @@ rev or content. GET https://marker.luk.xyz/api/creator?tag=a&tag=b with
 Authorization: Bearer <creator_id> lists the folder (AND filter, 50 per page,
 "next_cursor"). Give the person https://marker.luk.xyz/c?token=<creator_id>.
 Full reference: docs/creators.md.
+
+## Images
+
+Upload, then reference the returned markdown in the note:
+  POST https://marker.luk.xyz/api/assets
+  { "key": "<key>", "content_type": "image/png", "data_base64": "<≤ 1 MiB>" }
+  or { "key", "content_type", "size": <bytes ≤ 5 MiB> } → PUT to "upload_url"
+  → { "asset_id", "markdown": "![](marker-asset:<id>)", ... }
+Removing the last reference deletes the image ~24 h later; re-adding it within
+that window keeps it. Keep image references you don't mean to delete.
+Full reference: docs/images.md.
 ````
 
 ## Project Structure
@@ -297,8 +321,10 @@ Full reference: docs/creators.md.
 marker/
 ├── app/
 │   ├── api/
+│   │   ├── assets/           # Image reserve/upload and fresh view URLs
 │   │   ├── content/          # API routes for content CRUD
 │   │   ├── creator/          # Folder listing, /c cookie session, remembered folders
+│   │   ├── cron/assets-sweep/ # Daily image cleanup and storage alerts
 │   │   ├── meta/             # PATCH creator, folder name, tags
 │   │   └── session/          # Sets/clears the session key cookie
 │   ├── c/                    # /c folder page, /c/enter, /c/folder/<ref>, /c/open/<ref>
@@ -310,6 +336,7 @@ marker/
 │   │   ├── KeyInput.tsx       # Key input form
 │   │   ├── NoteApp.tsx        # Client-side app state and flow
 │   │   ├── NoteCreator.tsx    # Creator name, tag pills, tag editor in a note
+│   │   ├── NoteImage.tsx      # Image rendering, view-URL refresh, lightbox
 │   │   ├── NoteToolbar.tsx    # Compact icon toolbar for a viewing session
 │   │   ├── NoteView.tsx       # Server-rendered note page shared by / and /n
 │   │   ├── RememberedFolders.tsx # Home "Folders" list
@@ -317,6 +344,10 @@ marker/
 │   │   ├── ScrollActions.tsx  # Scroll navigation buttons
 │   │   └── ToolbarButton.tsx  # Shared icon-button chrome
 │   ├── lib/
+│   │   ├── alerts.ts          # Storage alert email (Resend)
+│   │   ├── assetIndex.ts      # Image limits and the per-note image index (Lua)
+│   │   ├── assetJobs.ts       # Post-response image deletes and alerts
+│   │   ├── assets.ts          # Image reserve, signed URLs, sweep scripts
 │   │   ├── clipboard.ts       # Clipboard helper
 │   │   ├── creatorId.ts       # Creator id/name/tag validation, folder cookie
 │   │   ├── creators.ts        # Creator hashing, refs, folder list/gate scripts
@@ -325,6 +356,7 @@ marker/
 │   │   ├── notes.ts           # Note storage schema and atomic read/write scripts
 │   │   ├── origin.ts          # Request origin for absolute OG URLs
 │   │   ├── preview.ts         # Title/description from the start of a note
+│   │   ├── r2.ts              # Cloudflare R2 (S3 SigV4) client and presigning
 │   │   ├── redis.ts           # Redis client configuration
 │   │   └── robots.ts          # X-Robots-Tag / preview-bot allowlist
 │   ├── n/page.tsx             # Session note (/?key= lands here)
@@ -350,10 +382,10 @@ The easiest way to deploy is using [Vercel](https://vercel.com):
 
 1. Push your code to GitHub
 2. Import your repository on Vercel
-3. Add your environment variables (`KV_REST_API_URL` and `KV_REST_API_TOKEN`)
+3. Add your environment variables (`KV_REST_API_URL` and `KV_REST_API_TOKEN`, plus the optional image variables above)
 4. Deploy
 
-Make sure to set up your Upstash Redis instance and configure the environment variables in your deployment platform.
+Make sure to set up your Upstash Redis instance and configure the environment variables in your deployment platform. `vercel.json` schedules the daily image sweep (one cron, within the Hobby plan's limit).
 
 ## License
 

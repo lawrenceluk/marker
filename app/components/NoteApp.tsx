@@ -12,6 +12,7 @@ import { useNoteRevision } from "../lib/useNoteRevision";
 import { HomeIdle } from "./HomeIdle";
 import { CommentedViewer } from "./CommentedViewer";
 import { ContentEditor } from "./ContentEditor";
+import { AssetUrlsProvider, urlsFromAssets } from "./NoteImage";
 import { NoteToolbar } from "./NoteToolbar";
 import { RenameKey } from "./RenameKey";
 import { ScrollActions } from "./ScrollActions";
@@ -37,9 +38,14 @@ interface NoteAppProps {
   initialCreator?: NoteCreatorInfo | null;
   /** Remembered folders for Home; undefined means Home fetches them itself. */
   initialFolders?: FolderSummary[];
+  /** Whether this deployment has image storage configured. */
+  imagesEnabled?: boolean;
+  /** View URLs for the initial note's images, by asset id. */
+  initialAssetUrls?: Record<string, string>;
 }
 
 const RANDOMIZE_ATTEMPTS = 16;
+const NO_URLS: Record<string, string> = {};
 
 export function NoteApp({
   initialKeyLabel,
@@ -47,6 +53,8 @@ export function NoteApp({
   initialPersist,
   initialCreator = null,
   initialFolders,
+  imagesEnabled = false,
+  initialAssetUrls = NO_URLS,
 }: NoteAppProps) {
   const [appState, setAppState] = useState<AppState>(
     initialKeyLabel ? (initialNote ? "viewing" : "editing") : "idle"
@@ -61,6 +69,7 @@ export function NoteApp({
     initialNote?.rev ?? (initialKeyLabel ? 0 : null)
   );
   const [forceOverwrite, setForceOverwrite] = useState(false);
+  const [assetUrls, setAssetUrls] = useState(initialAssetUrls);
   const [persist, setPersist] = useState(initialPersist);
   const [isTogglingPersist, setIsTogglingPersist] = useState(false);
   const [rawKey, setRawKey] = useState<string | null>(null);
@@ -170,6 +179,7 @@ export function NoteApp({
         setContent(data.content || "");
         setOriginalContent(data.content || "");
         setResponses(data.responses ?? []);
+        setAssetUrls(urlsFromAssets(data.assets));
         setRev(data.rev ?? null);
         setIsNew(false);
         setAppState("viewing");
@@ -305,6 +315,7 @@ export function NoteApp({
         setContent(data.content || "");
         setOriginalContent(data.content || "");
         setResponses(data.responses ?? []);
+        setAssetUrls(urlsFromAssets(data.assets));
         setRev(data.rev ?? null);
         setIsNew(false);
         setAppState("viewing");
@@ -486,6 +497,7 @@ export function NoteApp({
   }
 
   return (
+    <AssetUrlsProvider enabled={imagesEnabled} urls={assetUrls}>
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-3xl px-4 py-12">
         {appState !== "viewing" && appState !== "idle" && (
@@ -585,10 +597,12 @@ export function NoteApp({
             onCancel={handleCancel}
             isSaving={isSaving}
             isNew={isNew}
+            imagesEnabled={imagesEnabled}
           />
         )}
       </main>
       {appState !== "idle" && <ScrollActions />}
     </div>
+    </AssetUrlsProvider>
   );
 }

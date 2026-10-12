@@ -6,6 +6,8 @@ import { readNote as loadNote } from "../lib/notes";
 import { CREATOR_COOKIE, normalizeCreatorId } from "../lib/creatorId";
 import { creatorHash } from "../lib/creators";
 import type { FolderSummary } from "../lib/folders";
+import { r2Config } from "../lib/r2";
+import { assetUrlMap } from "../lib/assets";
 import { NoteApp } from "./NoteApp";
 
 /** Shared by metadata and the page body so a request reads the note once. */
@@ -31,6 +33,7 @@ export async function NoteView({
   folders?: FolderSummary[];
 }) {
   const note = noteKey ? await readPageNote(noteKey, true) : null;
+  const r2 = r2Config();
   const creatorId = normalizeCreatorId((await cookies()).get(CREATOR_COOKIE)?.value);
   const creator = note?.cid
     ? {
@@ -50,6 +53,8 @@ export async function NoteView({
         initialPersist={persist}
         initialCreator={creator}
         initialFolders={folders}
+        imagesEnabled={r2 !== null}
+        initialAssetUrls={assetUrlMap(r2, note)}
       />
     </>
   );
