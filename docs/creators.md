@@ -142,17 +142,41 @@ https://marker.luk.xyz/c?token=<creator id>
 ```
 
 On the first visit Marker moves the id into an httpOnly `marker_creator`
-cookie (SameSite=Lax, one year), then redirects to a clean `/c`. The id does
-not stay in the address bar or history. People can also open `/c` and paste
-the id.
+cookie (SameSite=Lax, one year) and redirects through `/c/enter`, which checks
+the id exists and then redirects to a clean `/c` (other query parameters such
+as `tag` are kept). The id does not stay in the address bar or history. People
+can also open `/c` and paste the id.
 
 The folder shows the creator name as the title, tag chips with counts (select
 several to AND them), and the notes sorted by Updated, Created or Title.
-Opening a row opens the note in a normal one-off browser session. Inside a
-note, the creator name and tag pills appear under the toolbar. When the
-browser's folder cookie matches the note's creator, the name links back to the
-folder and **More → Edit tags** is available. "Forget this folder" on `/c`
-removes the cookie.
+Opening a row opens the note at `/n` in a normal one-off browser session.
+Inside a note, the creator name and tag pills appear under the toolbar. When
+the browser's folder cookie matches the note's creator, the name links back to
+the folder and **More → Edit tags** is available. "Forget this folder" on `/c`
+removes the cookie and drops the folder from the home page list.
+
+## Folders on the home page
+
+Every folder that a browser successfully opens, whether through a token link or
+by pasting an id on `/c`, is remembered in a second httpOnly cookie,
+`marker_folders` (SameSite=Lax, one year). It holds up to 10 entries, each
+storing the folder's id and the time it was last visited. The home page lists
+them under **Folders**, most recently visited first, with each folder's
+`creator_name` (or "Untitled folder") and note count.
+
+- Raw ids never reach the page. Each row links to `/c/folder/<ref>`, where
+  `ref` is an HMAC of the folder's hash. That route finds the matching
+  remembered id in the cookie, makes it the active `marker_creator`, moves it
+  to the front of the list and redirects to `/c`. A ref that doesn't match the
+  browser's own cookie redirects to `/`.
+- **Forget** posts to `/api/creator/folders`, which removes the entry (and
+  clears `marker_creator` if it was the active folder), then redirects to `/`.
+- Folders whose index no longer exists drop out of the list.
+- Counts come from the index size, so notes that expired since the folder was
+  last listed are still counted until a listing prunes them.
+- `GET /api/creator/folders` returns the same summaries as JSON
+  (`{ "folders": [{ "ref", "name", "count", "visited_at" }] }`). The home page
+  uses it when you return there from a note without a full page load.
 
 `/c` and every API response are `noindex`, `no-store, private`, and have no
 link previews.
@@ -190,3 +214,12 @@ A write is still 2 commands, and a read, rename or delete is 1. A write
 without creator fields, to a note without a creator, touches no index key.
 `PATCH /api/meta`, a folder page (`GET /api/creator` or `/c`), and opening a
 row each cost one `EVAL`. Nothing polls the folder.
+
+The home page costs no Redis commands when the browser remembers no folders,
+and one `EVAL` for the whole Folders list otherwise (an `HGET` and `ZCARD` per
+folder inside the script). Remembered ids that don't resolve count as failed
+lookups toward the `crl:` rate limit, so a forged cookie can't be used to probe
+for ids. While that limit is hit, the list still shows but without names or
+counts. Switching folders from the home page (`/c/folder/<ref>`) and forgetting
+one cost nothing. Following a token link adds one `EVAL` for the `/c/enter`
+check, on top of the `/c` page itself.

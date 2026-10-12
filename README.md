@@ -10,12 +10,12 @@ via a small HTTP API, from AI agents.
 - **Markdown Support**: Full markdown rendering, including GitHub Flavored Markdown
 - **Agent-Friendly API**: Atomic append/prepend and optimistic concurrency (`if_rev`) so several agents can write to one note without clobbering each other
 - **Optional Expiry**: Per-note TTL for quick, self-destructing shares
-- **Shareable Links**: `/?key=...` moves the key into an httpOnly cookie and renders the note server-side, so the key stays out of the address bar and browser history
+- **Shareable Links**: `/?key=...` moves the key into an httpOnly cookie and redirects to `/n`, which renders the note server-side, so the key stays out of the address bar and browser history. `/` itself always shows the home page
 - **Persistent link**: Opt a note into a bookmarkable `/?key=...&persist=1` document link that stays in the address bar and survives a browser restart
 - **Link previews**: Persist URLs emit Open Graph / Twitter Card tags from the start of the note so Slack, iMessage, Discord, X, etc. can unfurl them. Search indexing stays blocked.
 - **Copy all**: Copy a note's full markdown from the viewer or editor, with a brief "Copied" confirmation
 - **Rename Key**: Change a note's key in place without rewriting its content; the destination must be free
-- **Creator folders and tags**: Agents attach notes to a secret `creator_id`, give them a folder title (`creator_name`) and per-creator tags, and hand a person one `/c?token=…` link to browse them with AND tag filters. See [docs/creators.md](docs/creators.md)
+- **Creator folders and tags**: Agents attach notes to a secret `creator_id`, give them a folder title (`creator_name`) and per-creator tags, and hand a person one `/c?token=…` link to browse them with AND tag filters. The home page lists the folders this browser has opened. See [docs/creators.md](docs/creators.md)
 - **View & Edit Modes**: Toggle between viewing rendered markdown and editing raw content
 - **Dark Mode**: Automatic dark mode support
 - **Scroll Actions**: Quick navigation buttons to scroll to top or bottom
@@ -40,7 +40,9 @@ is listed in that creator's folder at `/c`, and anyone holding the id can open
 every note in it from a browser. Marker stores only `sha256(creator_id)`, never
 the id itself. `/c?token=<id>` moves the id into an httpOnly cookie and
 redirects to a clean `/c`, and folder rows link to opaque refs, so neither the
-id nor any note key appears in the folder's URL or HTML. Moving a note out of a
+id nor any note key appears in the folder's URL or HTML. The home page's
+Folders list keeps the ids it remembers in an httpOnly cookie and links to
+opaque refs too. Moving a note out of a
 folder, or changing its tags, requires that creator's id as well as the note
 key. Details: [docs/creators.md](docs/creators.md).
 
@@ -108,12 +110,19 @@ npm run dev
 6. Use "Change Key" to switch to a different note
 
 You can also open a note directly at `/?key=<key>`. The server takes the key out
-of the URL, stores it in an httpOnly session cookie, and redirects to `/` before
+of the URL, stores it in an httpOnly session cookie, and redirects to `/n` before
 rendering — so the key never appears in the address bar, browser history, a
 `Referer` header, or client-side JavaScript.
 
-That cookie is what keeps you in the note across reloads. It is cleared by
-"Change Key" or by closing the browser.
+That cookie is what keeps `/n` on the note across reloads. It is cleared by
+"Change Key" or by closing the browser. Opening or creating a note from the
+home page also moves to `/n`. Visiting `/` always shows the home page, even
+while a session note is remembered; `/n` without a session note redirects
+to `/`.
+
+The home page also has a **Folders** section listing the creator folders this
+browser has opened (most recent first, up to 10), with each folder's name and
+note count and a Forget button. See [docs/creators.md](docs/creators.md).
 
 To keep a stable document link instead, turn on **Persistent link** in the note
 header. That puts `/?key=<key>&persist=1` in the address bar (and offers a copy
@@ -289,18 +298,21 @@ marker/
 ├── app/
 │   ├── api/
 │   │   ├── content/          # API routes for content CRUD
-│   │   ├── creator/          # Folder listing + /c cookie session
+│   │   ├── creator/          # Folder listing, /c cookie session, remembered folders
 │   │   ├── meta/             # PATCH creator, folder name, tags
 │   │   └── session/          # Sets/clears the session key cookie
-│   ├── c/                    # /c folder page and /c/open/<ref>
+│   ├── c/                    # /c folder page, /c/enter, /c/folder/<ref>, /c/open/<ref>
 │   ├── components/
 │   │   ├── ContentEditor.tsx  # Markdown editor component
 │   │   ├── ContentViewer.tsx  # Markdown viewer component
 │   │   ├── CopyButton.tsx     # Copy-to-clipboard control with "Copied" feedback
+│   │   ├── HomeIdle.tsx       # Home page body
 │   │   ├── KeyInput.tsx       # Key input form
 │   │   ├── NoteApp.tsx        # Client-side app state and flow
 │   │   ├── NoteCreator.tsx    # Creator name, tag pills, tag editor in a note
 │   │   ├── NoteToolbar.tsx    # Compact icon toolbar for a viewing session
+│   │   ├── NoteView.tsx       # Server-rendered note page shared by / and /n
+│   │   ├── RememberedFolders.tsx # Home "Folders" list
 │   │   ├── RenameKey.tsx      # In-place key rename form
 │   │   ├── ScrollActions.tsx  # Scroll navigation buttons
 │   │   └── ToolbarButton.tsx  # Shared icon-button chrome
@@ -308,14 +320,16 @@ marker/
 │   │   ├── clipboard.ts       # Clipboard helper
 │   │   ├── creatorId.ts       # Creator id/name/tag validation, folder cookie
 │   │   ├── creators.ts        # Creator hashing, refs, folder list/gate scripts
+│   │   ├── folders.ts         # Remembered-folders cookie and summary script
 │   │   ├── key.ts             # Key validation, masking, session cookie
 │   │   ├── notes.ts           # Note storage schema and atomic read/write scripts
 │   │   ├── origin.ts          # Request origin for absolute OG URLs
 │   │   ├── preview.ts         # Title/description from the start of a note
 │   │   ├── redis.ts           # Redis client configuration
 │   │   └── robots.ts          # X-Robots-Tag / preview-bot allowlist
+│   ├── n/page.tsx             # Session note (/?key= lands here)
 │   ├── robots.ts              # Disallow-all robots.txt, with preview-bot allows
-│   └── page.tsx               # Server component: OG metadata, session, note
+│   └── page.tsx               # Home, or the note for a persist link; OG metadata
 ├── tests/
 │   └── preview.test.ts        # Note-prefix title/description derivation
 ├── proxy.ts                   # Turns /?key=... and /c?token=... into a cookie + redirect
