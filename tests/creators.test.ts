@@ -297,13 +297,13 @@ test("creator index: create, retag, move, rename, delete, expiry, cap, gate and 
       { params: Promise.resolve({ ref }) },
     );
     assert.equal(open.status, 303);
-    assert.equal(new URL(open.headers.get("location")!).pathname, "/");
+    assert.equal(open.headers.get("location"), "/");
     assert.equal(open.cookies.get("marker_key")?.value, "n5");
     const wrongCreator = await openRoute.GET(
       new NextRequest(`http://localhost/c/open/${ref}`, { headers: { cookie: `marker_creator=${genId}` } }),
       { params: Promise.resolve({ ref }) },
     );
-    assert.equal(new URL(wrongCreator.headers.get("location")!).pathname, "/c");
+    assert.equal(wrongCreator.headers.get("location"), "/c?error=missing_note");
     assert.equal(wrongCreator.cookies.get("marker_key"), undefined);
 
     // Browser tag edit: note key from the session cookie, proof from the folder cookie.

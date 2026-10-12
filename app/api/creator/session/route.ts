@@ -22,23 +22,23 @@ export async function POST(request: NextRequest) {
       raw = body?.creator_id;
     }
   } catch {
-    return respond(isForm, request, { error: "invalid" }, 400);
+    return respond(isForm, { error: "invalid" }, 400);
   }
 
   if (forget) {
-    const response = respond(isForm, request, { success: true }, 200);
+    const response = respond(isForm, { success: true }, 200);
     response.cookies.set(CREATOR_COOKIE, "", creatorCookieOptions(0));
     return response;
   }
 
   const id = normalizeCreatorId(raw);
-  if (!id) return respond(isForm, request, { error: "invalid" }, 400);
+  if (!id) return respond(isForm, { error: "invalid" }, 400);
 
   const status = await checkCreator(id, clientFingerprint(request.headers));
-  if (status === "limited") return respond(isForm, request, { error: "limited" }, 429);
-  if (status === "not_found") return respond(isForm, request, { error: "not_found" }, 404);
+  if (status === "limited") return respond(isForm, { error: "limited" }, 429);
+  if (status === "not_found") return respond(isForm, { error: "not_found" }, 404);
 
-  const response = respond(isForm, request, { success: true }, 200);
+  const response = respond(isForm, { success: true }, 200);
   response.cookies.set(CREATOR_COOKIE, id, creatorCookieOptions());
   return response;
 }
@@ -51,12 +51,12 @@ export async function DELETE() {
   return response;
 }
 
-function respond(isForm: boolean, request: NextRequest, data: { error?: string; success?: boolean }, status: number) {
+function respond(isForm: boolean, data: { error?: string; success?: boolean }, status: number) {
   let response: NextResponse;
   if (isForm) {
-    const url = new URL("/c", request.url);
-    if (data.error) url.searchParams.set("error", data.error);
-    response = NextResponse.redirect(url, 303);
+    // Relative, so the redirect stays on the public origin behind any proxy.
+    const location = data.error ? `/c?error=${encodeURIComponent(data.error)}` : "/c";
+    response = new NextResponse(null, { status: 303, headers: { Location: location } });
   } else {
     response = NextResponse.json(data, { status });
   }

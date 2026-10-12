@@ -15,9 +15,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ? await resolveNoteRef(id, ref, clientFingerprint(request.headers))
     : { status: "not_found" as const };
 
-  const target = new URL(result.status === "ok" ? "/" : "/c", request.url);
-  if (result.status !== "ok") target.searchParams.set("error", result.status === "limited" ? "limited" : "missing_note");
-  const response = NextResponse.redirect(target, 303);
+  const target = result.status === "ok" ? "/" : `/c?error=${result.status === "limited" ? "limited" : "missing_note"}`;
+  // Relative, so the redirect stays on the public origin behind any proxy.
+  const response = new NextResponse(null, { status: 303, headers: { Location: target } });
   if (result.status === "ok") applySessionCookies(response.cookies, result.key, false);
   applyNoIndexHeaders(response.headers);
   return response;
