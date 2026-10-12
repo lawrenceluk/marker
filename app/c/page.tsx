@@ -10,6 +10,9 @@ import {
   type CreatorListing,
   type CreatorSort,
 } from "../lib/creators";
+import { folderHref } from "../lib/folderHref";
+import { FolderNav } from "../components/FolderNav";
+import { FolderTagChips } from "../components/FolderTagChips";
 import { primaryButtonClass, secondaryButtonClass, textInputClass } from "../components/controlStyles";
 
 export const metadata: Metadata = { title: "Marker folder" };
@@ -24,15 +27,6 @@ const ERRORS: Record<string, string> = {
   limited: "Too many failed lookups. Try again in a few minutes.",
   missing_note: "That note is no longer in this folder.",
 };
-
-function href(tags: string[], sort: CreatorSort, cursor = 0) {
-  const params = new URLSearchParams();
-  for (const tag of tags) params.append("tag", tag);
-  if (sort !== "updated") params.set("sort", sort);
-  if (cursor) params.set("cursor", String(cursor));
-  const query = params.toString();
-  return query ? `/c?${query}` : "/c";
-}
 
 function formatDate(ms: number | null) {
   if (ms === null) return "—";
@@ -59,15 +53,7 @@ export default async function CreatorFolder({ searchParams }: { searchParams: Pr
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-3xl px-4 py-12">
-        <nav className="mb-8 flex items-center justify-between text-sm">
-          <Link prefetch={false} href="/" className="text-zinc-600 hover:text-foreground dark:text-zinc-400">← Marker</Link>
-          {listing && (
-            <form method="post" action="/api/creator/session">
-              <input type="hidden" name="forget" value="1" />
-              <button type="submit" className="text-zinc-500 hover:text-foreground">Forget this folder</button>
-            </form>
-          )}
-        </nav>
+        <FolderNav canForget={listing !== null} />
 
         {error && (
           <div role="alert" className="mb-6 rounded-lg bg-red-50 p-4 text-center text-red-600 dark:bg-red-900/20 dark:text-red-400">
@@ -109,9 +95,6 @@ function PasteId() {
 }
 
 function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags: string[]; sort: CreatorSort; cursor: number }) {
-  const selected = new Set(tags);
-  const toggle = (tag: string) => (selected.has(tag) ? tags.filter(t => t !== tag) : [...tags, tag].sort());
-
   return (
     <div className="flex flex-col gap-6">
       <header className="space-y-1">
@@ -122,19 +105,7 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
       </header>
 
       {(listing.tags.length > 0 || tags.length > 0) && (
-        <div className="flex flex-wrap gap-2" aria-label="Filter by tags">
-          {listing.tags.map(({ tag, count }) => (
-            <Link prefetch={false}
-              key={tag}
-              href={href(toggle(tag), sort)}
-              aria-pressed={selected.has(tag)}
-              className={`creator-tag ${selected.has(tag) ? "creator-tag-on" : ""}`}
-            >
-              {tag} <span className="opacity-60">{count}</span>
-            </Link>
-          ))}
-          {tags.length > 0 && <Link prefetch={false} href={href([], sort)} className="creator-tag">Clear</Link>}
-        </div>
+        <FolderTagChips tags={listing.tags} selected={tags} sort={sort} />
       )}
 
       <div className="flex items-center gap-1 text-sm" aria-label="Sort">
@@ -142,7 +113,7 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
         {CREATOR_SORTS.map(option => (
           <Link prefetch={false}
             key={option}
-            href={href(tags, option)}
+            href={folderHref(tags, option)}
             aria-current={option === sort ? "true" : undefined}
             className={`rounded-md px-2 py-1 ${option === sort ? "bg-zinc-100 font-medium text-foreground dark:bg-zinc-800" : "text-zinc-500 hover:text-foreground"}`}
           >
@@ -172,9 +143,9 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
 
       {(cursor > 0 || listing.next_cursor !== null) && (
         <div className="flex justify-between text-sm">
-          {cursor > 0 ? <Link prefetch={false} href={href(tags, sort, 0)} className={`px-3 py-2 ${secondaryButtonClass}`}>First page</Link> : <span />}
+          {cursor > 0 ? <Link prefetch={false} href={folderHref(tags, sort, 0)} className={`px-3 py-2 ${secondaryButtonClass}`}>First page</Link> : <span />}
           {listing.next_cursor !== null && (
-            <Link prefetch={false} href={href(tags, sort, listing.next_cursor)} className={`px-3 py-2 ${secondaryButtonClass}`}>More</Link>
+            <Link prefetch={false} href={folderHref(tags, sort, listing.next_cursor)} className={`px-3 py-2 ${secondaryButtonClass}`}>More</Link>
           )}
         </div>
       )}

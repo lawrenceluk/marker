@@ -17,7 +17,7 @@ test("creator folder: token link, AND tag filter, open a row, edit tags in the n
   expect(html).not.toContain(keys.plan);
   await page.screenshot({ path: `test-results/creator-folder-${info.project.name}.png`, fullPage: true });
 
-  await page.getByRole("link", { name: /^plans 1$/ }).click();
+  await page.getByRole("button", { name: /^plans 1$/ }).click();
   await expect(page).toHaveURL(/\/c\?tag=plans$/);
   await expect(page.getByRole("link", { name: "Meeting notes" })).toHaveCount(0);
   await expect(page.getByText("1 note tagged plans")).toBeVisible();
@@ -58,6 +58,7 @@ test("creator folder: token link, AND tag filter, open a row, edit tags in the n
   await other.getByLabel("Creator id").fill(creatorId);
   await other.getByRole("button", { name: "Open" }).click();
   await expect(other.getByRole("heading", { name: "Lawrence's plans" })).toBeVisible();
+  await other.getByRole("button", { name: "More" }).click();
   await other.getByRole("button", { name: "Forget this folder" }).click();
   await expect(other.getByLabel("Creator id")).toBeVisible();
   await stranger.close();

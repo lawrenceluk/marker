@@ -268,7 +268,9 @@ body {
 .toolbar-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border-radius: 6px; font-size: 14px; text-align: left; }
 .toolbar-menu-item:hover, .toolbar-menu-item:focus-visible { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
 .toolbar-menu-item:disabled { opacity: .35; }
-.update-nudge { display: block; margin: -8px auto 16px; padding: 5px 10px; border-radius: 999px; font-size: 12px; color: var(--foreground); background: color-mix(in srgb, var(--foreground) 6%, var(--background)); }
+/* Sticky in <main>: in place under the toolbar at the top, pinned to the viewport once scrolled. Below selection tools (z 21+). */
+.update-nudge { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: block; width: fit-content; max-width: calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); margin: -8px auto 16px; padding: 7px 14px; border-radius: 999px; font-size: 14px; line-height: 20px; color: var(--foreground); background: color-mix(in srgb, var(--foreground) 6%, var(--background)); box-shadow: 0 2px 12px rgb(0 0 0 / .12); touch-action: manipulation; }
+@media (prefers-color-scheme: dark) { .update-nudge { box-shadow: 0 2px 12px rgb(0 0 0 / .5); outline: 1px solid var(--hairline); } }
 .tap-select { touch-action: manipulation; }
 .comment-auto-tools { position: fixed; z-index: 21; display: flex; align-items: center; gap: 3px; max-width: min(260px, calc(100vw - 8px)); color: var(--foreground); }
 .comment-auto-chip { display: inline-grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); box-shadow: 0 2px 12px rgb(0 0 0 / .18); }
@@ -289,7 +291,9 @@ body {
 
 /* Creator folder tags: chips on /c, pills inside a note. */
 .creator-tag { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 32px; padding: 0.2rem 0.7rem; border: 1px solid var(--hairline); border-radius: 999px; font-size: 0.8rem; color: color-mix(in srgb, var(--foreground) 80%, var(--background)); }
-a.creator-tag:hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
+a.creator-tag:hover, button.creator-tag:not(.creator-tag-on):hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
+/* Long-press selects one tag, so suppress the callout, text selection and double-tap zoom it would otherwise trigger. */
+.creator-tag-chip { cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
 .creator-tag-on { border-color: var(--foreground); color: var(--foreground); background: color-mix(in srgb, var(--foreground) 8%, transparent); font-weight: 550; }
 .creator-tag-small { min-height: 0; padding: 0 0.5rem; font-size: 0.7rem; }
 .note-creator { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 1rem; font-size: 0.85rem; color: color-mix(in srgb, var(--foreground) 70%, var(--background)); }

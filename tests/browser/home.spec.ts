@@ -71,7 +71,10 @@ test("Home lists remembered folders newest first, reopens them by ref, and forge
   await page.goto("/");
   await expect(section.getByRole("link")).toHaveText([/Work notes/, /Trips/]);
 
-  await section.getByRole("button", { name: "Forget Trips" }).click();
+  await expect(section.getByRole("button", { name: "Forget folder" })).toHaveCount(0);
+  await section.getByRole("button", { name: "More options for Trips" }).click();
+  await page.screenshot({ path: `test-results/home-folder-menu-${info.project.name}.png` });
+  await section.getByRole("button", { name: "Forget folder" }).click();
   await expect(home(page)).toBeVisible();
   await expect(section.getByRole("link")).toHaveText([/Work notes/]);
 });
