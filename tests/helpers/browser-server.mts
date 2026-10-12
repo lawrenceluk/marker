@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startRedisRest } from "./redis-rest";
+import { R2_TEST_ENV, startR2Mock } from "./r2-mock";
 
 // HTTPS matches production's Secure cookies, including WebKit's strict handling.
 const certDir = mkdtempSync(join(tmpdir(), "marker-tls-"));
@@ -30,6 +31,8 @@ execFileSync(
   { stdio: "ignore" },
 );
 const fixture = await startRedisRest(17380);
+// Served through the HTTPS proxy below, as presigned URLs must be same-scheme for the page.
+const r2 = await startR2Mock({ port: 17383, basePath: "/__r2", cors: true });
 const app = spawn(
   process.execPath,
   ["node_modules/next/dist/bin/next", "start", "--port", "17381"],
@@ -41,6 +44,11 @@ const app = spawn(
       KV_REST_API_URL: fixture.url,
       KV_REST_API_TOKEN: "synthetic-test-only",
       NEXT_TELEMETRY_DISABLED: "1",
+      ...R2_TEST_ENV,
+      R2_ENDPOINT: "https://127.0.0.1:17382/__r2",
+      // The proxy's certificate is self-signed; only server-side R2 calls (deletes, base64 puts) need this.
+      NODE_TLS_REJECT_UNAUTHORIZED: "0",
+      CRON_SECRET: "browser-test-cron-secret",
     },
   },
 );
@@ -50,7 +58,7 @@ const proxy = createServer(
     const upstream = proxyRequest(
       {
         hostname: "127.0.0.1",
-        port: 17381,
+        port: request.url?.startsWith("/__r2/") ? r2.port : 17381,
         path: request.url,
         method: request.method,
         headers: { ...request.headers, "x-forwarded-proto": "https" },
@@ -76,6 +84,7 @@ async function close() {
   proxy.close();
   app.kill();
   await fixture.close();
+  await r2.close();
   rmSync(certDir, { recursive: true, force: true });
   process.exit(0);
 }

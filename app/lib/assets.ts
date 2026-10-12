@@ -141,6 +141,12 @@ export function assetUrls(config: R2Config | null, note: Pick<Note, "assetNs" | 
   return out;
 }
 
+/** `{id: url}` for the browser's image renderer. */
+export function assetUrlMap(config: R2Config | null, note: Pick<Note, "assetNs" | "assets"> | null, now = Date.now()): Record<string, string> {
+  if (!note) return {};
+  return Object.fromEntries(Object.entries(assetUrls(config, note, now)).map(([id, u]) => [id, u.url]));
+}
+
 /** The agent-facing `assets` list on GET /api/content. */
 export function assetSummaries(config: R2Config | null, note: Pick<Note, "assetNs" | "assets">, now = Date.now()) {
   const urls = assetUrls(config, note, now);

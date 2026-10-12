@@ -1,13 +1,14 @@
 "use client";
 
 import { Children, createContext, isValidElement, useContext, useMemo } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { commentMarkup } from "../lib/comment-markup";
 import type { LocatedThread } from "../lib/comments";
 import { reactionBlocks, type ReactionBlock, type ResponseEntry } from "../lib/responses";
 import { bodyMarkdown, frontMatter } from "../lib/frontmatter";
 import { MetadataCallout } from "./MetadataCallout";
+import { NoteImage, markerUrlTransform } from "./NoteImage";
 
 export type ResponseChange = { block_id: string; selections: string[]; free_text: string };
 type ReactionContextValue = {
@@ -24,8 +25,11 @@ function answer(context: ReactionContextValue, id: string) {
   return context.drafts[id] ?? context.responses.find(entry => entry.block_id === id);
 }
 
+const urlTransform = (url: string) => markerUrlTransform(url, defaultUrlTransform);
+
 const markdownComponents: Components = {
   a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
+  img: ({ src, alt, title }) => <NoteImage src={typeof src === "string" ? src : undefined} alt={alt} title={title} />,
   li: function ReactionLi({ node, children, ...props }) {
     const context = useContext(ReactionContext);
     const block = context?.blocks.get(node?.position?.start.offset ?? -1);
@@ -81,7 +85,7 @@ export function ContentViewer({ content, comments, responses = [], drafts = {}, 
     <div className="w-full">
       {metadata && <MetadataCallout key={metadata.raw} metadata={metadata} />}
       <div className="prose max-w-none break-words">
-      {content ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={comments ? [commentMarkup(content, comments)] : []} components={markdownComponents}>{markdown}</ReactMarkdown> :
+      {content ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={comments ? [commentMarkup(content, comments)] : []} components={markdownComponents} urlTransform={urlTransform}>{markdown}</ReactMarkdown> :
         <p className="text-zinc-500 dark:text-zinc-400 italic">This note is empty. Edit it to add text.</p>}
     </div></div>
   </ReactionContext.Provider>;
