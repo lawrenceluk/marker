@@ -1,27 +1,11 @@
-import { DEMO_KEY, REACTION_DEMO_KEY, METADATA_DEMO_KEY, ensurePreviewDemo } from "./lib/demo";
 import type { Metadata } from "next";
-import { cache } from "react";
-import { cookies } from "next/headers";
-import { NoteApp } from "./components/NoteApp";
-import {
-  PERSIST_COOKIE,
-  PERSIST_QUERY,
-  SESSION_COOKIE,
-  isPersistParam,
-  maskKey,
-  normalizeKey,
-  persistPath,
-} from "./lib/key";
-import { readNote as loadNote } from "./lib/notes";
-import { CREATOR_COOKIE, normalizeCreatorId } from "./lib/creatorId";
-import { creatorHash } from "./lib/creators";
+import { cookies, headers } from "next/headers";
+import { NoteView, readPageNote as readNote } from "./components/NoteView";
+import { PERSIST_QUERY, isPersistParam, normalizeKey, persistPath } from "./lib/key";
+import { clientFingerprint } from "./lib/creators";
+import { readRememberedFolders, summarizeFolders, type FolderSummary } from "./lib/folders";
 import { requestOrigin } from "./lib/origin";
 import { previewFromMarkdown } from "./lib/preview";
-
-const readNote = cache(async (key: string, recordAccess: boolean) => {
-  await ensurePreviewDemo(key);
-  return recordAccess ? loadNote(key, true, true) : loadNote(key);
-});
 
 const FALLBACK: Metadata = {
   title: "Marker",
@@ -89,45 +73,25 @@ export async function generateMetadata({
   };
 }
 
+/**
+ * `/` is always Home unless the URL itself names a note (a persistent
+ * `/?key=…&persist=1` link). The session cookie is deliberately ignored here:
+ * the current session note lives at `/n`.
+ */
 export default async function Home({
   searchParams,
 }: {
   searchParams: Promise<{ key?: string; persist?: string }>;
 }) {
   const params = await searchParams;
-  const cookieStore = await cookies();
-  const cookieKey = normalizeKey(cookieStore.get(SESSION_COOKIE)?.value);
-  const persistFromCookie = cookieStore.get(PERSIST_COOKIE)?.value === "1";
-  const persistFromUrl = isPersistParam(params[PERSIST_QUERY]);
-  const persist = persistFromCookie || persistFromUrl;
+  const key = isPersistParam(params[PERSIST_QUERY]) ? normalizeKey(params.key) : null;
+  if (key) return <NoteView noteKey={key} persist />;
 
-  // Persist links skip the cookie+redirect hop, so the first render may not
-  // see the cookie the proxy just set. The URL is the document identity —
-  // prefer it so a rename (cookie still catching up) does not flash the
-  // previous key as a missing note.
-  const key = persist
-    ? (normalizeKey(params.key) ?? cookieKey)
-    : cookieKey;
-  const note = key ? await readNote(key, true) : null;
-  const creatorId = normalizeCreatorId(cookieStore.get(CREATOR_COOKIE)?.value);
-  const creator = note?.cid
-    ? {
-        hasCreator: true,
-        name: note.creatorName,
-        tags: note.tags,
-        linked: creatorId !== null && creatorHash(creatorId) === note.cid,
-      }
-    : null;
-
-  return (
-    <>
-    {process.env.VERCEL_ENV === "preview" && <aside className="bg-amber-100 text-zinc-900 px-4 py-3 text-center text-sm">Preview sandbox · Separate note namespace · <a className="underline" href={persistPath(METADATA_DEMO_KEY)}>Open metadata demo</a> · <a className="underline" href={persistPath(REACTION_DEMO_KEY)}>Open reaction demo</a> · <a className="underline" href={persistPath(DEMO_KEY)}>Open commenting demo</a></aside>}
-    <NoteApp
-      initialKeyLabel={key ? maskKey(key) : null}
-      initialNote={note ? { content: note.content, rev: note.rev, responses: note.responses } : null}
-      initialPersist={persist}
-      initialCreator={creator}
-    />
-    </>
-  );
+  let folders: FolderSummary[] = [];
+  try {
+    folders = await summarizeFolders(readRememberedFolders(await cookies()), clientFingerprint(await headers()));
+  } catch {
+    // Home must render even if Redis is unavailable; folders are a convenience.
+  }
+  return <NoteView noteKey={null} persist={false} folders={folders} />;
 }

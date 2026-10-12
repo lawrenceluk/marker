@@ -297,7 +297,7 @@ test("creator index: create, retag, move, rename, delete, expiry, cap, gate and 
       { params: Promise.resolve({ ref }) },
     );
     assert.equal(open.status, 303);
-    assert.equal(open.headers.get("location"), "/");
+    assert.equal(open.headers.get("location"), "/n");
     assert.equal(open.cookies.get("marker_key")?.value, "n5");
     const wrongCreator = await openRoute.GET(
       new NextRequest(`http://localhost/c/open/${ref}`, { headers: { cookie: `marker_creator=${genId}` } }),
@@ -314,7 +314,7 @@ test("creator index: create, retag, move, rename, delete, expiry, cap, gate and 
     // /c?token= moves the id into an httpOnly cookie and strips it from the URL.
     const redirected = proxy(new NextRequest(`http://localhost/c?token=${ALICE}&tag=q4`));
     const location = new URL(redirected.headers.get("location")!);
-    assert.equal(location.pathname, "/c");
+    assert.equal(location.pathname, "/c/enter");
     assert.equal(location.searchParams.get("token"), null);
     assert.equal(location.searchParams.get("tag"), "q4");
     assert.equal(redirected.cookies.get("marker_creator")?.value, ALICE);

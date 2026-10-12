@@ -17,6 +17,7 @@ import { RenameKey } from "./RenameKey";
 import { ScrollActions } from "./ScrollActions";
 import { NoteCreator, creatorFromResponse, type NoteCreatorInfo } from "./NoteCreator";
 import type { ResponseEntry } from "../lib/responses";
+import type { FolderSummary } from "../lib/folders";
 
 type AppState = "idle" | "loading" | "viewing" | "editing";
 
@@ -34,6 +35,8 @@ interface NoteAppProps {
   initialPersist: boolean;
   /** Creator name and tags of the initial note, if it has a creator. */
   initialCreator?: NoteCreatorInfo | null;
+  /** Remembered folders for Home; undefined means Home fetches them itself. */
+  initialFolders?: FolderSummary[];
 }
 
 const RANDOMIZE_ATTEMPTS = 16;
@@ -43,6 +46,7 @@ export function NoteApp({
   initialNote,
   initialPersist,
   initialCreator = null,
+  initialFolders,
 }: NoteAppProps) {
   const [appState, setAppState] = useState<AppState>(
     initialKeyLabel ? (initialNote ? "viewing" : "editing") : "idle"
@@ -102,6 +106,14 @@ export function NoteApp({
       .catch(() => {});
   }, [initialPersist]);
 
+  // Opening a note from Home pushes `/n`; going Back to `/` should show Home,
+  // which the server decides.
+  useEffect(() => {
+    const onPop = () => window.location.reload();
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   const handleCommentChange = useCallback((next: string, revision: number, nextResponses: ResponseEntry[]) => {
     setContent(next);
     setOriginalContent(next);
@@ -113,8 +125,18 @@ export function NoteApp({
     window.history.replaceState(null, "", persistPath(key));
   }
 
+  /** Back to the session note's URL; `/` would reopen on Home. */
   function hidePersistUrl() {
+    window.history.replaceState(null, "", "/n");
+  }
+
+  function showHomeUrl() {
     window.history.replaceState(null, "", "/");
+  }
+
+  /** Reloading a note opened from Home keeps it open. */
+  function showSessionUrl() {
+    if (window.location.pathname !== "/n") window.history.pushState(null, "", "/n");
   }
 
   async function handleKeySubmit(key: string) {
@@ -143,6 +165,7 @@ export function NoteApp({
 
       setCreator(creatorFromResponse(data));
       setIsEditingTags(false);
+      showSessionUrl();
       if (data.exists) {
         setContent(data.content || "");
         setOriginalContent(data.content || "");
@@ -189,6 +212,8 @@ export function NoteApp({
         }
 
         if (!data.exists) {
+          showSessionUrl();
+          setCreator(null);
           setRawKey(key);
           setPersist(false);
           setContent("");
@@ -314,7 +339,7 @@ export function NoteApp({
     } catch {
       // Still reset the UI even if the cookie clear fails.
     }
-    hidePersistUrl();
+    showHomeUrl();
     setAppState("idle");
     setRawKey(null);
     setPersist(false);
@@ -341,7 +366,7 @@ export function NoteApp({
         throw new Error(data.error || "Couldn't delete note. Try again.");
       }
 
-      hidePersistUrl();
+      showHomeUrl();
       setAppState("idle");
       setRawKey(null);
       setPersist(false);
@@ -478,6 +503,7 @@ export function NoteApp({
 
         {appState === "idle" && (
           <HomeIdle
+            folders={initialFolders}
             onSubmit={handleKeySubmit}
             onRandomize={handleRandomize}
             isLoading={false}
@@ -562,7 +588,7 @@ export function NoteApp({
           />
         )}
       </main>
-      <ScrollActions />
+      {appState !== "idle" && <ScrollActions />}
     </div>
   );
 }
