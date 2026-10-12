@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { applyNoIndexHeaders } from "@/app/lib/robots";
 import { CREATOR_COOKIE, creatorCookieOptions, normalizeCreatorId } from "@/app/lib/creatorId";
 import { checkCreator, clientFingerprint } from "@/app/lib/creators";
+import { activateFolder, forgetFolder } from "@/app/lib/folders";
 
 /**
  * Adopt a pasted creator id as the `/c` cookie. Accepts the `/c` HTML form
  * (redirects back) or JSON (`{creator_id}` → JSON). The id is validated
- * against Redis first so a typo never becomes a sticky cookie.
+ * against Redis first so a typo never becomes a sticky cookie, and is then
+ * remembered for the home page's Folders list.
  */
 export async function POST(request: NextRequest) {
   const isForm = !(request.headers.get("content-type") ?? "").includes("application/json");
@@ -28,6 +30,8 @@ export async function POST(request: NextRequest) {
   if (forget) {
     const response = respond(isForm, { success: true }, 200);
     response.cookies.set(CREATOR_COOKIE, "", creatorCookieOptions(0));
+    const active = normalizeCreatorId(request.cookies.get(CREATOR_COOKIE)?.value);
+    if (active) forgetFolder(request.cookies, response.cookies, active);
     return response;
   }
 
@@ -39,11 +43,11 @@ export async function POST(request: NextRequest) {
   if (status === "not_found") return respond(isForm, { error: "not_found" }, 404);
 
   const response = respond(isForm, { success: true }, 200);
-  response.cookies.set(CREATOR_COOKIE, id, creatorCookieOptions());
+  activateFolder(request.cookies, response.cookies, id);
   return response;
 }
 
-/** Forget the creator id in this browser. */
+/** Stop using the active folder in this browser; it stays in the remembered list. */
 export async function DELETE() {
   const response = NextResponse.json({ success: true });
   applyNoIndexHeaders(response.headers);

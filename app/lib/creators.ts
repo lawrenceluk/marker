@@ -17,8 +17,8 @@ export const CREATOR_SORTS = ["updated", "created", "title"] as const;
 export type CreatorSort = (typeof CREATOR_SORTS)[number];
 
 /** Failed creator lookups allowed per client before lookups are refused for the window. */
-const LOOKUP_FAILURE_LIMIT = 30;
-const LOOKUP_WINDOW_SECONDS = 15 * 60;
+export const LOOKUP_FAILURE_LIMIT = 30;
+export const LOOKUP_WINDOW_SECONDS = 15 * 60;
 
 /** Only this hash is stored or used in Redis keys; the raw id never is. */
 export function creatorHash(id: string): string {
@@ -44,7 +44,7 @@ export function clientFingerprint(headers: HeaderSource): string {
   return forwarded || headers.get("x-real-ip")?.trim() || "unknown";
 }
 
-function rateLimitKey(client: string) {
+export function rateLimitKey(client: string) {
   return `${storagePrefix()}crl:${createHash("sha256").update(client).digest("hex").slice(0, 32)}`;
 }
 
@@ -55,6 +55,11 @@ function refSecret(): string {
 /** Opaque, creator-bound handle for a listed note. Raw note keys never reach the folder HTML. */
 export function noteRef(cid: string, key: string): string {
   return createHmac("sha256", refSecret()).update(`${cid}\n${key}`).digest("base64url").slice(0, 22);
+}
+
+/** Opaque handle for a remembered folder on the home page. */
+export function folderRef(cid: string): string {
+  return createHmac("sha256", refSecret()).update(`folder\n${cid}`).digest("base64url").slice(0, 22);
 }
 
 export const CREATOR_FORBIDDEN =
