@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Ellipsis, FolderMinus } from "lucide-react";
 import type { FolderSummary } from "../lib/folders";
+import { ToolbarMenu } from "./ToolbarMenu";
 
 /**
  * Creator folders this browser has opened, newest first. Rows link to
@@ -33,16 +35,17 @@ export function RememberedFolders({ initial }: { initial?: FolderSummary[] }) {
                 <span className="text-xs text-zinc-500">{folder.count} {folder.count === 1 ? "note" : "notes"}</span>
               )}
             </a>
-            <form method="post" action="/api/creator/folders">
-              <input type="hidden" name="forget" value={folder.ref} />
-              <button
-                type="submit"
-                aria-label={`Forget ${folder.name ?? "folder"}`}
-                className="rounded-md px-2 py-1 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-foreground dark:hover:bg-zinc-800"
-              >
-                Forget
-              </button>
-            </form>
+            <ToolbarMenu
+              label="More"
+              triggerLabel={`More options for ${folder.name ?? "Untitled folder"}`}
+              icon={<Ellipsis size={18} />}
+              tooltipAlign="end"
+            >
+              <form method="post" action="/api/creator/folders">
+                <input type="hidden" name="forget" value={folder.ref} />
+                <button type="submit" className="toolbar-menu-item"><FolderMinus size={18} aria-hidden="true" />Forget folder</button>
+              </form>
+            </ToolbarMenu>
           </li>
         ))}
       </ul>
