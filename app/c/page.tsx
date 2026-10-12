@@ -1,20 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { cookies, headers } from "next/headers";
-import { CREATOR_COOKIE, normalizeCreatorId } from "../lib/creatorId";
-import {
-  CREATOR_SORTS,
-  clientFingerprint,
-  listCreatorNotes,
-  parseTagFilter,
-  type CreatorListing,
-  type CreatorSort,
-} from "../lib/creators";
+import { CREATOR_SORTS, type CreatorListing, type CreatorSort } from "../lib/creators";
 import { primaryButtonClass, secondaryButtonClass, textInputClass } from "../components/controlStyles";
+import { folderTitle, readFolderPage, type SearchParams } from "./folderPage";
 
-export const metadata: Metadata = { title: "Marker folder" };
-
-type SearchParams = { tag?: string | string[]; sort?: string; cursor?: string; error?: string };
+export async function generateMetadata({ searchParams }: { searchParams: Promise<SearchParams> }): Promise<Metadata> {
+  const { result } = await readFolderPage(await searchParams);
+  return { title: folderTitle(result?.status === "ok" ? result.listing : null) };
+}
 
 const SORT_LABELS: Record<CreatorSort, string> = { updated: "Updated", created: "Created", title: "Title" };
 
@@ -41,20 +34,12 @@ function formatDate(ms: number | null) {
 
 export default async function CreatorFolder({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
-  const id = normalizeCreatorId((await cookies()).get(CREATOR_COOKIE)?.value);
-  const rawTags = params.tag === undefined ? [] : Array.isArray(params.tag) ? params.tag : [params.tag];
-  const filter = parseTagFilter(rawTags);
-  const tags = "error" in filter ? [] : filter.tags;
-  const sort = CREATOR_SORTS.includes(params.sort as CreatorSort) ? (params.sort as CreatorSort) : "updated";
-  const cursor = Math.max(0, Number(params.cursor) || 0);
+  const { tags, sort, cursor, filterError, result } = await readFolderPage(params);
 
-  let error = params.error ? ERRORS[params.error] ?? null : "error" in filter ? filter.error : null;
+  let error = params.error ? ERRORS[params.error] ?? null : filterError;
   let listing: CreatorListing | null = null;
-  if (id) {
-    const result = await listCreatorNotes(id, { tags, sort, cursor, client: clientFingerprint(await headers()) });
-    if (result.status === "ok") listing = result.listing;
-    else error = ERRORS[result.status];
-  }
+  if (result?.status === "ok") listing = result.listing;
+  else if (result) error = ERRORS[result.status];
 
   return (
     <div className="min-h-screen bg-background">

@@ -10,6 +10,8 @@ test("creator folder: token link, AND tag filter, open a row, edit tags in the n
   await page.goto(`/c?token=${creatorId}`);
   await expect(page).toHaveURL(/\/c$/);
   await expect(page.getByRole("heading", { name: "Lawrence's plans" })).toBeVisible();
+  await expect(page).toHaveTitle("Lawrence's plans · Marker");
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
   await expect(page.getByRole("link", { name: "Meeting notes" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Q4 plan" })).toBeVisible();
   const html = await page.content();
