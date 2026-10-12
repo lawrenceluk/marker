@@ -15,8 +15,16 @@ import {
   readAccessedNote,
   renameNote,
   writeNote,
+  type Note,
 } from "@/app/lib/notes";
 import { applyNoIndexHeaders } from "@/app/lib/robots";
+import {
+  CREATOR_FORBIDDEN,
+  CREATOR_REQUIRED,
+  creatorHash,
+  parseCreatorParams,
+  requestCreatorId,
+} from "@/app/lib/creators";
 
 function json(data: unknown, status = 200) {
   const response = NextResponse.json(data, { status });
@@ -61,6 +69,10 @@ export async function GET(request: NextRequest) {
       last_accessed_at: null,
       expires_at: null,
       size: 0,
+      has_creator: false,
+      creator_name: null,
+      creator_linked: false,
+      tags: [],
     });
   }
 
@@ -74,7 +86,19 @@ export async function GET(request: NextRequest) {
     last_accessed_at: note.lastAccessedAt,
     expires_at: note.expiresAt,
     size: Buffer.byteLength(note.content, "utf8"),
+    ...creatorFields(request, note),
   });
+}
+
+/** The raw id is never stored, so it can never be returned; only whether the caller's id matches. */
+function creatorFields(request: NextRequest, note: Note) {
+  const id = requestCreatorId(request);
+  return {
+    has_creator: note.cid !== null,
+    creator_name: note.creatorName,
+    creator_linked: Boolean(note.cid && id && creatorHash(id) === note.cid),
+    tags: note.tags,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -136,9 +160,20 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const result = await writeNote(key, content, { mode, ifRev, ttl });
+  const creator = parseCreatorParams(body, request);
+  if (!creator.ok) {
+    return json({ error: creator.error }, 400);
+  }
+
+  const result = await writeNote(key, content, { mode, ifRev, ttl, creator: creator.change });
 
   if (!result.ok) {
+    if (result.reason === "forbidden") {
+      return json({ error: CREATOR_FORBIDDEN }, 403);
+    }
+    if (result.reason === "no_creator") {
+      return json({ error: CREATOR_REQUIRED }, 400);
+    }
     if (result.reason === "too_large") {
       return json(
         {
@@ -165,6 +200,9 @@ export async function POST(request: NextRequest) {
     updated_at: result.updatedAt,
     expires_at: result.expiresAt,
     size: result.size,
+    ...(creator.generatedId ? { creator_id: creator.generatedId } : {}),
+    has_creator: result.hasCreator,
+    tags: result.tags,
   });
 }
 
