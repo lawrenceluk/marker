@@ -15,6 +15,7 @@ via a small HTTP API, from AI agents.
 - **Link previews**: Persist URLs emit Open Graph / Twitter Card tags from the start of the note so Slack, iMessage, Discord, X, etc. can unfurl them. Search indexing stays blocked.
 - **Copy all**: Copy a note's full markdown from the viewer or editor, with a brief "Copied" confirmation
 - **Rename Key**: Change a note's key in place without rewriting its content; the destination must be free
+- **Creator folders and tags**: Agents attach notes to a secret `creator_id`, give them a folder title (`creator_name`) and per-creator tags, and hand a person one `/c?token=…` link to browse them with AND tag filters. See [docs/creators.md](docs/creators.md)
 - **View & Edit Modes**: Toggle between viewing rendered markdown and editing raw content
 - **Dark Mode**: Automatic dark mode support
 - **Scroll Actions**: Quick navigation buttons to scroll to top or bottom
@@ -33,6 +34,15 @@ overwrite cannot be undone.
 Notes are excluded from search indexing: `robots.txt` disallows `/` for `*`,
 pages send `noindex` meta and `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet`,
 and nothing is cached. There is no sitemap or public listing.
+
+**Creator ids are a second kind of secret.** A note attached to a `creator_id`
+is listed in that creator's folder at `/c`, and anyone holding the id can open
+every note in it from a browser. Marker stores only `sha256(creator_id)`, never
+the id itself. `/c?token=<id>` moves the id into an httpOnly cookie and
+redirects to a clean `/c`, and folder rows link to opaque refs, so neither the
+id nor any note key appears in the folder's URL or HTML. Moving a note out of a
+folder, or changing its tags, requires that creator's id as well as the note
+key. Details: [docs/creators.md](docs/creators.md).
 
 **Link previews are the exception.** A persistent URL (`/?key=...&persist=1`)
 is already a public view of that note (the key is in the URL). Marker puts
@@ -129,6 +139,11 @@ Marker doubles as a shared scratchpad for agents: a note is just a URL and a
 key, so an agent can read and write one with plain HTTP and no browser access.
 Several agents can safely work on the same note — `mode: "append"` and `if_rev`
 exist specifically so they don't overwrite each other.
+
+To group many notes for one person, the agent can attach each note to a
+secret `creator_id`, tag it, and hand over a single folder link. That is
+covered in [docs/creators.md](docs/creators.md) and in the "Copy agent prompt"
+text on the home page (`app/lib/agentPrompt.ts`, the canonical brief).
 
 Give an agent the blurb below verbatim (in a system prompt, `CLAUDE.md`, or a
 tool description) and it will know how to use the API.
@@ -248,6 +263,23 @@ Write a note that self-destructs in an hour, then hand it to a human:
   API above rather than fetching that page.
 - The key is the only authentication. Don't store credentials or sensitive data
   in a note, and don't paste a key anywhere it will be logged or indexed.
+
+## Creator folders and tags
+
+Optional fields on POST /api/content group notes into a private folder:
+  "creator_id":          "<22–128 chars of A-Z a-z 0-9 _ - ~>" | true | null
+  "previous_creator_id": "<id>"            // proof when moving or removing
+  "creator_name":        "<1–80 chars>"    // folder title; needs creator_id
+  "tags":                ["plans","q4"] | [] | null   // needs a creator; max 10
+true generates an id and returns it once as "creator_id". The id is a secret:
+holders can list the folder and open every note in it. Moving/removing a note
+or editing its tags needs the current creator's id (else 403).
+
+PATCH https://marker.luk.xyz/api/meta changes the same fields without touching
+rev or content. GET https://marker.luk.xyz/api/creator?tag=a&tag=b with
+Authorization: Bearer <creator_id> lists the folder (AND filter, 50 per page,
+"next_cursor"). Give the person https://marker.luk.xyz/c?token=<creator_id>.
+Full reference: docs/creators.md.
 ````
 
 ## Project Structure
@@ -257,19 +289,25 @@ marker/
 ├── app/
 │   ├── api/
 │   │   ├── content/          # API routes for content CRUD
+│   │   ├── creator/          # Folder listing + /c cookie session
+│   │   ├── meta/             # PATCH creator, folder name, tags
 │   │   └── session/          # Sets/clears the session key cookie
+│   ├── c/                    # /c folder page and /c/open/<ref>
 │   ├── components/
 │   │   ├── ContentEditor.tsx  # Markdown editor component
 │   │   ├── ContentViewer.tsx  # Markdown viewer component
 │   │   ├── CopyButton.tsx     # Copy-to-clipboard control with "Copied" feedback
 │   │   ├── KeyInput.tsx       # Key input form
 │   │   ├── NoteApp.tsx        # Client-side app state and flow
+│   │   ├── NoteCreator.tsx    # Creator name, tag pills, tag editor in a note
 │   │   ├── NoteToolbar.tsx    # Compact icon toolbar for a viewing session
 │   │   ├── RenameKey.tsx      # In-place key rename form
 │   │   ├── ScrollActions.tsx  # Scroll navigation buttons
 │   │   └── ToolbarButton.tsx  # Shared icon-button chrome
 │   ├── lib/
 │   │   ├── clipboard.ts       # Clipboard helper
+│   │   ├── creatorId.ts       # Creator id/name/tag validation, folder cookie
+│   │   ├── creators.ts        # Creator hashing, refs, folder list/gate scripts
 │   │   ├── key.ts             # Key validation, masking, session cookie
 │   │   ├── notes.ts           # Note storage schema and atomic read/write scripts
 │   │   ├── origin.ts          # Request origin for absolute OG URLs
@@ -280,7 +318,7 @@ marker/
 │   └── page.tsx               # Server component: OG metadata, session, note
 ├── tests/
 │   └── preview.test.ts        # Note-prefix title/description derivation
-├── proxy.ts                   # Turns /?key=... into a cookie + redirect
+├── proxy.ts                   # Turns /?key=... and /c?token=... into a cookie + redirect
 └── README.md
 ```
 
