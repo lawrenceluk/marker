@@ -9,7 +9,7 @@ export const toolbarButtonClass = iconButtonClass;
 export const toolbarButtonActiveClass = iconButtonPressedClass;
 
 const toolbarTooltipBaseClass =
-  "pointer-events-none absolute z-20 whitespace-nowrap rounded-md bg-slab px-2 py-1 text-xs font-medium text-on-slab opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100";
+  "pointer-events-none absolute z-20 whitespace-nowrap rounded-none border border-rule-ink bg-background px-2 py-1 text-xs font-medium text-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100";
 
 export const toolbarTooltipClass = `${toolbarTooltipBaseClass} top-full mt-1.5 left-1/2 -translate-x-1/2`;
 
