@@ -137,6 +137,7 @@ test("an agent embed runs sandboxed and themed, resizes, has no network, and lin
       parent: await attempt(() => window.parent.document.title),
       bridge: typeof (window as unknown as { marker?: { openLink?: unknown } }).marker?.openLink,
       paper: root.getPropertyValue("--paper").trim(),
+      accent: root.getPropertyValue("--accent-ink").trim(),
       background: root.backgroundColor,
       font: getComputedStyle(document.body).fontFamily,
       policies: [...document.querySelectorAll<HTMLMetaElement>('meta[http-equiv="Content-Security-Policy"]')].map(meta => meta.content),
@@ -159,6 +160,14 @@ test("an agent embed runs sandboxed and themed, resizes, has no network, and lin
   const noteBackground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   expect(inside.background).toBe(noteBackground);
   expect(inside.paper).toBe(noteBackground);
+  const slab = await page.evaluate(() => {
+    const probe = document.body.appendChild(document.createElement("span"));
+    probe.style.color = "var(--slab)";
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  expect(inside.accent, "the embed highlight is the slab, not the (now ink) link colour").toBe(slab);
   await page.waitForTimeout(300);
   expect(blocked, "no request leaves for unpkg or an image beacon").toEqual([]);
   await expect.poll(() => warnings.some(text => text.includes("[marker] embed error:") && text.includes("connect-src"))).toBe(true);

@@ -8,20 +8,24 @@ test("mobile selection actions avoid every highlighted line and accept touch tap
   await page.goto(`/?key=${key}&persist=1`);
   await expect(page.getByRole("button", { name: "Comments (0 open)" })).toBeVisible();
   const select = async () => {
-    // WebKit mobile emulation cannot operate OS selection handles. Replay their
-    // touch/selectionchange contract with a real DOM range, then use real taps.
-    await page.locator(".prose [data-source-start]").filter({ hasText: content }).evaluate(element => {
-      element.dispatchEvent(new Event("touchstart", { bubbles: true }));
-      window.getSelection()!.setBaseAndExtent(element.firstChild!, 0, element.firstChild!, element.firstChild!.textContent!.length);
-      const end = new Event("touchend", { bubbles: true });
-      Object.defineProperty(end, "touches", { value: [] });
-      element.dispatchEvent(end);
-      document.dispatchEvent(new Event("selectionchange"));
-    });
-    await page.waitForTimeout(500); // Allow native selection events to settle.
     const comment = page.getByRole("button", { name: "Comment on selection" });
     const reaction = page.getByRole("button", { name: "React to selection" });
-    await expect(comment).toBeVisible();
+    // WebKit mobile emulation cannot operate OS selection handles. Replay their
+    // touch/selectionchange contract with a real DOM range, then use real taps.
+    // Right after load a scroll or viewport event can still dismiss a fresh
+    // selection (no person selects that fast), so replay until the actions show.
+    await expect(async () => {
+      await page.locator(".prose [data-source-start]").filter({ hasText: content }).evaluate(element => {
+        element.dispatchEvent(new Event("touchstart", { bubbles: true }));
+        window.getSelection()!.setBaseAndExtent(element.firstChild!, 0, element.firstChild!, element.firstChild!.textContent!.length);
+        const end = new Event("touchend", { bubbles: true });
+        Object.defineProperty(end, "touches", { value: [] });
+        element.dispatchEvent(end);
+        document.dispatchEvent(new Event("selectionchange"));
+      });
+      await page.waitForTimeout(500); // Allow native selection events to settle.
+      await expect(comment).toBeVisible({ timeout: 1500 });
+    }).toPass({ timeout: 15_000 });
     await expect(reaction).toBeVisible();
     const rects = await page.evaluate(() => Array.from(window.getSelection()!.getRangeAt(0).getClientRects(), r => r.toJSON()));
     expect((await reaction.boundingBox())!.x + 36).toBeCloseTo(page.viewportSize()!.width - 16, 1);

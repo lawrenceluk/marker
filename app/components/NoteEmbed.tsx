@@ -25,7 +25,10 @@ const COLOR_TOKENS: [string, string][] = [
   ["--ink-text", "var(--foreground)"],
   ["--muted", "var(--muted)"],
   ["--rule", "var(--hairline)"],
-  ["--red-new", "var(--danger)"],
+  // Links are ink now, so the highlight comes from the slab: neither ink nor the reserved accent.
+  ["--accent-ink", "var(--slab)"],
+  // Kept under its published name; "new" is the orange accent, which embeds must not use.
+  ["--red-new", "var(--accent-new)"],
   ["--code-paper", "var(--code-background)"],
   ["--code-ink", "var(--code-foreground)"],
 ];
@@ -42,16 +45,13 @@ const DARK = "(prefers-color-scheme: dark)";
 function embedTheme(): { theme: Record<string, string>; mode: "light" | "dark" } {
   const theme: Record<string, string> = { ...FONT_TOKENS, ...SPACE_TOKENS };
   const probe = document.createElement("span");
-  probe.className = "prose";
   probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none";
-  const link = probe.appendChild(document.createElement("a"));
   document.body.appendChild(probe);
   try {
     for (const [name, value] of COLOR_TOKENS) {
       probe.style.color = value;
       theme[name] = getComputedStyle(probe).color;
     }
-    theme["--accent-ink"] = getComputedStyle(link).color;
   } finally {
     probe.remove();
   }

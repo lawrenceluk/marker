@@ -123,12 +123,12 @@ embed that styles nothing still looks native.
 | `--ink-text` | text, axes, marks |
 | `--muted` | secondary text, gridline labels |
 | `--rule` | hairlines, gridlines |
-| `--accent-ink` | one highlighted series or interactive affordance |
+| `--accent-ink` | one highlighted series or interactive affordance (Marker's slab blue) |
 | `--code-paper`, `--code-ink` | code blocks |
 | `--font-sans`, `--font-mono` | Geist and Geist Mono (from jsDelivr), with system fallbacks |
 | `--text-xs` … `--text-2xl` | 12, 14, 16, 20, 24, 32 px |
 | `--space-1` … `--space-6` | 4, 8, 12, 16, 24, 32 px |
-| `--red-new` | **don't use.** Red means "new to you" in Marker. |
+| `--red-new` | **don't use.** Kept for compatibility; it is now Marker's orange, which means "new to you". Don't use red either: red means errors. |
 
 Design rules: no title, heading or explanatory label inside the embed (the
 caption and the note do that). Axis labels, legends and values are content

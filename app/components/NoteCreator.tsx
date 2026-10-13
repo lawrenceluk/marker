@@ -63,7 +63,7 @@ export function NoteCreator({
           onSave(result.tags);
         }}
       >
-        <label className="text-sm text-zinc-600 dark:text-zinc-400" htmlFor="note-tags">Tags, separated by commas</label>
+        <label className="text-sm text-muted" htmlFor="note-tags">Tags, separated by commas</label>
         <div className="flex gap-2">
           <input
             id="note-tags"

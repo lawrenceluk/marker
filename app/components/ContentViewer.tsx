@@ -90,7 +90,7 @@ export function ContentViewer({ content, comments, responses = [], drafts = {}, 
       {metadata && <MetadataCallout key={metadata.raw} metadata={metadata} />}
       <div className="prose max-w-none break-words">
       {content ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={comments ? [commentMarkup(content, comments)] : []} components={markdownComponents} urlTransform={urlTransform}>{markdown}</ReactMarkdown> :
-        <p className="font-sans-italic italic text-zinc-500 dark:text-zinc-400">This note is empty. Edit it to add text.</p>}
+        <p className="font-sans-italic italic text-muted">This note is empty. Edit it to add text.</p>}
     </div></div>
   </ReactionContext.Provider>;
 }

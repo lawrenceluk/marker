@@ -782,7 +782,7 @@ export function CommentedViewer({
       >
         <div className="comment-heading">
           {active === "list" ? (
-            <label className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+            <label className="text-xs text-muted flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={showResolved}
@@ -847,7 +847,7 @@ export function CommentedViewer({
                     open(t.id, e.currentTarget.getBoundingClientRect())
                   }
                 >
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="text-xs text-muted">
                     {t.resolved ? "Resolved" : "Open"}
                     {t.location.state === "outdated" ? " · Outdated" : ""}
                   </span>
@@ -855,7 +855,7 @@ export function CommentedViewer({
                 </button>
               ))}
             {!threads.filter((t) => showResolved || !t.resolved).length && (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 py-2">
+              <p className="text-sm text-muted py-2">
                 {threads.length
                   ? "No open comments."
                   : "No comments yet. Select text to start one."}
@@ -865,14 +865,14 @@ export function CommentedViewer({
         ) : (
           <>
             {thread?.location.state === "outdated" && (
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
+              <p className="text-xs text-muted mb-2">
                 Outdated · Original quote
               </p>
             )}
             <div className="comment-messages">
               {thread?.messages.map((message, index) => (
                 <div key={index} className="mb-3">
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">{message.author}</p>
+                  <p className="text-xs text-muted mb-1">{message.author}</p>
                   <p className="text-sm whitespace-pre-wrap break-words">
                     {message.text}
                   </p>
