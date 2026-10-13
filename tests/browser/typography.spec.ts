@@ -12,7 +12,7 @@ Body with *emphasis*, \`inline code\` and a long link [https://example.com/a/rea
 
 ###### Six
 
-> Quoted text.
+> Quoted text with \`code\`.
 
 \`\`\`ts
 const answer = 42;
@@ -48,6 +48,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         inlineCode: pick(".prose p code"), pre: pick(".prose pre"), preCode: pick(".prose pre code"),
         link: { ...pick(".prose p a"), overflowWrap: css(".prose p a").overflowWrap, wordBreak: css(".prose p a").wordBreak },
         quote: pick(".prose blockquote"),
+        quoteCodeStyle: css(".prose blockquote code").fontStyle,
         realItalic: [...document.fonts].some(face => face.style === "italic" && face.status === "loaded"),
       };
     });
@@ -62,6 +63,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     expect([styles.link.overflowWrap, styles.link.wordBreak]).toEqual(["anywhere", "normal"]);
     expect(styles.quote.family).not.toBe(styles.p.family);
     expect(styles.realItalic).toBe(true);
+    expect(styles.quoteCodeStyle).toBe("normal");
   });
 }
 

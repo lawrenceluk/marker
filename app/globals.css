@@ -163,6 +163,8 @@ body {
   border-radius: 0.25rem;
   font-size: 0.875em;
   font-family: var(--font-mono);
+  /* Geist Mono has no italic; inside quotes and emphasis it would be synthesised. */
+  font-style: normal;
 }
 
 .prose pre {
