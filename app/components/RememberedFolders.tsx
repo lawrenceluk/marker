@@ -25,14 +25,14 @@ export function RememberedFolders({ initial }: { initial?: FolderSummary[] }) {
   if (!folders?.length) return null;
   return (
     <section aria-labelledby="folders-heading" className="flex flex-col gap-2">
-      <h2 id="folders-heading" className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Folders</h2>
+      <h2 id="folders-heading" className="text-sm font-medium text-muted">Folders</h2>
       <ul className="divide-y divide-hairline rounded-lg border border-hairline">
         {folders.map(folder => (
           <li key={folder.ref} className="flex items-center gap-2 pr-2">
-            <a href={`/c/folder/${folder.ref}`} className="flex min-w-0 flex-1 flex-col px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900">
+            <a href={`/c/folder/${folder.ref}`} className="flex min-w-0 flex-1 flex-col px-4 py-3 hover:bg-code-background">
               <span className="truncate font-medium text-foreground">{folder.name ?? "Untitled folder"}</span>
               {folder.count !== null && (
-                <span className="text-xs text-zinc-500">{folder.count} {folder.count === 1 ? "note" : "notes"}</span>
+                <span className="text-xs text-muted">{folder.count} {folder.count === 1 ? "note" : "notes"}</span>
               )}
             </a>
             <ToolbarMenu

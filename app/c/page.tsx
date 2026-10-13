@@ -72,7 +72,7 @@ function PasteId() {
     <div className="mx-auto flex w-full max-w-md flex-col gap-6">
       <div className="space-y-2 text-center">
         <h1 className="text-2xl font-bold text-foreground">Open a folder</h1>
-        <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+        <p className="text-sm leading-relaxed text-muted">
           Paste the creator id your agent gave you. It is a secret: anyone holding it can see this
           folder and open every note in it.
         </p>
@@ -99,7 +99,7 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
     <div className="flex flex-col gap-6">
       <header className="space-y-1">
         <h1 className="text-2xl font-bold text-foreground">{listing.creator_name ?? "Untitled folder"}</h1>
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-muted">
           {listing.total} {listing.total === 1 ? "note" : "notes"}{tags.length ? ` tagged ${tags.join(" + ")}` : ""}
         </p>
       </header>
@@ -109,13 +109,13 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
       )}
 
       <div className="flex items-center gap-1 text-sm" aria-label="Sort">
-        <span className="mr-1 text-zinc-500">Sort</span>
+        <span className="mr-1 text-muted">Sort</span>
         {CREATOR_SORTS.map(option => (
           <Link prefetch={false}
             key={option}
             href={folderHref(tags, option)}
             aria-current={option === sort ? "true" : undefined}
-            className={`rounded-md px-2 py-1 ${option === sort ? "bg-zinc-100 font-medium text-foreground dark:bg-zinc-800" : "text-zinc-500 hover:text-foreground"}`}
+            className={`rounded-md px-2 py-1 ${option === sort ? "bg-code-background font-medium text-foreground" : "text-muted hover:text-foreground"}`}
           >
             {SORT_LABELS[option]}
           </Link>
@@ -123,14 +123,14 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
       </div>
 
       {listing.notes.length === 0 ? (
-        <p className="py-8 text-center text-sm text-zinc-500">No notes here yet.</p>
+        <p className="py-8 text-center text-sm text-muted">No notes here yet.</p>
       ) : (
         <ul className="divide-y divide-hairline border-y border-hairline">
           {listing.notes.map(note => (
             <li key={note.ref}>
-              <a href={`/c/open/${note.ref}`} className="flex flex-col gap-1 px-1 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-900">
+              <a href={`/c/open/${note.ref}`} className="flex flex-col gap-1 px-1 py-3 hover:bg-code-background">
                 <span className="font-medium text-foreground">{note.title || "Untitled note"}</span>
-                <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+                <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                   <span>{sort === "created" ? `Created ${formatDate(note.created_at)}` : `Updated ${formatDate(note.updated_at)}`}</span>
                   {note.expires_at !== null && <span>Expires {formatDate(note.expires_at)}</span>}
                   {note.tags.map(tag => <span key={tag} className="creator-tag creator-tag-small">{tag}</span>)}

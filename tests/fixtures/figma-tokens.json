@@ -1,0 +1,436 @@
+{
+  "source": {
+    "fileKey": "Ov96GbFnYeWrUXw7Olvyn7",
+    "exportedAt": "2026-10-13",
+    "note": "Exported from the Figma file's Foundations variables and text styles via the Figma MCP. Regenerate after any Foundations change; tests/browser/figma-eval.spec.ts grades the app against it."
+  },
+  "color": {
+    "bg/paper": {
+      "css": "--background",
+      "light": {
+        "hex": "#f3eee4",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#1e1b18",
+        "alpha": 1
+      }
+    },
+    "text/ink": {
+      "css": "--foreground",
+      "light": {
+        "hex": "#2a2520",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#ede6da",
+        "alpha": 1
+      }
+    },
+    "text/muted": {
+      "css": "--muted",
+      "light": {
+        "hex": "#6b6256",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#a89e8f",
+        "alpha": 1
+      }
+    },
+    "accent/new": {
+      "css": "--accent-new",
+      "light": {
+        "hex": "#b04410",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#f0894a",
+        "alpha": 1
+      }
+    },
+    "accent/soft": {
+      "css": "--accent-soft",
+      "light": {
+        "hex": "#b04410",
+        "alpha": 0.12
+      },
+      "dark": {
+        "hex": "#f0894a",
+        "alpha": 0.16
+      }
+    },
+    "rule/hair": {
+      "css": "--hairline",
+      "light": {
+        "hex": "#2a2520",
+        "alpha": 0.18
+      },
+      "dark": {
+        "hex": "#ede6da",
+        "alpha": 0.18
+      }
+    },
+    "rule/ink": {
+      "css": "--rule-ink",
+      "light": {
+        "hex": "#2a2520",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#ede6da",
+        "alpha": 1
+      }
+    },
+    "slab/bg": {
+      "css": "--slab",
+      "light": {
+        "hex": "#1f2a37",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#2e4258",
+        "alpha": 1
+      }
+    },
+    "slab/on": {
+      "css": "--on-slab",
+      "light": {
+        "hex": "#fbf8f2",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#f3eee4",
+        "alpha": 1
+      }
+    },
+    "slab/on-muted": {
+      "css": "--on-slab-muted",
+      "light": {
+        "hex": "#c9c2b5",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#c9c2b5",
+        "alpha": 1
+      }
+    },
+    "code/bg": {
+      "css": "--code-background",
+      "light": {
+        "hex": "#2a2520",
+        "alpha": 0.059
+      },
+      "dark": {
+        "hex": "#ede6da",
+        "alpha": 0.071
+      }
+    },
+    "status/danger": {
+      "css": "--danger",
+      "light": {
+        "hex": "#b91c1c",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#f87171",
+        "alpha": 1
+      }
+    },
+    "status/danger-surface": {
+      "css": "--danger-surface",
+      "light": {
+        "hex": "#b91c1c",
+        "alpha": 0.08
+      },
+      "dark": {
+        "hex": "#f87171",
+        "alpha": 0.08
+      }
+    },
+    "focus/ring": {
+      "css": "--focus-ring",
+      "light": {
+        "hex": "#2a2520",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#ede6da",
+        "alpha": 1
+      }
+    },
+    "tag/selected-bg": {
+      "css": "--tag-selected",
+      "light": {
+        "hex": "#1f2a37",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#2e4258",
+        "alpha": 1
+      }
+    },
+    "tag/selected-on": {
+      "css": "--tag-selected-on",
+      "light": {
+        "hex": "#fbf8f2",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#f3eee4",
+        "alpha": 1
+      }
+    },
+    "overlay/scrim": {
+      "css": "--scrim",
+      "light": {
+        "hex": "#2a2520",
+        "alpha": 0.24
+      },
+      "dark": {
+        "hex": "#000000",
+        "alpha": 0.5
+      }
+    },
+    "slab/hover": {
+      "css": "--slab-hover",
+      "light": {
+        "hex": "#2e4258",
+        "alpha": 1
+      },
+      "dark": {
+        "hex": "#3b5470",
+        "alpha": 1
+      }
+    },
+    "tag/count": {
+      "css": "--tag-count",
+      "light": {
+        "hex": "#2a2520",
+        "alpha": 0.08
+      },
+      "dark": {
+        "hex": "#ede6da",
+        "alpha": 0.12
+      }
+    },
+    "overlay/lightbox": {
+      "css": "--lightbox",
+      "light": {
+        "hex": "#1e1b18",
+        "alpha": 0.94
+      },
+      "dark": {
+        "hex": "#000000",
+        "alpha": 0.9
+      }
+    }
+  },
+  "motion": {
+    "duration/quick": {
+      "css": "--duration-quick",
+      "value": 150
+    },
+    "duration/fast": {
+      "css": "--duration-fast",
+      "value": 250
+    },
+    "scale/small": {
+      "css": "--scale-small",
+      "value": 0.99
+    },
+    "scale/press": {
+      "css": "--scale-press",
+      "value": 0.97
+    },
+    "ease/smooth-out": {
+      "css": "--ease-out",
+      "value": "cubic-bezier(0.22,1,0.36,1)"
+    },
+    "ease/bounce": {
+      "css": "--ease-bounce",
+      "value": "cubic-bezier(0.3,1.12,0.6,1)"
+    },
+    "enter/view": {
+      "css": "--enter-y",
+      "value": "opacity 0→1, y 4→0, 250ms smooth-out"
+    }
+  },
+  "text": {
+    "Title/H1": {
+      "family": "Geist",
+      "weight": 700,
+      "size": 32,
+      "lineHeight": 40,
+      "underline": false
+    },
+    "Prose/H2": {
+      "family": "Geist",
+      "weight": 600,
+      "size": 24,
+      "lineHeight": 32,
+      "underline": false
+    },
+    "Prose/H3": {
+      "family": "Geist",
+      "weight": 600,
+      "size": 20,
+      "lineHeight": 28,
+      "underline": false
+    },
+    "Prose/Body": {
+      "family": "Geist",
+      "weight": 400,
+      "size": 16,
+      "lineHeight": 25.6,
+      "underline": false
+    },
+    "Prose/Body Italic": {
+      "family": "Geist",
+      "weight": 400,
+      "size": 16,
+      "lineHeight": 25.6,
+      "underline": false
+    },
+    "Prose/Table Header": {
+      "family": "Geist",
+      "weight": 600,
+      "size": 16,
+      "lineHeight": 25.6,
+      "underline": false
+    },
+    "Prose/Image Placeholder": {
+      "family": "Geist",
+      "weight": 400,
+      "size": 12,
+      "lineHeight": 19.2,
+      "underline": false
+    },
+    "Mono/Code": {
+      "family": "Geist Mono",
+      "weight": 400,
+      "size": 14,
+      "lineHeight": 22.4,
+      "underline": false
+    },
+    "Mono/UI": {
+      "family": "Geist Mono",
+      "weight": 400,
+      "size": 14,
+      "lineHeight": 20,
+      "underline": false
+    },
+    "UI/Body Medium": {
+      "family": "Geist",
+      "weight": 500,
+      "size": 16,
+      "lineHeight": 24,
+      "underline": false
+    },
+    "UI/Caption": {
+      "family": "Geist",
+      "weight": 400,
+      "size": 12,
+      "lineHeight": 16,
+      "underline": false
+    },
+    "UI/Small": {
+      "family": "Geist",
+      "weight": 400,
+      "size": 14,
+      "lineHeight": 20,
+      "underline": false
+    },
+    "UI/Small Medium": {
+      "family": "Geist",
+      "weight": 500,
+      "size": 14,
+      "lineHeight": 20,
+      "underline": false
+    },
+    "UI/Tag": {
+      "family": "Geist",
+      "weight": 400,
+      "size": 12,
+      "lineHeight": 18,
+      "underline": false
+    },
+    "UI/Tag Selected": {
+      "family": "Geist",
+      "weight": 600,
+      "size": 12,
+      "lineHeight": 18,
+      "underline": false
+    },
+    "UI/Caption Medium": {
+      "family": "Geist",
+      "weight": 500,
+      "size": 12,
+      "lineHeight": 16,
+      "underline": false
+    },
+    "Prose/H4": {
+      "family": "Geist",
+      "weight": 600,
+      "size": 16,
+      "lineHeight": 24,
+      "underline": false
+    },
+    "Prose/H5": {
+      "family": "Geist",
+      "weight": 600,
+      "size": 14,
+      "lineHeight": 20,
+      "underline": false
+    },
+    "Mono/Meta": {
+      "family": "Geist Mono",
+      "weight": 400,
+      "size": 12,
+      "lineHeight": 18,
+      "underline": false
+    },
+    "Mono/Meta Key": {
+      "family": "Geist Mono",
+      "weight": 600,
+      "size": 12,
+      "lineHeight": 18,
+      "underline": false
+    },
+    "UI/Small SemiBold": {
+      "family": "Geist",
+      "weight": 600,
+      "size": 14,
+      "lineHeight": 20,
+      "underline": false
+    },
+    "UI/Micro": {
+      "family": "Geist",
+      "weight": 400,
+      "size": 10,
+      "lineHeight": 14,
+      "underline": false
+    },
+    "UI/Body": {
+      "family": "Geist",
+      "weight": 400,
+      "size": 16,
+      "lineHeight": 24,
+      "underline": false
+    },
+    "UI/Small Relaxed": {
+      "family": "Geist",
+      "weight": 400,
+      "size": 14,
+      "lineHeight": 22.75,
+      "underline": false
+    },
+    "Prose/Link": {
+      "family": "Geist",
+      "weight": 400,
+      "size": 16,
+      "lineHeight": 25.6,
+      "underline": true
+    }
+  }
+}

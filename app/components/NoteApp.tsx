@@ -528,7 +528,7 @@ export function NoteApp({
 
         {appState === "loading" && (
           <div className="flex justify-center">
-            <div className="text-zinc-500 dark:text-zinc-400">Opening note…</div>
+            <div className="text-muted">Opening note…</div>
           </div>
         )}
 

@@ -48,18 +48,39 @@ The note H1 is the canonical page title. UI page titles (the `<h1>` on Home and
 | H2 | 24 / 32 | 600 | |
 | H3 | 20 / 28 | 600 | |
 | H4 | 16 / 24 | 600 | |
-| H5 | 14 / 20 | 600 | |
-| H6 | 14 / 20 | 600 | `--muted` colour |
+| H5 · H6 | 14 / 20 | 600 | The system has no separate H6; `######` renders as H5. |
+
+Links are body text in `--foreground` with a 1px underline at a pinned
+0.2em offset; hover thickens it to 2px. They never change colour, and the
+underline only grows downward, so nothing moves.
 
 ## Colour tokens used by text
 
-| Token | Light | Dark |
-| --- | --- | --- |
-| `--muted` | 70% foreground | 70% foreground |
-| `--danger` | #b91c1c (red-700) | #f87171 (red-400) |
-| `--danger-surface` | 8% `--danger` on background | 8% `--danger` on background |
-| `--code-background` / `--code-foreground` | zinc-100 / zinc-900 | zinc-800 / zinc-200 |
+The palette is paper and ink (Figma "Foundations / Color"). Full list in
+`app/globals.css`; the ones text sits on or uses:
 
-`--danger` text stays above 4.5:1 on the background, on `--danger-surface` and
-on the 15% hover tint. Code passes AA by a wide margin in both schemes
-(16.1:1 light, 11.7:1 dark).
+| Token | Light | Dark | Contrast on paper (light / dark) |
+| --- | --- | --- | --- |
+| `--background` (paper) | #f3eee4 | #1e1b18 | |
+| `--foreground` (ink) | #2a2520 | #ede6da | 13.1 / 13.8 |
+| `--muted` | #6b6256 | #a89e8f | 5.2 / 6.5 |
+| `--accent-new` | #b04410 | #f0894a | 4.9 / 6.8 |
+| `--danger` | #b91c1c (red-700) | #f87171 (red-400) | 5.6 / 6.2 |
+| `--danger-surface` | 8% `--danger` on paper | 8% `--danger` on paper | |
+| `--code-background` / `--code-foreground` | 6% ink / ink | 7% ink / ink | 11.8 / 11.7 |
+| `--slab` / `--on-slab` / `--on-slab-muted` | #1f2a37 / #fbf8f2 / #c9c2b5 | #2e4258 / #f3eee4 / #c9c2b5 | 13.7 / 8.9 on the slab |
+
+`--accent-new` means "new or unread" and nothing else: not links, not
+selection, not decoration. `--danger` is only for errors and the armed second
+tap of a destructive action. Both stay above 4.5:1 on paper.
+
+## Checking against Figma
+
+`tests/fixtures/figma-tokens.json` is an export of the Figma file's Foundations
+variables (each carries its CSS name as WEB code syntax) and text styles.
+`tests/browser/figma-eval.spec.ts` grades the running app against it in light
+and dark, one property per row: colours as composited over paper, motion
+values, and size, line height, weight, family and underline for each prose
+style. It passes only at 100% and attaches the graded table to the report.
+After changing Foundations in Figma, re-export the fixture before changing
+`app/globals.css`; a failing row names the exact token that drifted.

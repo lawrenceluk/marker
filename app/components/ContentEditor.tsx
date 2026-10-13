@@ -234,7 +234,7 @@ export function ContentEditor({
     <div className="fixed inset-0 bg-background z-50 flex flex-col">
       <div className="border-b border-hairline">
         <div className="mx-auto flex w-full max-w-3xl flex-wrap justify-between items-center gap-2 px-4 py-4">
-          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+          <span className="text-sm text-muted">
             {isNew ? "New note" : "Editing note"} · Cmd/Ctrl+S to save
           </span>
           <div className="flex flex-wrap gap-2">
@@ -300,7 +300,7 @@ export function ContentEditor({
             placeholder="Write markdown…"
             aria-label="Note content"
             disabled={isSaving}
-            className="w-full min-h-[calc(100vh-80px)] px-4 py-3 border-0 bg-background text-foreground placeholder-zinc-400 dark:placeholder-zinc-500 font-mono text-sm focus:outline-none resize-none"
+            className="w-full min-h-[calc(100vh-80px)] px-4 py-3 border-0 bg-background text-foreground placeholder-muted font-mono text-sm focus:outline-none resize-none"
           />
         </div>
       </div>

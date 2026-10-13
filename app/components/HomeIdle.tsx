@@ -30,7 +30,7 @@ export function HomeIdle({
           <h1 className="text-2xl font-bold text-foreground">
             Marker
           </h1>
-          <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm leading-relaxed text-muted">
             A private markdown pastebin. Each note lives at a secret key that is
             both its address and its password — no accounts. Use it in the browser,
             or from AI agents over a small HTTP API.

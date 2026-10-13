@@ -1,16 +1,51 @@
 @import "tailwindcss";
 
+/*
+ * Color tokens (docs/typography.md, Figma "Foundations / Color"). Paper and ink;
+ * the slab is the one strong surface; --accent-new means "new or unread" and
+ * nothing else. Ratios are WCAG on --background.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f3eee4; /* bg/paper */
+  --foreground: #2a2520; /* text/ink, 13.1:1 */
   /* Dividers and menu borders; derived so it follows both color schemes. */
-  --hairline: color-mix(in srgb, var(--foreground) 12%, transparent);
-  --muted: color-mix(in srgb, var(--foreground) 70%, var(--background));
-  /* Status text. Red-700 keeps 4.5:1 on white and on --danger-surface. */
+  --hairline: color-mix(in srgb, var(--foreground) 18%, transparent); /* rule/hair */
+  --rule-ink: var(--foreground); /* rule/ink: list top rules, popover edges, hover rules */
+  --muted: #6b6256; /* text/muted, 5.2:1 */
+  /* Status text. Red-700 keeps 4.5:1 on paper (5.6:1) and on --danger-surface (4.9:1). */
   --danger: #b91c1c;
   --danger-surface: color-mix(in srgb, var(--danger) 8%, var(--background));
-  --code-background: var(--color-zinc-100);
-  --code-foreground: var(--color-zinc-900);
+  --code-background: color-mix(in srgb, var(--foreground) 6%, transparent); /* code/bg */
+  --code-foreground: var(--foreground);
+  --accent-new: #b04410; /* accent/new, 4.9:1 */
+  --accent-soft: color-mix(in srgb, var(--accent-new) 12%, transparent);
+  --slab: #1f2a37; /* slab/bg */
+  --slab-hover: #2e4258;
+  --on-slab: #fbf8f2; /* 13.7:1 on --slab */
+  --on-slab-muted: #c9c2b5; /* 8.2:1 on --slab */
+  --focus-ring: var(--foreground);
+  --tag-selected: var(--slab);
+  --tag-selected-on: var(--on-slab);
+  --tag-count: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --scrim: rgb(42 37 32 / 0.24); /* behind bottom sheets */
+  --lightbox: rgb(30 27 24 / 0.94); /* behind the lightbox image */
+
+  /* Motion (Figma "Foundations / Motion"). */
+  --duration-quick: 150ms;
+  --duration-fast: 250ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-bounce: cubic-bezier(0.3, 1.12, 0.6, 1);
+  --scale-press: 0.97;
+  --scale-small: 0.99;
+  --enter-y: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --scale-press: 1;
+    --scale-small: 1;
+    --enter-y: 0px;
+  }
 }
 
 /*
@@ -45,16 +80,38 @@
   --color-muted: var(--muted);
   --color-danger: var(--danger);
   --color-danger-surface: var(--danger-surface);
+  --color-rule-ink: var(--rule-ink);
+  --color-code-background: var(--code-background);
+  --color-accent-new: var(--accent-new);
+  --color-accent-soft: var(--accent-soft);
+  --color-slab: var(--slab);
+  --color-slab-hover: var(--slab-hover);
+  --color-on-slab: var(--on-slab);
+  --color-on-slab-muted: var(--on-slab-muted);
+  --color-focus-ring: var(--focus-ring);
+  --color-tag-selected: var(--tag-selected);
+  --color-tag-selected-on: var(--tag-selected-on);
+  --color-tag-count: var(--tag-count);
+  --color-scrim: var(--scrim);
+  --color-lightbox: var(--lightbox);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    /* Red-400: 7.2:1 on the dark background. */
+    --background: #1e1b18;
+    --foreground: #ede6da; /* 13.8:1 */
+    --muted: #a89e8f; /* 6.5:1 */
+    /* Red-400: 6.2:1 on the dark paper. */
     --danger: #f87171;
-    --code-background: var(--color-zinc-800);
-    --code-foreground: var(--color-zinc-200);
+    --code-background: color-mix(in srgb, var(--foreground) 7%, transparent);
+    --accent-new: #f0894a; /* 6.8:1 */
+    --accent-soft: color-mix(in srgb, var(--accent-new) 16%, transparent);
+    --slab: #2e4258;
+    --slab-hover: #3b5470;
+    --on-slab: #f3eee4; /* 8.9:1 on --slab */
+    --tag-count: color-mix(in srgb, var(--foreground) 12%, transparent);
+    --scrim: rgb(0 0 0 / 0.5);
+    --lightbox: rgb(0 0 0 / 0.9);
   }
 }
 
@@ -62,6 +119,11 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* Native focus rings take the ink token instead of the browser's blue; widths and offsets stay per component. */
+:focus-visible {
+  outline-color: var(--focus-ring);
 }
 
 /* Metadata is separate from prose so YAML cannot become a Markdown heading. */
@@ -87,8 +149,9 @@ body {
 }
 
 /*
- * Heading ladder: H1 2xl/700, H2 xl/600, H3 lg/600, H4 base/600, H5 sm/600,
- * H6 sm/600 muted. UI page titles (<h1> on Home and /c) use the H1 style.
+ * Heading ladder: H1 2xl/700, H2 xl/600, H3 lg/600, H4 base/600, H5 and H6
+ * sm/600 (the system has no separate H6). UI page titles (<h1> on Home and /c)
+ * use the H1 style.
  */
 .prose h1 {
   font-size: var(--text-2xl);
@@ -133,10 +196,6 @@ body {
   line-height: var(--text-sm--line-height);
 }
 
-.prose h6 {
-  color: var(--muted);
-}
-
 .prose p {
   margin-bottom: 1.25rem;
   line-height: 1.6;
@@ -146,14 +205,21 @@ body {
   font-family: var(--font-sans-italic);
 }
 
+/*
+ * Links are ink, marked only by the underline: 1px at rest, 2px on hover. The
+ * offset is pinned so the line's top edge stays put and it only grows downward;
+ * decorations never affect layout, so nothing around the link moves.
+ */
 .prose a {
-  color: var(--color-blue-500);
+  color: inherit;
   text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
   overflow-wrap: anywhere;
 }
 
 .prose a:hover {
-  color: var(--color-blue-600);
+  text-decoration-thickness: 2px;
 }
 
 .prose code {
@@ -223,16 +289,16 @@ body {
 .reaction-status p button { text-decoration: underline; }
 
 .prose blockquote {
-  border-left: 4px solid var(--color-zinc-300);
+  border-left: 4px solid var(--hairline);
   padding-left: 1rem;
-  color: var(--color-zinc-500);
+  color: var(--muted);
   font-style: italic;
   margin-bottom: 1.25rem;
 }
 
 .prose hr {
   border: none;
-  border-top: 1px solid var(--color-zinc-200);
+  border-top: 1px solid var(--hairline);
   margin: 2rem 0;
 }
 
@@ -244,13 +310,13 @@ body {
 
 .prose th,
 .prose td {
-  border: 1px solid var(--color-zinc-200);
+  border: 1px solid var(--hairline);
   padding: 0.5rem 0.75rem;
   text-align: left;
 }
 
 .prose th {
-  background: var(--color-zinc-100);
+  background: var(--code-background);
   font-weight: 600;
 }
 
@@ -261,27 +327,27 @@ body {
 .note-image-placeholder svg { width: 1.1rem; height: 1.1rem; flex: none; }
 .note-lightbox { max-width: 100vw; max-height: 100dvh; width: 100vw; height: 100dvh; margin: 0; padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); border: 0; background: transparent; cursor: zoom-out; }
 .note-lightbox[open] { display: flex; align-items: center; justify-content: center; }
-.note-lightbox::backdrop { background: rgb(0 0 0 / 0.85); }
+.note-lightbox::backdrop { background: var(--lightbox); }
 .note-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .note-lightbox-close { position: fixed; top: max(0.75rem, env(safe-area-inset-top)); right: max(0.75rem, env(safe-area-inset-right)); width: 2.5rem; height: 2.5rem; border-radius: 999px; background: rgb(0 0 0 / 0.55); color: #fff; font-size: var(--text-xl); line-height: 1; }
 
 /* Embeds (docs/embeds.md): a plate between two hairlines, square, no box, never red. */
 .note-embed { display: block; margin: 1.5rem 0; }
-.note-embed-plate { position: relative; display: block; box-sizing: content-box; width: 100%; min-height: 120px; max-height: 2000px; overflow: hidden; border-block: 1px solid var(--hairline); background: var(--background); user-select: none; transition: height 250ms cubic-bezier(0.22, 1, 0.36, 1); }
+.note-embed-plate { position: relative; display: block; box-sizing: content-box; width: 100%; min-height: 120px; max-height: 2000px; overflow: hidden; border-block: 1px solid var(--hairline); background: var(--background); user-select: none; transition: height var(--duration-fast) var(--ease-out); }
 .note-embed-plate[data-mode="dialog"] { height: 100%; max-height: none; border: 0; }
 .note-embed-plate iframe { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; background: transparent; color-scheme: normal; opacity: 0; }
 .note-embed-plate iframe[data-ready] { opacity: 1; }
 .note-embed-poster, .note-embed-paper { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; object-position: top center; background: var(--background); }
 .note-embed-plate[data-phase="loading"] :is(.note-embed-poster, .note-embed-paper) { opacity: 0.6; }
 .note-embed-plate:has(iframe[data-ready]) :is(.note-embed-poster, .note-embed-paper) { visibility: hidden; }
-.note-embed-controls { position: absolute; top: 0.5rem; right: 0.5rem; display: flex; gap: 0.375rem; opacity: 0; transition: opacity 150ms cubic-bezier(0.22, 1, 0.36, 1); }
+.note-embed-controls { position: absolute; top: 0.5rem; right: 0.5rem; display: flex; gap: 0.375rem; opacity: 0; transition: opacity var(--duration-quick) var(--ease-out); }
 .note-embed-plate:is(:hover, :focus-within) .note-embed-controls, .note-embed-plate[data-phase="stalled"] .note-embed-controls, .note-embed-plate[data-mode="dialog"] .note-embed-controls { opacity: 1; }
 .note-embed-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 2rem; height: 2rem; padding: 0 0.5rem; border: 1px solid var(--hairline); border-radius: 999px; background: color-mix(in srgb, var(--background) 92%, transparent); color: var(--foreground); font-size: var(--text-base); line-height: 1; cursor: pointer; }
 .note-embed-pill:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .note-embed-caption { display: block; margin-top: 0.5rem; font-size: var(--text-sm); line-height: var(--text-sm--line-height); color: var(--muted); }
 .note-embed[data-state="missing"] .note-embed-caption { padding-top: 0.5rem; border-top: 1px solid var(--hairline); }
 .note-embed-dialog { max-width: 100vw; max-height: 100dvh; width: 100vw; height: 100dvh; margin: 0; padding: max(0.75rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left)); border: 0; background: var(--background); }
-.note-embed-dialog::backdrop { background: rgb(0 0 0 / 0.85); }
+.note-embed-dialog::backdrop { background: var(--lightbox); }
 @media (hover: none) { .note-embed-controls { opacity: 1; } }
 @media (max-width: 640px) { .note-embed-plate { max-height: 150svh; } }
 @media (prefers-reduced-motion: reduce) { .note-embed-plate, .note-embed-controls { transition: none; } }
@@ -289,35 +355,6 @@ body {
   .note-embed-plate { height: auto !important; max-height: none; }
   .note-embed-plate iframe, .note-embed-controls, .note-embed-paper { display: none; }
   .note-embed-poster { position: static; height: auto; visibility: visible !important; opacity: 1 !important; }
-}
-
-/* Dark mode prose — match prefers-color-scheme (Marker has no .dark class). Code colours come from --code-*. */
-@media (prefers-color-scheme: dark) {
-  .prose blockquote {
-    border-left-color: var(--color-zinc-600);
-    color: var(--color-zinc-400);
-  }
-
-  .prose hr {
-    border-top-color: var(--color-zinc-700);
-  }
-
-  .prose th,
-  .prose td {
-    border-color: var(--color-zinc-700);
-  }
-
-  .prose th {
-    background: var(--color-zinc-800);
-  }
-
-  .prose a {
-    color: var(--color-blue-400);
-  }
-
-  .prose a:hover {
-    color: var(--color-blue-300);
-  }
 }
 
 /* Comments use the reader's icon language; the native text-selection menu stays intact. */
