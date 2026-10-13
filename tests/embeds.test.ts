@@ -36,9 +36,10 @@ test("the embed CSP: no network, scripts only from jsDelivr /npm/, data-only ima
   assert.deepEqual(csp["img-src"], ["data:", "blob:"]);
   assert.deepEqual(csp["media-src"], ["data:", "blob:"]);
   assert.deepEqual(csp["connect-src"], ["'none'"]);
-  for (const name of ["worker-src", "child-src", "frame-src", "object-src", "form-action", "base-uri", "manifest-src", "prefetch-src"]) {
+  for (const name of ["worker-src", "child-src", "frame-src", "object-src", "form-action", "base-uri", "manifest-src"]) {
     assert.deepEqual(csp[name], ["'none'"], name);
   }
+  assert.equal(csp["prefetch-src"], undefined, "Chromium rejects prefetch-src as unrecognized");
   assert.ok(!embedCsp().includes("unpkg"));
   assert.ok(!embedCsp().includes("https:;") && !/\shttps:(\s|;|$)/.test(embedCsp()), "no bare https: source");
   assert.deepEqual(directives(embedCsp("https://acct.r2.cloudflarestorage.com"))["connect-src"], ["https://acct.r2.cloudflarestorage.com"]);

@@ -46,7 +46,6 @@ export function embedCsp(connect: string | null = null): string {
     "form-action 'none'",
     "base-uri 'none'",
     "manifest-src 'none'",
-    "prefetch-src 'none'",
   ].join("; ");
 }
 
