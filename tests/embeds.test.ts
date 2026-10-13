@@ -14,7 +14,9 @@ import {
   presignedExpiry,
 } from "../app/lib/embedPolicy";
 import { embedShellHtml } from "../app/lib/embedShell";
+import { embedShellKey, shellHtmlFor } from "../app/lib/embeds";
 import { ogBodyText, previewFromMarkdown } from "../app/lib/preview";
+import type { R2Config } from "../app/lib/r2";
 
 const P = "marker-commenting-preview-v1:";
 const ID = "AAAAAAAAAAAAAAAAAAAAAA";
@@ -26,6 +28,16 @@ const directives = (csp: string) => Object.fromEntries(csp.split(/;\s*/).map(d =
   const [name, ...values] = d.trim().split(/\s+/);
   return [name, values];
 }));
+
+test("the embed shell object key is content-addressed", () => {
+  const config: R2Config = { endpoint: "https://acct.r2.cloudflarestorage.com", bucket: "b", accessKeyId: "k", secretAccessKey: "s", region: "auto" };
+  const key = embedShellKey(config, {});
+  assert.match(key, /^embed-shell-[0-9a-f]{16}\.html$/);
+  assert.equal(key, embedShellKey(config, {}), "stable for the same HTML");
+  const other = embedShellKey(config, { EMBED_PARENT_ORIGINS: "https://example.test" });
+  assert.notEqual(key, other, "parent origins change the shell and its key");
+  assert.equal(shellHtmlFor(config, {}), shellHtmlFor(config, {}));
+});
 
 test("the embed CSP: no network, scripts only from jsDelivr /npm/, data-only images", () => {
   const csp = directives(embedCsp());
@@ -107,6 +119,7 @@ test("the shell: CSP before any script, one script element, the agent document g
   assert.ok(!html.slice(html.indexOf("<script>"), html.lastIndexOf("</script>")).includes("<!--"));
   assert.ok(html.includes('content="off"'), "DNS prefetch off");
   assert.ok(html.includes("window.top === window"), "refuses to run top-level");
+  assert.ok(html.includes('self.origin !== "null"'), "refuses unless the frame origin is opaque");
   assert.ok(html.includes('\\"https://marker.luk.xyz\\"') || html.includes('["https://marker.luk.xyz"]'));
 
   const boot = html.slice(html.indexOf("<script>") + 8, html.lastIndexOf("</script>"));
@@ -179,14 +192,16 @@ test("embeds: reserve, text/plain storage, shell upload, limits shared with imag
 
     // The first embed reserve puts the shell in the bucket, once.
     await settle();
-    const shell = r2.objects.get("embed-shell-v1.html");
-    assert.ok(shell, "shell uploaded");
+    const { r2Config } = await import("../app/lib/r2");
+    const shellKey = embedShellKey(r2Config()!);
+    const shell = r2.objects.get(shellKey);
+    assert.ok(shell, "shell uploaded under its content hash");
     assert.equal(shell.contentType, "text/html; charset=utf-8");
     assert.ok(shell.body.toString().includes(`connect-src ${new URL(r2.url).origin}`));
-    const shellPuts = r2.log.filter(l => l.startsWith("PUT embed-shell")).length;
+    const shellPuts = r2.log.filter(l => l.startsWith("PUT embed-shell-")).length;
     await reserve({ key: "report", content_type: "text/html", size: 10 });
     await settle();
-    assert.equal(r2.log.filter(l => l.startsWith("PUT embed-shell")).length, shellPuts);
+    assert.equal(r2.log.filter(l => l.startsWith("PUT embed-shell-")).length, shellPuts);
 
     // Presigned PUT locks text/plain and the length.
     const two = await (await reserve({ key: "report", content_type: "text/html", size: HTML.length })).json();
@@ -197,6 +212,7 @@ test("embeds: reserve, text/plain storage, shell upload, limits shared with imag
     // The shell URL comes with the note's view URLs.
     const fresh = await (await urls.GET(req("/api/assets/urls?key=report"))).json();
     assert.equal(fresh.urls[one.asset_id], one.url);
+    assert.ok(fresh.embed_shell?.includes(shellKey), "embed_shell URL names this build's shell");
     const shellView = await realFetch(fresh.embed_shell);
     assert.equal(shellView.status, 200);
     assert.equal(shellView.headers.get("content-type"), "text/html; charset=utf-8");

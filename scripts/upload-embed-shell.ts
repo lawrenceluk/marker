@@ -1,13 +1,13 @@
 /**
- * Uploads (or replaces) `embed-shell-v1.html` in the configured R2 bucket.
- * Run once per bucket with the deployment's R2_* variables, and again after
- * changing EMBED_PARENT_ORIGINS. `--print` writes the document to stdout instead.
+ * Uploads this build's content-addressed embed shell to the configured R2 bucket.
+ * Optional: the first embed reserve or page view uploads it automatically.
+ * `--print` writes the document to stdout instead.
  *
  *   npm run embeds:shell
  *   npm run embeds:shell -- --print
  */
 import { r2Config } from "../app/lib/r2";
-import { EMBED_SHELL_KEY, embedParentOrigins, shellHtmlFor, uploadEmbedShell } from "../app/lib/embeds";
+import { embedParentOrigins, shellHtmlFor, uploadEmbedShell } from "../app/lib/embeds";
 
 const config = r2Config();
 if (!config) {
@@ -18,6 +18,6 @@ if (!config) {
 if (process.argv.includes("--print")) {
   process.stdout.write(shellHtmlFor(config));
 } else {
-  await uploadEmbedShell(config);
-  console.log(`Uploaded ${EMBED_SHELL_KEY} to ${config.bucket} (parents: ${embedParentOrigins().join(", ")}).`);
+  const key = await uploadEmbedShell(config);
+  console.log(`Uploaded ${key} to ${config.bucket} (parents: ${embedParentOrigins().join(", ")}).`);
 }

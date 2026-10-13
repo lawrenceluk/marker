@@ -225,8 +225,10 @@ Reference it with `![p95 latency by region](marker-embed:<id> "h=340")`.
 
 - The file is stored at `<asset_ns>/<id>` as `text/plain; charset=utf-8`, in
   the same per-note index as images (`t: "html"`), and swept the same way.
-- The iframe never loads that file. It loads one fixed **shell** document,
-  `embed-shell-v1.html` at the bucket root, as
+- The iframe never loads that file. It loads a **shell** document at the bucket
+  root, named `embed-shell-<hash>.html` where `<hash>` is the first 16 hex
+  digits of SHA-256 of the shell HTML (so each build uploads a new object
+  automatically), as
   `<shell view URL>#src=<file view URL>`, with
   `sandbox="allow-scripts"`, `credentialless`, `referrerpolicy="no-referrer"`
   and `allow=""`. The shell holds a meta CSP whose only network permission is
@@ -253,10 +255,11 @@ Reference it with `![p95 latency by region](marker-embed:<id> "h=340")`.
 
    View URLs are presigned, so this only lets a page read a file whose
    signed link it already has.
-3. Upload the shell once per bucket: `npm run embeds:shell` with that
-   deployment's `R2_*` variables (`-- --print` shows it without uploading).
-   The first embed reserved on a deployment also uploads it if it's missing.
+3. Nothing else is required: the first embed reserve, or opening a note that
+   already has embeds, uploads the current shell if the bucket lacks that hash.
+   Optional: `npm run embeds:shell` with the deployment's `R2_*` variables
+   pre-uploads it (`-- --print` writes the HTML to stdout).
 4. Optional: `EMBED_PARENT_ORIGINS` (comma-separated, `https://*.example`
    wildcards allowed) lists the pages the shell agrees to run in. Default:
-   `https://marker.luk.xyz,https://*.vercel.app`. Re-run step 3 after changing
-   it.
+   `https://marker.luk.xyz,https://*.vercel.app`. Changing it changes the
+   shell hash, so the next embed use uploads the new object automatically.

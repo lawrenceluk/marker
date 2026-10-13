@@ -6,8 +6,9 @@ import {
 } from "./embedPolicy";
 
 /**
- * `embed-shell-v1.html`: the only document an embed iframe ever loads. It is
- * stored once per bucket, immutable, and opened as
+ * A content-addressed `embed-shell-<hash>.html` at the bucket root: the only
+ * document an embed iframe ever loads. It is stored once per build (per
+ * EMBED_PARENT_ORIGINS), immutable, and opened as
  * `<presigned shell URL>#src=<presigned raw URL>`. It fetches the agent's
  * file (stored as text/plain, so it never renders on its own) and writes it
  * into itself behind the embed CSP, the theme defaults and the bridge, so

@@ -4,7 +4,7 @@ import { applyNoIndexHeaders } from "@/app/lib/robots";
 import { r2Config } from "@/app/lib/r2";
 import { assetUrls } from "@/app/lib/assets";
 import { readNote } from "@/app/lib/notes";
-import { embedShellUrl } from "@/app/lib/embeds";
+import { shellForNote } from "@/app/lib/embeds";
 
 function json(data: unknown, status = 200) {
   const response = NextResponse.json(data, { status });
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   if (!key) return json({ error: "Key is required" }, 400);
   const note = await readNote(key);
   const urls = note ? assetUrls(config, note) : {};
-  const shell = embedShellUrl(config);
+  const shell = await shellForNote(config, note);
   return json({
     urls: Object.fromEntries(Object.entries(urls).map(([id, u]) => [id, u.url])),
     embed_shell: shell?.url ?? null,

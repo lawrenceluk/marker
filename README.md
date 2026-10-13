@@ -397,7 +397,7 @@ marker/
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
 - `npm run start` - Start production server
-- `npm run embeds:shell` - Upload the embed shell page to the configured R2 bucket (`-- --print` to preview)
+- `npm run embeds:shell` - Optionally pre-upload the content-addressed embed shell (`embed-shell-<hash>.html`) to R2 (`-- --print` to preview)
 - `npm run lint` - Run ESLint
 - `npm test` - Run unit tests (note-preview title/description)
 

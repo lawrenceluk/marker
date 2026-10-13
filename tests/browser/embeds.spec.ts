@@ -97,7 +97,7 @@ test("an agent embed runs sandboxed and themed, resizes, has no network, and lin
   await expect(iframe).toHaveAttribute("referrerpolicy", "no-referrer");
   await expect(iframe).toHaveAttribute("allow", "");
   await expect(iframe).toHaveAttribute("credentialless", "");
-  expect(await iframe.getAttribute("src")).toMatch(/^https:\/\/127\.0\.0\.1:17382\/__r2\/marker-assets-test\/embed-shell-v1\.html\?.+#src=https%3A%2F%2F127\.0\.0\.1%3A17382/);
+  expect(await iframe.getAttribute("src")).toMatch(/^https:\/\/127\.0\.0\.1:17382\/__r2\/marker-assets-test\/embed-shell-[0-9a-f]{16}\.html\?.+#src=https%3A%2F%2F127\.0\.0\.1%3A17382/);
   expect(await iframe.getAttribute("src")).not.toContain(key);
   await expect(iframe).toHaveAttribute("data-ready", "");
   await expect(page.locator(".note-embed-poster")).toBeHidden();
@@ -146,8 +146,8 @@ test("an agent embed runs sandboxed and themed, resizes, has no network, and lin
   expect(inside.locationOrigin, "location reflects the URL, not the document's opaque origin").toBe(new URL(info.project.use.baseURL!).origin);
   expect(inside.frameSandbox, "an opaque document can't reach its parent's iframe element").toBe("hidden");
   expect(await iframe.evaluate(element => (element as HTMLIFrameElement).sandbox.value)).toBe("allow-scripts");
-  expect(embedNavigations.filter(url => url.includes("embed-shell-v1.html")), "the shell loads once, with no redirect or re-navigation").toHaveLength(1);
-  expect(embedNavigations.every(url => url.includes("embed-shell-v1.html"))).toBe(true);
+  expect(embedNavigations.filter(url => /embed-shell-[0-9a-f]{16}\.html/.test(url)), "the shell loads once, with no redirect or re-navigation").toHaveLength(1);
+  expect(embedNavigations.every(url => /embed-shell-[0-9a-f]{16}\.html/.test(url))).toBe(true);
   expect(inside.unpkg, "unpkg is outside the script allowlist").toBeNull();
   expect(inside.fetch).toBe("blocked");
   expect(inside.cookie).toBe("blocked");
