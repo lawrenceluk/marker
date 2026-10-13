@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
 import { normalizeKey } from "@/app/lib/key";
@@ -8,6 +10,9 @@ import { ROBOTS_TAG } from "@/app/lib/robots";
 export const runtime = "nodejs";
 
 const SIZE = { width: 1200, height: 630 };
+
+// ImageResponse can't read woff2, so this uses the package's TTF (see outputFileTracingIncludes).
+const GEIST_REGULAR = join(process.cwd(), "node_modules/geist/dist/fonts/geist-sans/Geist-Regular.ttf");
 
 /**
  * Dynamic OG image: first N chars of note plaintext on a dark card.
@@ -24,6 +29,7 @@ export async function GET(request: NextRequest) {
     typeof note?.content === "string" ? note.content : ""
   );
   const text = body || "Marker";
+  const font = await readFile(GEIST_REGULAR);
 
   const image = new ImageResponse(
     (
@@ -46,8 +52,7 @@ export async function GET(request: NextRequest) {
             color: "#fafafa",
             fontSize: 44,
             lineHeight: 1.35,
-            fontFamily:
-              "ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif",
+            fontFamily: "Geist",
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
             overflow: "hidden",
@@ -57,7 +62,7 @@ export async function GET(request: NextRequest) {
         </div>
       </div>
     ),
-    { ...SIZE }
+    { ...SIZE, fonts: [{ name: "Geist", data: font, weight: 400, style: "normal" }] }
   );
 
   image.headers.set("X-Robots-Tag", ROBOTS_TAG);

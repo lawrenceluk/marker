@@ -15,6 +15,9 @@ const CSP = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/og": ["./node_modules/geist/dist/fonts/geist-sans/Geist-Regular.ttf"],
+  },
   async headers() {
     const common = [
       { key: "X-Robots-Tag", value: ROBOTS_TAG },

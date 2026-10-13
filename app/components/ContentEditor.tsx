@@ -281,7 +281,7 @@ export function ContentEditor({
       <div className="flex-1 flex justify-center overflow-auto">
         <div className="w-full max-w-3xl px-4 py-4">
           {uploadError && (
-            <p role="alert" className="mb-2 px-4 text-sm text-red-600 dark:text-red-400">{uploadError}</p>
+            <p role="alert" className="mb-2 px-4 text-sm text-danger">{uploadError}</p>
           )}
           <textarea
             ref={textareaRef}

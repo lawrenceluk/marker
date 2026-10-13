@@ -1,10 +1,21 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+});
+
+// Google Fonts ships Geist upright only; without this face italics are synthesised.
+// Not preloaded: the browser fetches it only when a note actually has italic text.
+const geistItalic = localFont({
+  src: "../node_modules/geist/dist/fonts/geist-sans/Geist-Italic[wght].woff2",
+  variable: "--font-geist-italic",
+  style: "italic",
+  weight: "100 900",
+  preload: false,
 });
 
 const geistMono = Geist_Mono({
@@ -44,12 +55,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+    // Font variables sit on <html> so the :root type tokens in globals.css can resolve them.
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistItalic.variable} ${geistMono.variable}`}
+    >
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

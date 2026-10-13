@@ -27,7 +27,7 @@ export function HomeIdle({
     <div className="mx-auto flex w-full max-w-md flex-col gap-8">
       <div className="flex flex-col items-center gap-4 text-center">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-2xl font-bold text-foreground">
             Marker
           </h1>
           <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">

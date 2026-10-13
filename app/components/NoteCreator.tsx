@@ -76,7 +76,7 @@ export function NoteCreator({
           <button type="submit" disabled={isSaving} className={`px-4 py-2 text-sm ${primaryButtonClass}`}>{isSaving ? "Saving…" : "Save"}</button>
           <button type="button" onClick={onCancel} className={`px-4 py-2 text-sm ${secondaryButtonClass}`}>Cancel</button>
         </div>
-        {error && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       </form>
     );
   }
