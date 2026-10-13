@@ -56,7 +56,7 @@ export default async function CreatorFolder({ searchParams }: { searchParams: Pr
         <FolderNav canForget={listing !== null} />
 
         {error && (
-          <div role="alert" className="mb-6 rounded-lg bg-danger-surface p-4 text-center text-danger">
+          <div role="alert" className="banner-error mb-6">
             {error}
           </div>
         )}
@@ -108,14 +108,14 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
         <FolderTagChips tags={listing.tags} selected={tags} sort={sort} />
       )}
 
-      <div className="flex items-center gap-1 text-sm" aria-label="Sort">
-        <span className="mr-1 text-muted">Sort</span>
+      <div className="sort" aria-label="Sort">
+        <span className="text-muted">Sort</span>
         {CREATOR_SORTS.map(option => (
           <Link prefetch={false}
             key={option}
             href={folderHref(tags, option)}
             aria-current={option === sort ? "true" : undefined}
-            className={`rounded-md px-2 py-1 ${option === sort ? "bg-code-background font-medium text-foreground" : "text-muted hover:text-foreground"}`}
+            className="sort-option"
           >
             {SORT_LABELS[option]}
           </Link>
@@ -123,14 +123,14 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
       </div>
 
       {listing.notes.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted">No notes here yet.</p>
+        <p className="list-empty">No notes here yet.</p>
       ) : (
-        <ul className="divide-y divide-hairline border-y border-hairline">
+        <ul className="list">
           {listing.notes.map(note => (
-            <li key={note.ref}>
-              <a href={`/c/open/${note.ref}`} className="flex flex-col gap-1 px-1 py-3 hover:bg-code-background">
-                <span className="font-medium text-foreground">{note.title || "Untitled note"}</span>
-                <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+            <li key={note.ref} className="list-row">
+              <a href={`/c/open/${note.ref}`} className="list-link">
+                <span className="list-title"><span>{note.title || "Untitled note"}</span></span>
+                <span className="list-meta">
                   <span>{sort === "created" ? `Created ${formatDate(note.created_at)}` : `Updated ${formatDate(note.updated_at)}`}</span>
                   {note.expires_at !== null && <span>Expires {formatDate(note.expires_at)}</span>}
                   {note.tags.map(tag => <span key={tag} className="tag tag-small">{tag}</span>)}

@@ -53,7 +53,7 @@ export function ScrollActions() {
       {!isAtTop && (
         <button
           onClick={scrollToTop}
-          className="group relative p-3 rounded-full border border-hairline bg-background text-muted shadow-lg hover:border-rule-ink hover:text-foreground transition-colors cursor-pointer"
+          className="group relative grid size-12 cursor-pointer place-items-center rounded-full bg-background text-muted transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-focus-ring"
           aria-label="Scroll to top"
         >
           <ChevronUp size={20} />
@@ -63,7 +63,7 @@ export function ScrollActions() {
       {!isAtBottom && (
         <button
           onClick={scrollToBottom}
-          className="group relative p-3 rounded-full border border-hairline bg-background text-muted shadow-lg hover:border-rule-ink hover:text-foreground transition-colors cursor-pointer"
+          className="group relative grid size-12 cursor-pointer place-items-center rounded-full bg-background text-muted transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid focus-visible:outline-focus-ring"
           aria-label="Scroll to bottom"
         >
           <ChevronDown size={20} />

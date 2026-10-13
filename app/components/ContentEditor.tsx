@@ -232,12 +232,12 @@ export function ContentEditor({
 
   return (
     <div className="fixed inset-0 bg-background z-50 flex flex-col">
-      <div className="border-b border-hairline">
-        <div className="mx-auto flex w-full max-w-3xl flex-wrap justify-between items-center gap-2 px-4 py-4">
+      <div className="border-b border-rule-ink bg-background">
+        <div className="mx-auto flex min-h-16 w-full max-w-3xl flex-wrap items-center justify-between gap-2 px-4 py-4 sm:py-0">
           <span className="text-sm text-muted">
             {isNew ? "New note" : "Editing note"} · Cmd/Ctrl+S to save
           </span>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {imagesEnabled && <>
               <button
                 type="button"

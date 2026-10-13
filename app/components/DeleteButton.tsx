@@ -77,7 +77,8 @@ export function DeleteButton({
       disabled={disabled || busy}
       onClick={handleClick}
       onBlur={clearArm}
-      className={menu ? "toolbar-menu-item text-danger" : armed ? armedClass : toolbarButtonClass}
+      className={menu ? "toolbar-menu-item" : armed ? armedClass : toolbarButtonClass}
+      data-armed={menu && armed ? "" : undefined}
     >
       <Trash2 size={18} aria-hidden="true" />
       {menu ? label : <ToolbarTooltip label={label} align={tooltipAlign} />}

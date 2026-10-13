@@ -511,7 +511,7 @@ export function NoteApp({
         )}
 
         {error && (
-          <div role="alert" className="mb-6 p-4 rounded-lg bg-danger-surface text-danger text-center">
+          <div role="alert" className="banner-error mb-6">
             {error}
           </div>
         )}
@@ -572,7 +572,7 @@ export function NoteApp({
               />
             )}
             {updated && !isComposing && (
-              <button type="button" className="update-nudge" disabled={isReloading} onClick={() => void handleReload()}>
+              <button type="button" className="update-nudge" disabled={isReloading} aria-busy={isReloading} onClick={() => void handleReload()}>
                 {isReloading ? "Refreshing…" : "Note updated · Refresh"}
               </button>
             )}

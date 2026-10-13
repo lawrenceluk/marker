@@ -36,7 +36,7 @@ export function NoteToolbar({
       <ToolbarMenu label="Share" icon={<Share2 size={18} />}>
         <CopyButton text={shareUrl ?? ""} label="Copy link" disabled={!shareUrl} className="toolbar-menu-item" />
         <button type="button" role="switch" aria-label="Persistent link" aria-checked={persist} aria-disabled={persistDisabled} onClick={() => { if (!persistDisabled) onPersistToggle?.(); }} className="toolbar-menu-item justify-between">
-          Persistent link<span className="text-xs opacity-50">{persist ? "On" : "Off"}</span>
+          Persistent link<span className="switch" data-on={persist ? "true" : "false"} aria-hidden="true" />
         </button>
       </ToolbarMenu>
       {commentsButton}
@@ -46,7 +46,7 @@ export function NoteToolbar({
         <CopyButton text={content} label="Copy text" icon="with-label" className="toolbar-menu-item" />
         <button type="button" className="toolbar-menu-item" onClick={event => { closeMenu(event.currentTarget); onRename?.(); }}><KeyRound size={18} aria-hidden="true" />Change key</button>
         {onEditTags && <button type="button" className="toolbar-menu-item" onClick={event => { closeMenu(event.currentTarget); onEditTags(); }}><Tags size={18} aria-hidden="true" />Edit tags</button>}
-        {onDelete && <DeleteButton onDelete={onDelete} disabled={deleteDisabled} menu />}
+        {onDelete && <><hr className="toolbar-menu-rule" /><DeleteButton onDelete={onDelete} disabled={deleteDisabled} menu /></>}
       </ToolbarMenu>
     </>}
   </nav>;

@@ -22,7 +22,13 @@ test("five actions fit one row; share and more preserve note actions", async ({ 
   await page.goto(`/?key=${key}&persist=1`);
   const nav = page.getByRole("navigation", { name: "Note actions" });
   await expect(nav.getByRole("button")).toHaveCount(5);
-  const boxes = await Promise.all(["Home", "Share", "Comments (0 open)", "Edit", "More"].map(name => nav.getByRole("button", { name, exact: true }).boundingBox()));
+  // The toolbar can re-render once after load (a button briefly detaches), so measure until it settles.
+  let boxes: { x: number; y: number; width: number; height: number }[] = [];
+  await expect(async () => {
+    const measured = await Promise.all(["Home", "Share", "Comments (0 open)", "Edit", "More"].map(name => nav.getByRole("button", { name, exact: true }).boundingBox()));
+    expect(measured.every(Boolean)).toBe(true);
+    boxes = measured as typeof boxes;
+  }).toPass({ timeout: 10_000 });
   expect(new Set(boxes.map(box => box!.y)).size).toBe(1);
   expect(boxes.at(-1)!.x + boxes.at(-1)!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   for (const colorScheme of ["light", "dark"] as const) {

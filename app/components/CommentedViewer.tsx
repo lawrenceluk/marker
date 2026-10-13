@@ -782,13 +782,16 @@ export function CommentedViewer({
       >
         <div className="comment-heading">
           {active === "list" ? (
-            <label className="text-xs text-muted flex items-center gap-2">
+            <label className={`comment-filter tag relative cursor-pointer${showResolved ? " tag-on" : ""}`}>
               <input
                 type="checkbox"
+                className="absolute inset-0 m-0 cursor-pointer appearance-none rounded-full opacity-0"
+                aria-label="Show resolved"
                 checked={showResolved}
                 onChange={(e) => setShowResolved(e.target.checked)}
               />
-              Show resolved
+              <span className="tag-label">resolved</span>{" "}
+              <span className="tag-count">{threads.filter((t) => t.resolved).length}</span>
             </label>
           ) : (
             <blockquote className="comment-quote">
@@ -809,7 +812,7 @@ export function CommentedViewer({
                 })
               }
             >
-              {thread.resolved ? <RotateCcw size={16} /> : <Check size={16} />}
+              {thread.resolved ? <RotateCcw size={20} /> : <Check size={20} />}
             </ToolbarButton>
           )}
           <ToolbarButton
@@ -817,7 +820,7 @@ export function CommentedViewer({
             label="Close"
             onClick={() => dialog.current?.close()}
           >
-            <X size={16} />
+            <X size={20} />
           </ToolbarButton>
         </div>
         {error && (
@@ -836,46 +839,52 @@ export function CommentedViewer({
           </p>
         )}
         {active === "list" ? (
-          <>
+          <div className="comment-list">
             {threads
               .filter((t) => showResolved || !t.resolved)
               .map((t) => (
                 <button
                   className="comment-row"
                   key={t.id}
+                  data-resolved={t.resolved ? "" : undefined}
+                  data-outdated={t.location.state === "outdated" ? "" : undefined}
                   onClick={(e) =>
                     open(t.id, e.currentTarget.getBoundingClientRect())
                   }
                 >
-                  <span className="text-xs text-muted">
+                  {/* Status is shown (check, muted, struck-through quote) and said only to screen readers. */}
+                  <span className="sr-only">
                     {t.resolved ? "Resolved" : "Open"}
                     {t.location.state === "outdated" ? " · Outdated" : ""}
+                    {" · "}
                   </span>
-                  <p className="truncate">{t.messages[0].text}</p>
+                  <span className="comment-anchor">
+                    {t.resolved && <Check aria-hidden="true" />}
+                    <span>{plainQuote(t.anchor.exact)}</span>
+                  </span>
+                  <span className="comment-body">{t.messages[0].text}</span>
                 </button>
               ))}
             {!threads.filter((t) => showResolved || !t.resolved).length && (
-              <p className="text-sm text-muted py-2">
+              <p className="comment-empty">
                 {threads.length
                   ? "No open comments."
                   : "No comments yet. Select text to start one."}
               </p>
             )}
-          </>
+          </div>
         ) : (
           <>
             {thread?.location.state === "outdated" && (
-              <p className="text-xs text-muted mb-2">
+              <p className="comment-author">
                 Outdated · Original quote
               </p>
             )}
-            <div className="comment-messages">
+            <div className="comment-messages comment-thread-body">
               {thread?.messages.map((message, index) => (
-                <div key={index} className="mb-3">
-                  <p className="text-xs text-muted mb-1">{message.author}</p>
-                  <p className="text-sm whitespace-pre-wrap break-words">
-                    {message.text}
-                  </p>
+                <div key={index}>
+                  <p className="comment-author">{message.author}</p>
+                  <p className="comment-text">{message.text}</p>
                 </div>
               ))}
             </div>

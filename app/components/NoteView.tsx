@@ -19,7 +19,7 @@ export const readPageNote = cache(async (key: string, recordAccess: boolean) => 
 
 function PreviewBanner() {
   if (process.env.VERCEL_ENV !== "preview") return null;
-  return <aside className="bg-slab text-on-slab px-4 py-3 text-center text-sm">Preview sandbox · Separate note namespace · <a className="underline" href={persistPath(METADATA_DEMO_KEY)}>Open metadata demo</a> · <a className="underline" href={persistPath(REACTION_DEMO_KEY)}>Open reaction demo</a> · <a className="underline" href={persistPath(DEMO_KEY)}>Open commenting demo</a></aside>;
+  return <aside className="bg-slab px-6 py-3.5 text-center text-sm text-on-slab-muted [&_a]:font-medium [&_a]:text-on-slab">Preview sandbox · Separate note namespace · <a className="underline" href={persistPath(METADATA_DEMO_KEY)}>Open metadata demo</a> · <a className="underline" href={persistPath(REACTION_DEMO_KEY)}>Open reaction demo</a> · <a className="underline" href={persistPath(DEMO_KEY)}>Open commenting demo</a></aside>;
 }
 
 /** Home (no key) or a note, server-rendered. */

@@ -1,0 +1,266 @@
+{
+  "source": {
+    "fileKey": "Ov96GbFnYeWrUXw7Olvyn7",
+    "page": "Components (new)",
+    "exportedAt": "2026-10-13",
+    "note": "Surface node properties exported from Figma via the Figma MCP (List, ListRow, Menu, MenuRow, Switch, Badge, UpdateNudge, Header, CommentSheet, CommentRow, Banner). Colours are Figma variable names, type is Figma text styles; graded live by tests/browser/figma-surfaces.spec.ts."
+  },
+  "List": {
+    "top": {
+      "token": "rule/ink",
+      "width": 1
+    }
+  },
+  "ListRow": {
+    "minHeight": 72,
+    "gap": 16,
+    "bottom": {
+      "token": "rule/hair",
+      "width": 1
+    },
+    "hoverBottom": "rule/ink",
+    "title": {
+      "style": "UI/Body Medium",
+      "token": "text/ink"
+    },
+    "meta": {
+      "style": "Mono/Meta",
+      "token": "text/muted"
+    },
+    "more": {
+      "width": 48,
+      "height": 48
+    }
+  },
+  "Menu": {
+    "width": 224,
+    "padding": [
+      8,
+      0,
+      8,
+      0
+    ],
+    "radius": 0,
+    "fill": "bg/paper",
+    "border": {
+      "token": "rule/ink",
+      "width": 1
+    },
+    "shadow": false,
+    "rule": {
+      "token": "rule/hair",
+      "height": 1,
+      "marginX": 16
+    }
+  },
+  "MenuRow": {
+    "height": 40,
+    "padding": [
+      0,
+      16,
+      0,
+      16
+    ],
+    "gap": 12,
+    "label": {
+      "style": "UI/Small",
+      "token": "text/ink"
+    },
+    "icon": {
+      "size": 16,
+      "token": "text/muted"
+    },
+    "hover": {
+      "fill": "code/bg",
+      "icon": "text/ink"
+    },
+    "armed": {
+      "label": "status/danger",
+      "icon": "status/danger"
+    }
+  },
+  "Switch": {
+    "width": 28,
+    "height": 16,
+    "off": {
+      "border": "rule/ink",
+      "knob": "text/ink"
+    },
+    "on": {
+      "fill": "slab/bg",
+      "knob": "slab/on"
+    },
+    "knob": 10
+  },
+  "Badge": {
+    "height": 16,
+    "minWidth": 16,
+    "padding": [
+      0,
+      4,
+      0,
+      4
+    ],
+    "fill": "slab/bg",
+    "text": {
+      "style": "UI/Micro",
+      "token": "slab/on"
+    },
+    "offset": {
+      "right": 4,
+      "top": 6
+    }
+  },
+  "UpdateNudge": {
+    "height": 32,
+    "padding": [
+      0,
+      16,
+      0,
+      16
+    ],
+    "default": {
+      "fill": "accent/new",
+      "text": {
+        "style": "UI/Small Medium",
+        "token": "bg/paper"
+      }
+    },
+    "refreshing": {
+      "fill": "accent/soft",
+      "text": {
+        "style": "UI/Small Medium",
+        "token": "text/ink"
+      }
+    }
+  },
+  "Header": {
+    "height": 64,
+    "bottom": {
+      "token": "rule/hair",
+      "width": 1
+    },
+    "button": 48
+  },
+  "CommentSheet": {
+    "popover": {
+      "width": 328,
+      "padding": [
+        0,
+        4,
+        16,
+        16
+      ],
+      "fill": "bg/paper",
+      "border": {
+        "token": "rule/ink",
+        "width": [
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "radius": 0,
+      "shadow": false,
+      "header": 48,
+      "anchor": {
+        "style": "Mono/Meta",
+        "token": "text/muted"
+      },
+      "icon": 48
+    },
+    "sheet": {
+      "padding": [
+        0,
+        4,
+        16,
+        16
+      ],
+      "fill": "bg/paper",
+      "border": {
+        "token": "rule/ink",
+        "width": [
+          1,
+          0,
+          0,
+          0
+        ]
+      },
+      "radius": 0,
+      "backdrop": "overlay/scrim"
+    },
+    "thread": {
+      "author": {
+        "style": "UI/Caption Medium",
+        "token": "text/muted"
+      },
+      "message": {
+        "style": "UI/Small",
+        "token": "text/ink"
+      },
+      "messageGap": 16,
+      "compose": {
+        "height": 56,
+        "style": "UI/Body",
+        "bottom": {
+          "token": "rule/hair",
+          "width": 1
+        },
+        "placeholder": "text/muted"
+      }
+    }
+  },
+  "CommentRow": {
+    "padding": [
+      12,
+      0,
+      12,
+      0
+    ],
+    "gap": 4,
+    "bottom": {
+      "token": "rule/hair",
+      "width": 1
+    },
+    "anchor": {
+      "style": "Mono/Meta",
+      "token": "text/muted"
+    },
+    "body": {
+      "style": "UI/Small",
+      "token": "text/ink"
+    },
+    "outdated": {
+      "anchorDecoration": "line-through"
+    },
+    "resolved": {
+      "body": "text/muted",
+      "check": 13
+    }
+  },
+  "Banner": {
+    "error": {
+      "padding": [
+        12,
+        0,
+        12,
+        0
+      ],
+      "top": {
+        "token": "status/danger",
+        "width": 2
+      },
+      "fill": null,
+      "text": {
+        "style": "UI/Small",
+        "token": "status/danger"
+      }
+    },
+    "preview": {
+      "fill": "slab/bg",
+      "text": "slab/on-muted",
+      "action": "slab/on"
+    }
+  }
+}
