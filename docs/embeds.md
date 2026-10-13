@@ -147,7 +147,7 @@ marker.on("theme", () => location.reload()); // or redraw with fresh colours
 
 ## Height
 
-Automatic. The embed reports its body height whenever it changes and Marker
+Automatic. The embed reports its document height whenever it changes and Marker
 resizes the frame (120–2000 px; on phones at most 1.5 screen heights). Set `h`
 so the first paint doesn't jump. Avoid `height: 100vh` on `body`.
 
@@ -172,7 +172,7 @@ function draw() {
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const w = 640, h = 320, m = { t: 16, r: 16, b: 32, l: 40 };
   const x = d3.scaleBand(data.map(d => d.region), [m.l, w - m.r]).padding(0.3);
-  const y = d3.scaleLinear([0, d3.max(data, d => d.p95)]).nice().range([h - m.b, m.t]);
+  const y = d3.scaleLinear().domain([0, d3.max(data, d => d.p95)]).nice().range([h - m.b, m.t]);
   const svg = d3.select("#chart").html("").append("svg").attr("viewBox", [0, 0, w, h]);
   svg.append("g").attr("transform", `translate(0,${h - m.b})`).call(d3.axisBottom(x)).attr("color", css("--muted"));
   svg.append("g").attr("transform", `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(5).tickFormat(d => `${d} ms`)).attr("color", css("--muted"));
