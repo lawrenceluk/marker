@@ -1,18 +1,6 @@
 import type { NextConfig } from "next";
 import { ROBOTS_TAG } from "./app/lib/robots";
-
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  "connect-src 'self' https://*.r2.cloudflarestorage.com",
-  "font-src 'self'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "frame-ancestors 'none'",
-  "form-action 'self'",
-].join("; ");
+import { markerCsp } from "./app/lib/csp";
 
 const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
@@ -23,8 +11,7 @@ const nextConfig: NextConfig = {
       { key: "X-Robots-Tag", value: ROBOTS_TAG },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       { key: "X-Content-Type-Options", value: "nosniff" },
-      // Report-only until real traffic shows nothing legitimate is blocked.
-      { key: "Content-Security-Policy-Report-Only", value: CSP },
+      { key: "Content-Security-Policy", value: markerCsp() },
     ];
     // `/:path*` does not match `/` itself.
     return [
