@@ -224,6 +224,17 @@
         "hex": "#000000",
         "alpha": 0.9
       }
+    },
+    "tag/count-selected": {
+      "css": "--tag-count-selected",
+      "light": {
+        "hex": "#fbf8f2",
+        "alpha": 0.16
+      },
+      "dark": {
+        "hex": "#f3eee4",
+        "alpha": 0.16
+      }
     }
   },
   "motion": {

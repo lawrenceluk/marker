@@ -27,6 +27,7 @@
   --tag-selected: var(--slab);
   --tag-selected-on: var(--on-slab);
   --tag-count: color-mix(in srgb, var(--foreground) 8%, transparent);
+  --tag-count-selected: color-mix(in srgb, var(--on-slab) 16%, transparent);
   --scrim: rgb(42 37 32 / 0.24); /* behind bottom sheets */
   --lightbox: rgb(30 27 24 / 0.94); /* behind the lightbox image */
 
@@ -92,6 +93,7 @@
   --color-tag-selected: var(--tag-selected);
   --color-tag-selected-on: var(--tag-selected-on);
   --color-tag-count: var(--tag-count);
+  --color-tag-count-selected: var(--tag-count-selected);
   --color-scrim: var(--scrim);
   --color-lightbox: var(--lightbox);
 }
@@ -358,7 +360,8 @@ body {
 }
 
 /* Comments use the reader's icon language; the native text-selection menu stays intact. */
-.comment-count { position: absolute; right: -4px; top: -5px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 8px; font-size: var(--text-2xs); line-height: var(--text-2xs--line-height); background: var(--foreground); color: var(--background); }
+/* Rides on the comments glyph inside the 48px icon button (Figma Header: badge at 28,6). */
+.comment-count { position: absolute; right: 4px; top: 6px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 8px; font-size: var(--text-2xs); line-height: var(--text-2xs--line-height); background: var(--foreground); color: var(--background); }
 .comment-selection, .emoji-selection { position: fixed; z-index: 20; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); color: var(--foreground); box-shadow: 0 2px 12px rgb(0 0 0 / .18); }
 .comment-sheet { position: fixed; inset: auto; margin: 0; left: clamp(8px, var(--comment-x, 8px), calc(100vw - 336px)); top: var(--comment-y, 20vh); width: min(328px, calc(100vw - 16px)); max-height: min(70dvh, calc(var(--comment-viewport, 100dvh) - 16px)); padding: 12px; border-radius: 12px; color: var(--foreground); background: var(--background); box-shadow: 0 4px 28px rgb(0 0 0 / .16); overflow-y: auto; }
 .comment-sheet::backdrop { background: rgb(0 0 0 / .06); }
@@ -384,7 +387,7 @@ body {
 @media (max-width: 640px) { .comment-sheet { left: 8px; top: auto; bottom: calc(var(--comment-bottom, 0px) + 8px); width: calc(100vw - 16px); padding-bottom: max(12px, env(safe-area-inset-bottom)); } }
 @media (hover: none) { .comment-icon > span[aria-hidden="true"], .comment-selection > span[aria-hidden="true"], .emoji-selection > span[aria-hidden="true"] { display: none; } }
 
-.note-toolbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--hairline); }
+.note-toolbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 0; margin-bottom: 24px; padding-bottom: 8px; border-bottom: 1px solid var(--hairline); }
 .note-toolbar > :last-child:not(:first-child) { margin-left: auto; }
 .toolbar-menu { position: fixed; inset: auto; margin: 0; width: 200px; max-width: calc(100vw - 16px); padding: 4px; border: 1px solid var(--hairline); border-radius: 10px; color: var(--foreground); background: var(--background); box-shadow: 0 4px 24px rgb(0 0 0 / .12); }
 .toolbar-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border-radius: 6px; font-size: var(--text-sm); text-align: left; }
@@ -411,11 +414,23 @@ body {
   .comment-selection, .emoji-selection, .comment-auto-chip { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 }
 
-/* Creator folder tags: chips on /c, pills inside a note. */
-.creator-tag { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 32px; padding: 0.2rem 0.7rem; border: 1px solid var(--hairline); border-radius: 999px; font-size: var(--text-xs); color: color-mix(in srgb, var(--foreground) 80%, var(--background)); }
-a.creator-tag:hover, button.creator-tag:not(.creator-tag-on):hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
+/*
+ * Tag (Figma "Components (new)" Tag). Filter: a 32px hairline pill with an inset
+ * count; hover rule/ink; selected = the slab with SemiBold. Small: a read-only
+ * 20px pill in muted. Clear: a text-only control.
+ */
+.tag { display: inline-flex; align-items: center; gap: 2px; height: 32px; padding: 0 12px; border: 1px solid var(--hairline); border-radius: 999px; background: transparent; color: var(--foreground); font-size: var(--text-xs); line-height: 18px; font-weight: 400; white-space: nowrap; transition: border-color var(--duration-quick) var(--ease-out); }
+.tag:has(> .tag-count) { padding-right: 6px; }
+.tag:has(> .tag-count) > .tag-label { margin-right: 6px; }
+:is(a, button).tag:hover { border-color: var(--rule-ink); }
+.tag:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+/* Selected and Clear have no visible stroke; the border stays (transparent) so toggling never shifts the row. */
+.tag-on, .tag-on:is(a, button):hover { border-color: transparent; background: var(--tag-selected); color: var(--tag-selected-on); font-weight: 600; }
+.tag-count { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--tag-count); color: var(--muted); font-size: var(--text-2xs); line-height: var(--text-2xs--line-height); font-weight: 400; }
+.tag-on .tag-count { background: var(--tag-count-selected); color: var(--tag-selected-on); }
+.tag-small { height: 20px; padding: 0 8px; color: var(--muted); }
+.tag-clear { border-color: transparent; color: var(--muted); }
+.tag-clear:is(a, button):hover { border-color: transparent; color: var(--foreground); }
 /* Long-press selects one tag, so suppress the callout, text selection and double-tap zoom it would otherwise trigger. */
-.creator-tag-chip { cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
-.creator-tag-on { border-color: var(--foreground); color: var(--foreground); background: color-mix(in srgb, var(--foreground) 8%, transparent); font-weight: 600; }
-.creator-tag-small { min-height: 0; padding: 0 0.5rem; }
+.tag-touch { cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
 .note-creator { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 1rem; font-size: var(--text-sm); line-height: var(--text-sm--line-height); color: var(--muted); }

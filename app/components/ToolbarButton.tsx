@@ -1,12 +1,12 @@
 "use client";
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { iconButtonClass, iconButtonPressedClass } from "./controlStyles";
 
-export const toolbarButtonClass =
-  "group relative inline-flex items-center justify-center p-2 rounded-lg border border-hairline text-foreground hover:border-rule-ink disabled:opacity-50 transition-colors";
+/** Figma IconButton. */
+export const toolbarButtonClass = iconButtonClass;
 
-export const toolbarButtonActiveClass =
-  "group relative inline-flex items-center justify-center p-2 rounded-lg border border-slab bg-slab text-on-slab hover:border-slab-hover hover:bg-slab-hover disabled:opacity-50 transition-colors";
+export const toolbarButtonActiveClass = iconButtonPressedClass;
 
 const toolbarTooltipBaseClass =
   "pointer-events-none absolute z-20 whitespace-nowrap rounded-md bg-slab px-2 py-1 text-xs font-medium text-on-slab opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100";

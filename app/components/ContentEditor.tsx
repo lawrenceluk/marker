@@ -243,7 +243,7 @@ export function ContentEditor({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isSaving}
-                className={`px-4 py-2 ${secondaryButtonClass}`}
+                className={secondaryButtonClass()}
               >
                 {uploading ? "Uploading…" : "Insert image"}
               </button>
@@ -264,14 +264,14 @@ export function ContentEditor({
             <button
               onClick={onCancel}
               disabled={isSaving}
-              className={`px-4 py-2 ${secondaryButtonClass}`}
+              className={secondaryButtonClass()}
             >
               {showEscHint ? "Esc again to cancel" : "Cancel"}
             </button>
             <button
               onClick={onSave}
               disabled={isSaving || uploading}
-              className={`px-4 py-2 ${primaryButtonClass}`}
+              className={primaryButtonClass()}
             >
               {isSaving ? "Saving…" : "Save"}
             </button>

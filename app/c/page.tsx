@@ -77,7 +77,7 @@ function PasteId() {
           folder and open every note in it.
         </p>
       </div>
-      <form method="post" action="/api/creator/session" className="flex gap-2">
+      <form method="post" action="/api/creator/session" className="flex items-center gap-3">
         <input
           name="creator_id"
           type="password"
@@ -86,9 +86,9 @@ function PasteId() {
           required
           aria-label="Creator id"
           placeholder="Creator id"
-          className={`min-w-0 flex-1 px-4 py-3 ${textInputClass}`}
+          className={`min-w-0 flex-1 ${textInputClass("mono")}`}
         />
-        <button type="submit" className={`px-5 py-3 ${primaryButtonClass}`}>Open</button>
+        <button type="submit" className={primaryButtonClass("md")}>Open</button>
       </form>
     </div>
   );
@@ -133,7 +133,7 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
                 <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                   <span>{sort === "created" ? `Created ${formatDate(note.created_at)}` : `Updated ${formatDate(note.updated_at)}`}</span>
                   {note.expires_at !== null && <span>Expires {formatDate(note.expires_at)}</span>}
-                  {note.tags.map(tag => <span key={tag} className="creator-tag creator-tag-small">{tag}</span>)}
+                  {note.tags.map(tag => <span key={tag} className="tag tag-small">{tag}</span>)}
                 </span>
               </a>
             </li>
@@ -143,9 +143,9 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
 
       {(cursor > 0 || listing.next_cursor !== null) && (
         <div className="flex justify-between text-sm">
-          {cursor > 0 ? <Link prefetch={false} href={folderHref(tags, sort, 0)} className={`px-3 py-2 ${secondaryButtonClass}`}>First page</Link> : <span />}
+          {cursor > 0 ? <Link prefetch={false} href={folderHref(tags, sort, 0)} className={secondaryButtonClass()}>First page</Link> : <span />}
           {listing.next_cursor !== null && (
-            <Link prefetch={false} href={folderHref(tags, sort, listing.next_cursor)} className={`px-3 py-2 ${secondaryButtonClass}`}>More</Link>
+            <Link prefetch={false} href={folderHref(tags, sort, listing.next_cursor)} className={secondaryButtonClass()}>More</Link>
           )}
         </div>
       )}

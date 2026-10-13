@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
+import { iconButtonArmedClass } from "./controlStyles";
 import { ToolbarTooltip, toolbarButtonClass } from "./ToolbarButton";
 
 const ARM_MS = 2000;
 
-const armedClass =
-  "group relative inline-flex items-center justify-center p-2 rounded-lg border border-danger bg-danger-surface text-danger hover:bg-danger/15 disabled:opacity-50 transition-colors";
+/** Figma IconButton State=Armed: the glyph turns danger; no box. */
+const armedClass = iconButtonArmedClass;
 
 interface DeleteButtonProps {
   onDelete: () => void | Promise<void>;
