@@ -186,32 +186,9 @@ export function NoteApp({
         throw new Error("Couldn't open note. Try again.");
       }
 
-      const res = await fetch("/api/content");
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Couldn't open note. Try again.");
-      }
-
-      setCreator(creatorFromResponse(data));
-      setIsEditingTags(false);
-      showSessionUrl();
-      if (data.exists) {
-        setContent(data.content || "");
-        setOriginalContent(data.content || "");
-        setResponses(data.responses ?? []);
-        setAssetUrls(urlsFromAssets(data.assets));
-        setRev(data.rev ?? null);
-        setIsNew(false);
-        setAppState("viewing");
-      } else {
-        setContent("");
-        setOriginalContent("");
-        setResponses([]);
-        setRev(0);
-        setIsNew(true);
-        setAppState("editing");
-      }
+      // Land on `/n` so the note is seen once (after-load PATCH /api/meta), not again via GET /api/content.
+      window.location.assign("/n");
+      return;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't open note. Try again.");
       setRawKey(null);
@@ -529,7 +506,7 @@ export function NoteApp({
         )}
 
         {error && (
-          <div role="alert" className="mb-6 p-4 rounded-lg bg-danger-surface text-danger text-center">
+          <div role="alert" className="banner-error mb-6">
             {error}
           </div>
         )}

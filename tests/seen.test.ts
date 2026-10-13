@@ -53,6 +53,9 @@ test("agent changes make notes new; a person's read, write or explicit mark make
     assert.equal(viewed.rev, 1);
     assert.equal(viewed.updated_at, before.updated_at);
     assert.ok(viewed.seen_at >= Date.now() - 5000);
+    const seenAtAfterView = viewed.seen_at as number;
+    const again = await browserGet("s1");
+    assert.equal(again.seen_at, seenAtAfterView);
     assert.deepEqual((await listing()).map(n => n.unseen), [false]);
     assert.equal(await folderNew(), 0);
 
@@ -120,6 +123,23 @@ test("agent changes make notes new; a person's read, write or explicit mark make
     assert.equal(await folderNew(), 1);
     await metaApi.PATCH(new NextRequest("http://localhost/api/meta", { method: "PATCH", body: JSON.stringify({ key: "s4", creator_id: null }), headers: { authorization: `Bearer ${creatorId}` } }));
     assert.equal(await folderNew(), 0);
+
+    // Renaming a new note keeps it in the folder's new set under the new key.
+    const P = "marker-commenting-preview-v1:";
+    const newSet = (cid: string) => `${P}cidx:${cid}:new`;
+    await contentApi.POST(post("/api/content", { key: "s5", content: "# Rename me", creator_id: creatorId }));
+    assert.equal(await unseen("s5"), true);
+    assert.deepEqual(await fixture.client.sMembers(newSet(creators.creatorHash(creatorId))), ["s5"]);
+    await contentApi.PATCH(new NextRequest("http://localhost/api/content", { method: "PATCH", body: JSON.stringify({ key: "s5", new_key: "s5-renamed" }), headers: { "content-type": "application/json" } }));
+    assert.deepEqual(await fixture.client.sMembers(newSet(creators.creatorHash(creatorId))), ["s5-renamed"]);
+    assert.equal(await unseen("s5-renamed"), true);
+    assert.equal(await folderNew(), 1);
+
+    // Marking seen when already fully seen does not rewrite seen_at.
+    await browserGet("s5-renamed");
+    const stamped = (await agentGet("s5-renamed")).seen_at as number;
+    await metaApi.PATCH(new NextRequest("http://localhost/api/meta", { method: "PATCH", body: JSON.stringify({ key: "s5-renamed", seen: true, rev: (await agentGet("s5-renamed")).rev }) }));
+    assert.equal((await agentGet("s5-renamed")).seen_at, stamped);
   } finally {
     await fixture.close();
   }

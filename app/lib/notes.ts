@@ -375,6 +375,10 @@ if redis.call('EXISTS', oldH) == 1 then
     for _, t in ipairs(decode_tags(f[2])) do
       if redis.call('SREM', z .. ':t:' .. t, ARGV[2]) == 1 then redis.call('SADD', z .. ':t:' .. t, ARGV[3]) end
     end
+    if redis.call('SISMEMBER', z .. ':new', ARGV[2]) == 1 then
+      redis.call('SREM', z .. ':new', ARGV[2])
+      redis.call('SADD', z .. ':new', ARGV[3])
+    end
   end
   local ns = redis.call('HGET', newH, 'asset_ns')
   if ns then
@@ -667,11 +671,16 @@ local h = KEYS[1]
 if redis.call('EXISTS', h) == 0 then return nil end
 local f = redis.call('HMGET', h, 'rev', 'cid', 'seen_rev')
 local current = tonumber(f[1]) or 0
+local prev = f[3] and tonumber(f[3]) or nil
 local seen = ARGV[4] ~= '' and math.min(tonumber(ARGV[4]) or current, current) or current
-if f[3] and (tonumber(f[3]) or 0) > seen then seen = tonumber(f[3]) end
+if prev and prev > seen then seen = prev end
+if prev and prev == seen then
+  if f[2] and seen >= current then redis.call('SREM', ARGV[1] .. 'cidx:' .. f[2] .. ':new', ARGV[2]) end
+  return { tostring(seen), redis.call('HGET', h, 'seen_at') or '' }
+end
 redis.call('HSET', h, 'seen_rev', seen, 'seen_at', ARGV[3])
 if f[2] and seen >= current then redis.call('SREM', ARGV[1] .. 'cidx:' .. f[2] .. ':new', ARGV[2]) end
-return tostring(seen)
+return { tostring(seen), ARGV[3] }
 `;
 
 /**
@@ -680,10 +689,13 @@ return tostring(seen)
  */
 export async function markSeen(key: string, options: { rev?: number; now?: number } = {}): Promise<{ rev: number; seenAt: number } | null> {
   const now = options.now ?? Date.now();
-  const rev = await redis.eval<string[], string | null>(
+  const result = await redis.eval<string[], string[] | null>(
     SEEN_SCRIPT,
     [noteKey(key)],
     [storagePrefix(), key, String(now), options.rev === undefined ? "" : String(Math.max(0, Math.floor(options.rev)))],
   );
-  return rev === null ? null : { rev: Number(rev) || 0, seenAt: now };
+  if (result === null) return null;
+  const [rev, seenAt] = result;
+  const at = Number(seenAt);
+  return { rev: Number(rev) || 0, seenAt: at > 0 ? at : now };
 }
