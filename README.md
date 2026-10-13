@@ -17,6 +17,7 @@ via a small HTTP API, from AI agents.
 - **Rename Key**: Change a note's key in place without rewriting its content; the destination must be free
 - **Creator folders and tags**: Agents attach notes to a secret `creator_id`, give them a folder title (`creator_name`) and per-creator tags, and hand a person one `/c?token=…` link to browse them with AND tag filters. The home page lists the folders this browser has opened. See [docs/creators.md](docs/creators.md)
 - **Images**: Paste, drop or insert PNG/JPEG/GIF/WebP images in the editor, or upload them over the API, stored in a private Cloudflare R2 bucket and shown through short-lived signed URLs. Images removed from a note's markdown are deleted after 24 hours, and all of a note's images go with the note. See [docs/images.md](docs/images.md)
+- **Embeds**: Agents can upload one self-contained HTML file (a chart or small interactive, up to 512 KiB) and reference it as `marker-embed:<id>`. It runs for every reader in a sandboxed, opaque-origin frame with no network and scripts only from pinned jsDelivr packages, themed to match the note. See [docs/embeds.md](docs/embeds.md)
 - **View & Edit Modes**: Toggle between viewing rendered markdown and editing raw content
 - **Dark Mode**: Automatic dark mode support
 - **Scroll Actions**: Quick navigation buttons to scroll to top or bottom
@@ -52,6 +53,15 @@ random per-note prefix; pages and the API hand out presigned view URLs valid
 for about an hour, never a public link. Image bytes are stored as uploaded,
 EXIF metadata included. External images in markdown load from their own host,
 which sees viewers' IP addresses. Details: [docs/images.md](docs/images.md).
+
+**Embeds run agent-written code, contained.** Each runs in a
+`sandbox="allow-scripts"` iframe on the storage host (an opaque origin), with
+no referrer, no network, and a CSP that allows scripts only from pinned,
+integrity-checked jsDelivr packages. It can't read the note, the key or
+cookies, and talks to the page only through a small checked message set
+(resize, ready, error, openLink, plus theme and visibility from the page).
+Marker's own pages send an enforced `Content-Security-Policy`
+(`app/lib/csp.ts`). Details: [docs/embeds.md](docs/embeds.md#privacy-and-safety).
 
 **Link previews are the exception.** A persistent URL (`/?key=...&persist=1`)
 is already a public view of that note (the key is in the URL). Marker puts
@@ -313,6 +323,15 @@ Upload, then reference the returned markdown in the note:
 Removing the last reference deletes the image ~24 h later; re-adding it within
 that window keeps it. Keep image references you don't mean to delete.
 Full reference: docs/images.md.
+
+## Embeds
+
+Upload one self-contained HTML file the same way, with content_type
+"text/html" (≤ 512 KiB), and put the returned ![caption](marker-embed:<id>)
+on its own line. It runs sandboxed: no network (inline the data), scripts only
+from https://cdn.jsdelivr.net/npm/<pkg>@<version> with integrity, links via
+marker.openLink(url), colours from the --paper/--ink-text/... variables.
+Max 10 per note, sharing the image limits. Full guide: docs/embeds.md.
 ````
 
 ## Project Structure
@@ -336,6 +355,7 @@ marker/
 │   │   ├── KeyInput.tsx       # Key input form
 │   │   ├── NoteApp.tsx        # Client-side app state and flow
 │   │   ├── NoteCreator.tsx    # Creator name, tag pills, tag editor in a note
+│   │   ├── NoteEmbed.tsx      # Sandboxed embed frame, bridge, watchdog, expand dialog
 │   │   ├── NoteImage.tsx      # Image rendering, view-URL refresh, lightbox
 │   │   ├── NoteToolbar.tsx    # Compact icon toolbar for a viewing session
 │   │   ├── NoteView.tsx       # Server-rendered note page shared by / and /n
@@ -351,6 +371,10 @@ marker/
 │   │   ├── clipboard.ts       # Clipboard helper
 │   │   ├── creatorId.ts       # Creator id/name/tag validation, folder cookie
 │   │   ├── creators.ts        # Creator hashing, refs, folder list/gate scripts
+│   │   ├── csp.ts             # Marker's enforced Content-Security-Policy
+│   │   ├── embedPolicy.ts     # Embed limits, CSP, title params, message checks
+│   │   ├── embedShell.ts      # The shell page that runs an embed in the sandbox
+│   │   ├── embeds.ts          # Shell upload and embed HTML validation
 │   │   ├── folders.ts         # Remembered-folders cookie and summary script
 │   │   ├── key.ts             # Key validation, masking, session cookie
 │   │   ├── notes.ts           # Note storage schema and atomic read/write scripts
@@ -373,6 +397,7 @@ marker/
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
 - `npm run start` - Start production server
+- `npm run embeds:shell` - Upload the embed shell page to the configured R2 bucket (`-- --print` to preview)
 - `npm run lint` - Run ESLint
 - `npm test` - Run unit tests (note-preview title/description)
 

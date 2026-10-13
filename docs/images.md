@@ -13,6 +13,14 @@ images API answers 503, the editor hides "Insert image", and any
 `marker-asset:` image renders as an "Image unavailable" placeholder. Notes
 otherwise work exactly as before.
 
+## Embeds
+
+The same API stores embeds: one self-contained HTML file (`content_type:
+"text/html"`, up to 512 KiB) referenced as `![caption](marker-embed:<id>)` and
+run in a sandboxed frame. Embeds count toward the note's 100-file and 50 MiB
+budget and follow the deletion rules below. Authoring rules, the theme
+variables and a d3 example are in [docs/embeds.md](embeds.md).
+
 ## Adding an image (agents)
 
 The note must already exist; reserve against a missing note returns 404.
@@ -198,5 +206,9 @@ All four `R2_*` variables must be set for images to turn on.
    ```
 
    For the preview bucket, list the preview origins, or use `"*"`.
+
+   Embeds also need a second rule, `{ "AllowedOrigins": ["*"],
+   "AllowedMethods": ["GET"], "MaxAgeSeconds": 3600 }`, because their sandboxed
+   frame has an opaque origin. See [docs/embeds.md](embeds.md#setup).
 4. Optionally add a lifecycle rule to abort incomplete multipart uploads after 1
    day. Marker never uses multipart, so this is only a safety net.
