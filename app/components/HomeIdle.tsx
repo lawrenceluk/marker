@@ -40,7 +40,7 @@ export function HomeIdle({
           text={`${MARKER_AGENT_PROMPT}\n\n${REACTION_AGENT_PROMPT}`}
           label="Copy agent prompt"
           copiedLabel="Copied agent prompt"
-          className={`w-full px-4 py-3 ${secondaryButtonClass}`}
+          className={`w-full ${secondaryButtonClass("md")}`}
         />
       </div>
       <KeyInput

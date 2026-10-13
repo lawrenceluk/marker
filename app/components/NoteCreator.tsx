@@ -64,17 +64,17 @@ export function NoteCreator({
         }}
       >
         <label className="text-sm text-muted" htmlFor="note-tags">Tags, separated by commas</label>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-3">
           <input
             id="note-tags"
             autoFocus
             value={draft}
             onChange={event => setDraft(event.target.value)}
             placeholder="plans, q4"
-            className={`min-w-0 flex-1 px-3 py-2 text-sm ${textInputClass}`}
+            className={`min-w-0 flex-1 ${textInputClass()}`}
           />
-          <button type="submit" disabled={isSaving} className={`px-4 py-2 text-sm ${primaryButtonClass}`}>{isSaving ? "Saving…" : "Save"}</button>
-          <button type="button" onClick={onCancel} className={`px-4 py-2 text-sm ${secondaryButtonClass}`}>Cancel</button>
+          <button type="submit" disabled={isSaving} className={primaryButtonClass()}>{isSaving ? "Saving…" : "Save"}</button>
+          <button type="button" onClick={onCancel} className={secondaryButtonClass()}>Cancel</button>
         </div>
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       </form>
@@ -88,8 +88,8 @@ export function NoteCreator({
         ? <a href={folderHref()} className="font-medium text-foreground hover:underline">{info.name}</a>
         : <span className="font-medium">{info.name}</span>)}
       {info.tags.map(tag => info.linked
-        ? <a key={tag} href={folderHref(tag)} className="creator-tag creator-tag-small">{tag}</a>
-        : <span key={tag} className="creator-tag creator-tag-small">{tag}</span>)}
+        ? <a key={tag} href={folderHref(tag)} className="tag tag-small">{tag}</a>
+        : <span key={tag} className="tag tag-small">{tag}</span>)}
     </div>
   );
 }

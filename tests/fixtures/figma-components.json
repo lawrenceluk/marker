@@ -1,0 +1,777 @@
+{
+  "source": {
+    "fileKey": "Ov96GbFnYeWrUXw7Olvyn7",
+    "page": "Components (new)",
+    "exportedAt": "2026-10-13",
+    "note": "Per-variant node properties exported from Figma via the Figma MCP; colours are Figma variable names resolved through figma-tokens.json. Graded by tests/browser/figma-components.spec.ts."
+  },
+  "Button": {
+    "Kind=Primary, Size=sm, State=Default": {
+      "height": 32,
+      "padding": {
+        "left": 16,
+        "right": 16
+      },
+      "radius": 999,
+      "fill": "slab/bg",
+      "stroke": null,
+      "opacity": 1,
+      "label": {
+        "token": "slab/on",
+        "style": "UI/Small Medium",
+        "underline": false
+      }
+    },
+    "Kind=Primary, Size=sm, State=Hover": {
+      "height": 32,
+      "padding": {
+        "left": 16,
+        "right": 16
+      },
+      "radius": 999,
+      "fill": "slab/hover",
+      "stroke": null,
+      "opacity": 1,
+      "label": {
+        "token": "slab/on",
+        "style": "UI/Small Medium",
+        "underline": false
+      }
+    },
+    "Kind=Primary, Size=sm, State=Focus": {
+      "height": 32,
+      "padding": {
+        "left": 16,
+        "right": 16
+      },
+      "radius": 999,
+      "fill": "slab/bg",
+      "stroke": {
+        "token": "focus/ring",
+        "weight": 2,
+        "align": "OUTSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "slab/on",
+        "style": "UI/Small Medium",
+        "underline": false
+      }
+    },
+    "Kind=Primary, Size=sm, State=Disabled": {
+      "height": 32,
+      "padding": {
+        "left": 16,
+        "right": 16
+      },
+      "radius": 999,
+      "fill": "slab/bg",
+      "stroke": null,
+      "opacity": 0.4,
+      "label": {
+        "token": "slab/on",
+        "style": "UI/Small Medium",
+        "underline": false
+      }
+    },
+    "Kind=Primary, Size=md, State=Default": {
+      "height": 48,
+      "padding": {
+        "left": 24,
+        "right": 24
+      },
+      "radius": 999,
+      "fill": "slab/bg",
+      "stroke": null,
+      "opacity": 1,
+      "label": {
+        "token": "slab/on",
+        "style": "UI/Body Medium",
+        "underline": false
+      }
+    },
+    "Kind=Primary, Size=md, State=Hover": {
+      "height": 48,
+      "padding": {
+        "left": 24,
+        "right": 24
+      },
+      "radius": 999,
+      "fill": "slab/hover",
+      "stroke": null,
+      "opacity": 1,
+      "label": {
+        "token": "slab/on",
+        "style": "UI/Body Medium",
+        "underline": false
+      }
+    },
+    "Kind=Primary, Size=md, State=Focus": {
+      "height": 48,
+      "padding": {
+        "left": 24,
+        "right": 24
+      },
+      "radius": 999,
+      "fill": "slab/bg",
+      "stroke": {
+        "token": "focus/ring",
+        "weight": 2,
+        "align": "OUTSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "slab/on",
+        "style": "UI/Body Medium",
+        "underline": false
+      }
+    },
+    "Kind=Primary, Size=md, State=Disabled": {
+      "height": 48,
+      "padding": {
+        "left": 24,
+        "right": 24
+      },
+      "radius": 999,
+      "fill": "slab/bg",
+      "stroke": null,
+      "opacity": 0.4,
+      "label": {
+        "token": "slab/on",
+        "style": "UI/Body Medium",
+        "underline": false
+      }
+    },
+    "Kind=Secondary, Size=sm, State=Default": {
+      "height": 32,
+      "padding": {
+        "left": 16,
+        "right": 16
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": {
+        "token": "rule/hair",
+        "weight": 1,
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Small Medium",
+        "underline": false
+      }
+    },
+    "Kind=Secondary, Size=sm, State=Hover": {
+      "height": 32,
+      "padding": {
+        "left": 16,
+        "right": 16
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": {
+        "token": "rule/ink",
+        "weight": 1,
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Small Medium",
+        "underline": false
+      }
+    },
+    "Kind=Secondary, Size=sm, State=Focus": {
+      "height": 32,
+      "padding": {
+        "left": 16,
+        "right": 16
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": {
+        "token": "focus/ring",
+        "weight": 2,
+        "align": "OUTSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Small Medium",
+        "underline": false
+      }
+    },
+    "Kind=Secondary, Size=sm, State=Disabled": {
+      "height": 32,
+      "padding": {
+        "left": 16,
+        "right": 16
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": {
+        "token": "rule/hair",
+        "weight": 1,
+        "align": "INSIDE"
+      },
+      "opacity": 0.4,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Small Medium",
+        "underline": false
+      }
+    },
+    "Kind=Secondary, Size=md, State=Default": {
+      "height": 48,
+      "padding": {
+        "left": 24,
+        "right": 24
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": {
+        "token": "rule/hair",
+        "weight": 1,
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Body Medium",
+        "underline": false
+      }
+    },
+    "Kind=Secondary, Size=md, State=Hover": {
+      "height": 48,
+      "padding": {
+        "left": 24,
+        "right": 24
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": {
+        "token": "rule/ink",
+        "weight": 1,
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Body Medium",
+        "underline": false
+      }
+    },
+    "Kind=Secondary, Size=md, State=Focus": {
+      "height": 48,
+      "padding": {
+        "left": 24,
+        "right": 24
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": {
+        "token": "focus/ring",
+        "weight": 2,
+        "align": "OUTSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Body Medium",
+        "underline": false
+      }
+    },
+    "Kind=Secondary, Size=md, State=Disabled": {
+      "height": 48,
+      "padding": {
+        "left": 24,
+        "right": 24
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": {
+        "token": "rule/hair",
+        "weight": 1,
+        "align": "INSIDE"
+      },
+      "opacity": 0.4,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Body Medium",
+        "underline": false
+      }
+    }
+  },
+  "IconButton": {
+    "State=Default": {
+      "height": 48,
+      "width": 48,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": null,
+      "opacity": 1,
+      "label": null,
+      "glyph": {
+        "size": 20,
+        "token": "text/muted"
+      }
+    },
+    "State=Hover": {
+      "height": 48,
+      "width": 48,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": null,
+      "opacity": 1,
+      "label": null,
+      "glyph": {
+        "size": 20,
+        "token": "text/ink"
+      }
+    },
+    "State=Focus": {
+      "height": 48,
+      "width": 48,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": {
+        "token": "focus/ring",
+        "weight": 2,
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": null,
+      "glyph": {
+        "size": 20,
+        "token": "text/ink"
+      }
+    },
+    "State=Armed": {
+      "height": 48,
+      "width": 48,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": null,
+      "opacity": 1,
+      "label": null,
+      "glyph": {
+        "size": 20,
+        "token": "status/danger"
+      }
+    },
+    "State=Disabled": {
+      "height": 48,
+      "width": 48,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": null,
+      "opacity": 0.4,
+      "label": null,
+      "glyph": {
+        "size": 20,
+        "token": "text/muted"
+      }
+    }
+  },
+  "TextInput": {
+    "Font=Sans, State=Empty": {
+      "height": 56,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": {
+        "token": "rule/hair",
+        "weight": {
+          "top": 0,
+          "right": 0,
+          "bottom": 1,
+          "left": 0
+        },
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/muted",
+        "style": "UI/Body",
+        "underline": false
+      }
+    },
+    "Font=Sans, State=Filled": {
+      "height": 56,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": {
+        "token": "rule/hair",
+        "weight": {
+          "top": 0,
+          "right": 0,
+          "bottom": 1,
+          "left": 0
+        },
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Body",
+        "underline": false
+      }
+    },
+    "Font=Sans, State=Focus": {
+      "height": 56,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": {
+        "token": "focus/ring",
+        "weight": {
+          "top": 0,
+          "right": 0,
+          "bottom": 2,
+          "left": 0
+        },
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Body",
+        "underline": false
+      }
+    },
+    "Font=Sans, State=Disabled": {
+      "height": 56,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": {
+        "token": "rule/hair",
+        "weight": {
+          "top": 0,
+          "right": 0,
+          "bottom": 1,
+          "left": 0
+        },
+        "align": "INSIDE"
+      },
+      "opacity": 0.4,
+      "label": {
+        "token": "text/muted",
+        "style": "UI/Body",
+        "underline": false
+      }
+    },
+    "Font=Mono, State=Empty": {
+      "height": 56,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": {
+        "token": "rule/hair",
+        "weight": {
+          "top": 0,
+          "right": 0,
+          "bottom": 1,
+          "left": 0
+        },
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/muted",
+        "style": "Mono/UI",
+        "underline": false
+      }
+    },
+    "Font=Mono, State=Filled": {
+      "height": 56,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": {
+        "token": "rule/hair",
+        "weight": {
+          "top": 0,
+          "right": 0,
+          "bottom": 1,
+          "left": 0
+        },
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "Mono/UI",
+        "underline": false
+      }
+    },
+    "Font=Mono, State=Focus": {
+      "height": 56,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": {
+        "token": "focus/ring",
+        "weight": {
+          "top": 0,
+          "right": 0,
+          "bottom": 2,
+          "left": 0
+        },
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "Mono/UI",
+        "underline": false
+      }
+    },
+    "Font=Mono, State=Disabled": {
+      "height": 56,
+      "padding": {
+        "left": 0,
+        "right": 0
+      },
+      "radius": 0,
+      "fill": null,
+      "stroke": {
+        "token": "rule/hair",
+        "weight": {
+          "top": 0,
+          "right": 0,
+          "bottom": 1,
+          "left": 0
+        },
+        "align": "INSIDE"
+      },
+      "opacity": 0.4,
+      "label": {
+        "token": "text/muted",
+        "style": "Mono/UI",
+        "underline": false
+      }
+    }
+  },
+  "Tag": {
+    "Kind=Filter, State=Default": {
+      "height": 32,
+      "padding": {
+        "left": 12,
+        "right": 6
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": {
+        "token": "rule/hair",
+        "weight": 1,
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Tag",
+        "underline": false
+      },
+      "labelGap": 8,
+      "count": {
+        "fill": "tag/count",
+        "height": 20,
+        "padding": 6,
+        "radius": 999,
+        "text": {
+          "token": "text/muted",
+          "style": "UI/Micro",
+          "underline": false
+        }
+      }
+    },
+    "Kind=Filter, State=Hover": {
+      "height": 32,
+      "padding": {
+        "left": 12,
+        "right": 6
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": {
+        "token": "rule/ink",
+        "weight": 1,
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Tag",
+        "underline": false
+      },
+      "labelGap": 8,
+      "count": {
+        "fill": "tag/count",
+        "height": 20,
+        "padding": 6,
+        "radius": 999,
+        "text": {
+          "token": "text/muted",
+          "style": "UI/Micro",
+          "underline": false
+        }
+      }
+    },
+    "Kind=Filter, State=Selected": {
+      "height": 32,
+      "padding": {
+        "left": 12,
+        "right": 6
+      },
+      "radius": 999,
+      "fill": "tag/selected-bg",
+      "stroke": null,
+      "opacity": 1,
+      "label": {
+        "token": "tag/selected-on",
+        "style": "UI/Tag Selected",
+        "underline": false
+      },
+      "labelGap": 8,
+      "count": {
+        "fill": "tag/count-selected",
+        "height": 20,
+        "padding": 6,
+        "radius": 999,
+        "text": {
+          "token": "tag/selected-on",
+          "style": "UI/Micro",
+          "underline": false
+        }
+      }
+    },
+    "Kind=Filter, State=Focus": {
+      "height": 32,
+      "padding": {
+        "left": 12,
+        "right": 6
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": {
+        "token": "focus/ring",
+        "weight": 2,
+        "align": "OUTSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Tag",
+        "underline": false
+      },
+      "labelGap": 8,
+      "count": {
+        "fill": "tag/count",
+        "height": 20,
+        "padding": 6,
+        "radius": 999,
+        "text": {
+          "token": "text/muted",
+          "style": "UI/Micro",
+          "underline": false
+        }
+      }
+    },
+    "Kind=Small, State=Default": {
+      "height": 20,
+      "padding": {
+        "left": 8,
+        "right": 8
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": {
+        "token": "rule/hair",
+        "weight": 1,
+        "align": "INSIDE"
+      },
+      "opacity": 1,
+      "label": {
+        "token": "text/muted",
+        "style": "UI/Tag",
+        "underline": false
+      }
+    },
+    "Kind=Clear, State=Default": {
+      "height": 32,
+      "padding": {
+        "left": 12,
+        "right": 12
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": null,
+      "opacity": 1,
+      "label": {
+        "token": "text/muted",
+        "style": "UI/Tag",
+        "underline": false
+      }
+    },
+    "Kind=Clear, State=Hover": {
+      "height": 32,
+      "padding": {
+        "left": 12,
+        "right": 12
+      },
+      "radius": 999,
+      "fill": null,
+      "stroke": null,
+      "opacity": 1,
+      "label": {
+        "token": "text/ink",
+        "style": "UI/Tag",
+        "underline": false
+      }
+    }
+  }
+}

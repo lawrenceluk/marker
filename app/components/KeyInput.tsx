@@ -39,7 +39,7 @@ export function KeyInput({
           onChange={(e) => setKey(e.target.value)}
           placeholder="Enter your secret key"
           aria-label="Secret key"
-          className={`w-full px-4 py-3 ${textInputClass}`}
+          className={`w-full ${textInputClass("mono")}`}
           disabled={busy}
           autoFocus
         />
@@ -47,7 +47,7 @@ export function KeyInput({
           <button
             type="submit"
             disabled={!key.trim() || busy}
-            className={`flex-1 px-4 py-3 ${primaryButtonClass}`}
+            className={`w-full sm:w-auto sm:flex-1 ${primaryButtonClass("md")}`}
           >
             {isLoading ? "Opening…" : "Open note"}
           </button>
@@ -55,7 +55,7 @@ export function KeyInput({
             type="button"
             onClick={onRandomize}
             disabled={busy}
-            className={`flex-1 px-4 py-3 ${secondaryButtonClass}`}
+            className={`w-full sm:w-auto sm:flex-1 ${secondaryButtonClass("md")}`}
           >
             {isRandomizing ? "Creating…" : "New random note"}
           </button>

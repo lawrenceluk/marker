@@ -18,7 +18,7 @@ interface CopyButtonProps {
   tooltipAlign?: "start" | "center" | "end";
 }
 
-const defaultClassName = `px-4 py-2 ${secondaryButtonClass}`;
+const defaultClassName = secondaryButtonClass();
 
 export function CopyButton({
   text,

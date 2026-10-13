@@ -113,7 +113,7 @@ export function FolderTagChips({ tags, selected, sort }: FolderTagChipsProps) {
           type="button"
           key={tag}
           aria-pressed={active.includes(tag)}
-          className={`creator-tag creator-tag-chip ${active.includes(tag) ? "creator-tag-on" : ""}`}
+          className={`tag tag-touch ${active.includes(tag) ? "tag-on" : ""}`}
           onPointerDown={event => onPointerDown(event, tag)}
           onPointerMove={onPointerMove}
           onPointerUp={cancelPress}
@@ -122,10 +122,10 @@ export function FolderTagChips({ tags, selected, sort }: FolderTagChipsProps) {
           onContextMenu={event => event.preventDefault()}
           onClick={event => onClick(tag, event.timeStamp, event.detail)}
         >
-          {tag} <span className="opacity-60">{count}</span>
+          <span className="tag-label">{tag}</span> <span className="tag-count">{count}</span>
         </button>
       ))}
-      {active.length > 0 && <Link prefetch={false} href={folderHref([], sort)} className="creator-tag">Clear</Link>}
+      {active.length > 0 && <Link prefetch={false} href={folderHref([], sort)} className="tag tag-clear">Clear</Link>}
     </div>
   );
 }

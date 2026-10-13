@@ -37,7 +37,7 @@ export function RenameKey({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="w-full flex flex-col sm:flex-row gap-2">
+    <form onSubmit={handleSubmit} className="w-full flex flex-col sm:flex-row sm:items-center gap-3">
       <input
         ref={inputRef}
         type="text"
@@ -46,21 +46,21 @@ export function RenameKey({
         placeholder="New secret key"
         aria-label="New secret key"
         disabled={isSaving}
-        className={`flex-1 px-3 py-2 font-mono text-sm ${textInputClass}`}
+        className={`flex-1 ${textInputClass("mono")}`}
       />
       <div className="flex gap-2">
         <button
           type="button"
           onClick={onCancel}
           disabled={isSaving}
-          className={`px-3 py-2 text-sm ${secondaryButtonClass}`}
+          className={secondaryButtonClass()}
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={!key.trim() || isSaving}
-          className={`px-3 py-2 text-sm ${primaryButtonClass}`}
+          className={primaryButtonClass()}
         >
           {isSaving ? "Changing key…" : "Change key"}
         </button>
