@@ -133,6 +133,13 @@ for (const colorScheme of ["light", "dark"] as const) {
         tapHeight: inputs[0].closest("label")!.getBoundingClientRect().height,
         selectedChipFill: css(options[0]).backgroundColor,
         unselectedChipFill: css(options[1]).backgroundColor,
+        tagSelected: (() => {
+          const probe = document.body.appendChild(document.createElement("span"));
+          probe.style.backgroundColor = "var(--tag-selected)";
+          const color = css(probe).backgroundColor;
+          probe.remove();
+          return color;
+        })(),
       };
     });
     expect(appearance.uncheckedAppearance).toBe("none");
@@ -143,8 +150,9 @@ for (const colorScheme of ["light", "dark"] as const) {
     expect(appearance.uncheckedTick).toBe("0");
     expect(appearance.tickColor).toBe(appearance.background);
     expect(appearance.tapHeight).toBeGreaterThanOrEqual(44);
-    expect(appearance.selectedChipFill).toBe(appearance.foreground);
-    expect(appearance.unselectedChipFill).toBe(appearance.background);
+    // Ask options are Tag filters: selected takes the slab (tag/selected-bg), unselected has no fill.
+    expect(appearance.selectedChipFill).toBe(appearance.tagSelected);
+    expect(appearance.unselectedChipFill).toBe("rgba(0, 0, 0, 0)");
     await page.screenshot({ path: `test-results/reaction-contrast-${colorScheme}-${info.project.name}.png`, fullPage: true, animations: "disabled" });
   });
 }

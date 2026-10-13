@@ -572,7 +572,7 @@ export function NoteApp({
               />
             )}
             {updated && !isComposing && (
-              <button type="button" className="update-nudge" disabled={isReloading} onClick={() => void handleReload()}>
+              <button type="button" className="update-nudge" disabled={isReloading} aria-busy={isReloading} onClick={() => void handleReload()}>
                 {isReloading ? "Refreshing…" : "Note updated · Refresh"}
               </button>
             )}

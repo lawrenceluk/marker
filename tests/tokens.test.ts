@@ -16,7 +16,7 @@ function sources(dir: string): string[] {
 const OUTSIDE_THEME = /(^|\/)(og|opengraph-image|apple-icon)/;
 
 test("components use the colour tokens, not raw Tailwind palette colours", () => {
-  const raw = /\b(?:bg|text|border|ring|outline|fill|stroke|decoration|divide|placeholder|from|to|via)-(?:zinc|neutral|gray|slate|stone|red|blue|amber|yellow)-\d{2,3}\b|var\(--color-(?:zinc|blue|amber)-\d{2,3}\)/g;
+  const raw = /\b(?:bg|text|border|ring|outline|fill|stroke|decoration|divide|placeholder|from|to|via)-(?:zinc|neutral|gray|slate|stone|red|blue|amber|yellow)-\d{2,3}\b|var\(--color-(?:zinc|blue|amber|yellow|red|gray|neutral)-\d{2,3}\)/g;
   const hits = sources("app")
     .filter(path => !OUTSIDE_THEME.test(path))
     .flatMap(path =>

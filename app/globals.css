@@ -29,6 +29,9 @@
   --tag-count: color-mix(in srgb, var(--foreground) 8%, transparent);
   --tag-count-selected: color-mix(in srgb, var(--on-slab) 16%, transparent);
   --scrim: rgb(42 37 32 / 0.24); /* behind bottom sheets */
+  /* Comment anchors keep their yellow highlight (a deliberate exception to paper and ink). */
+  --anchor-highlight: rgb(234 179 8 / 0.16);
+  --anchor-rule: rgb(202 138 4 / 0.5);
   --lightbox: rgb(30 27 24 / 0.94); /* behind the lightbox image */
 
   /* Motion (Figma "Foundations / Motion"). */
@@ -277,15 +280,19 @@ body {
 .reaction-task-control input:checked + svg { opacity: 1; }
 .reaction-task-control input:focus-visible { outline: 2px solid var(--foreground); outline-offset: 3px; }
 .reaction-task-label span { min-width: 0; }
-.reaction-ask { border: 1px solid var(--hairline); border-radius: 0.9rem; padding: 1rem; margin: 1.5rem 0; background: color-mix(in srgb, var(--foreground) 3%, var(--background)); }
-.reaction-ask legend { font-weight: 600; line-height: 1.35; padding: 0 0.25rem; }
-.reaction-options { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; }
-.reaction-option { appearance: none; border: 1px solid color-mix(in srgb, var(--foreground) 65%, transparent); border-radius: 999px; padding: 0.55rem 0.85rem; min-height: 2.75rem; background: var(--background); color: var(--foreground); font-size: var(--text-sm); line-height: var(--text-sm--line-height); }
-.reaction-option.selected { background: var(--foreground); border-color: var(--foreground); color: var(--background); }
+.reaction-ask { border: 0; padding: 0; margin: 1.5rem 0; background: transparent; }
+.reaction-ask legend { font-weight: 500; font-size: var(--text-base); line-height: var(--text-base--line-height); padding: 0; margin-bottom: 12px; }
+.reaction-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.reaction-option { appearance: none; display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid var(--hairline); border-radius: 999px; background: transparent; color: var(--foreground); font-size: var(--text-xs); line-height: 18px; transition: border-color var(--duration-quick) var(--ease-out); }
+.reaction-option:hover { border-color: var(--rule-ink); }
+@media (pointer: coarse) { .reaction-option { height: 44px; } }
+.reaction-option.selected, .reaction-option.selected:hover { background: var(--tag-selected); border-color: transparent; color: var(--tag-selected-on); font-weight: 600; }
 .reaction-option:disabled, .reaction-task-label input:disabled { opacity: 1; cursor: wait; }
-.reaction-other { width: 100%; margin-top: 0.75rem; border: 1px solid var(--hairline); border-radius: 0.65rem; padding: 0.65rem 0.75rem; background: var(--background); }
-.reaction-other:focus-visible, .reaction-option:focus-visible { outline: 2px solid var(--foreground); outline-offset: 2px; }
-.prose .reaction-hint { color: color-mix(in srgb, var(--foreground) 55%, transparent); font-size: var(--text-xs); margin: 0.7rem 0 0; }
+.reaction-other { width: 100%; height: 56px; margin-top: 0.75rem; border: 0; border-bottom: 1px solid var(--hairline); border-radius: 0; padding: 0; background: transparent; outline: none; }
+.reaction-other::placeholder { color: var(--muted); }
+.reaction-other:focus { border-bottom-color: var(--focus-ring); box-shadow: inset 0 -1px 0 var(--focus-ring); }
+.reaction-option:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.prose .reaction-hint { color: var(--muted); font-size: var(--text-xs); margin: 0.7rem 0 0; }
 .reaction-status { display: flex; align-items: center; flex-wrap: wrap; gap: 0.8rem; margin: 1rem 0 2rem; font-size: var(--text-sm); }
 .reaction-status p { color: var(--danger); width: 100%; }
 .reaction-status p button { text-decoration: underline; }
@@ -331,7 +338,8 @@ body {
 .note-lightbox[open] { display: flex; align-items: center; justify-content: center; }
 .note-lightbox::backdrop { background: var(--lightbox); }
 .note-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.note-lightbox-close { position: fixed; top: max(0.75rem, env(safe-area-inset-top)); right: max(0.75rem, env(safe-area-inset-right)); width: 2.5rem; height: 2.5rem; border-radius: 999px; background: rgb(0 0 0 / 0.55); color: #fff; font-size: var(--text-xl); line-height: 1; }
+.note-lightbox-close { position: fixed; top: max(0.5rem, env(safe-area-inset-top)); right: max(0.5rem, env(safe-area-inset-right)); display: grid; place-items: center; width: 48px; height: 48px; border-radius: 0; background: transparent; color: var(--on-slab); font-size: var(--text-xl); line-height: 1; }
+.note-lightbox-close:focus-visible { outline: 2px solid var(--on-slab); outline-offset: -2px; }
 
 /* Embeds (docs/embeds.md): a plate between two hairlines, square, no box, never red. */
 .note-embed { display: block; margin: 1.5rem 0; }
@@ -361,47 +369,85 @@ body {
 
 /* Comments use the reader's icon language; the native text-selection menu stays intact. */
 /* Rides on the comments glyph inside the 48px icon button (Figma Header: badge at 28,6). */
-.comment-count { position: absolute; right: 4px; top: 6px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 8px; font-size: var(--text-2xs); line-height: var(--text-2xs--line-height); background: var(--foreground); color: var(--background); }
-.comment-selection, .emoji-selection { position: fixed; z-index: 20; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); color: var(--foreground); box-shadow: 0 2px 12px rgb(0 0 0 / .18); }
-.comment-sheet { position: fixed; inset: auto; margin: 0; left: clamp(8px, var(--comment-x, 8px), calc(100vw - 336px)); top: var(--comment-y, 20vh); width: min(328px, calc(100vw - 16px)); max-height: min(70dvh, calc(var(--comment-viewport, 100dvh) - 16px)); padding: 12px; border-radius: 12px; color: var(--foreground); background: var(--background); box-shadow: 0 4px 28px rgb(0 0 0 / .16); overflow-y: auto; }
-.comment-sheet::backdrop { background: rgb(0 0 0 / .06); }
-.comment-heading { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
-.comment-quote { flex: 1; min-width: 0; font-size: var(--text-xs); opacity: .6; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.comment-heading > label { flex: 1; }
-.comment-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px; color: inherit; }
-.comment-icon:hover, .comment-row:hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
-.comment-icon:disabled { opacity: .3; }
-.comment-row { display: block; width: 100%; text-align: left; padding: 8px 4px; border-radius: 6px; font-size: var(--text-sm); }
+.comment-count { position: absolute; right: 4px; top: 6px; display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; font-size: var(--text-2xs); line-height: var(--text-2xs--line-height); background: var(--slab); color: var(--on-slab); }
+.comment-selection, .emoji-selection { position: fixed; z-index: 20; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); color: var(--foreground); outline: 1px solid var(--rule-ink); }
+.comment-sheet { position: fixed; inset: auto; margin: 0; left: clamp(8px, var(--comment-x, 8px), calc(100vw - 336px)); top: var(--comment-y, 20vh); width: min(328px, calc(100vw - 16px)); max-height: min(70dvh, calc(var(--comment-viewport, 100dvh) - 16px)); padding: 0 4px 16px 16px; border: 1px solid var(--rule-ink); border-radius: 0; color: var(--foreground); background: var(--background); overflow-y: auto; }
+.comment-sheet::backdrop { background: transparent; }
+.comment-heading { display: flex; align-items: center; gap: 0; min-height: 48px; }
+.comment-quote { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: var(--text-xs); line-height: 18px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.comment-heading > .comment-filter { margin-right: auto; }
+.comment-filter:has(input:focus-visible) { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.comment-filter:hover { border-color: var(--rule-ink); }
+.comment-filter.tag-on:hover { border-color: transparent; }
+.comment-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 48px; height: 48px; border-radius: 0; color: var(--muted); transition: color var(--duration-quick) var(--ease-out); }
+.comment-icon > svg { width: 20px; height: 20px; }
+.comment-icon:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.comment-icon:hover { color: var(--foreground); }
+.comment-row:hover { border-bottom-color: var(--rule-ink); }
+.comment-icon:disabled { opacity: .4; }
+/* Comment rows (Figma CommentRow): the anchor quote in Mono/Meta over the comment; status is shown, not said. */
+.comment-list { padding-right: 12px; }
+.comment-row { display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left; padding: 12px 0; border-bottom: 1px solid var(--hairline); border-radius: 0; font-size: var(--text-sm); line-height: var(--text-sm--line-height); transition: border-color var(--duration-quick) var(--ease-out); }
+.comment-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.comment-anchor { display: flex; align-items: center; gap: 6px; min-width: 0; font-family: var(--font-mono); font-size: var(--text-xs); line-height: 18px; color: var(--muted); }
+.comment-anchor > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.comment-anchor > svg { flex: none; width: 13px; height: 13px; }
+.comment-row[data-outdated] .comment-anchor > span { text-decoration: line-through; }
+.comment-row[data-resolved] .comment-body { color: var(--muted); }
+.comment-body { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.comment-empty { padding: 12px 0; font-size: var(--text-sm); line-height: var(--text-sm--line-height); color: var(--muted); }
+.comment-thread-body { display: flex; flex-direction: column; gap: 16px; padding: 4px 12px 8px 0; }
+.comment-author { font-size: var(--text-xs); line-height: var(--text-xs--line-height); font-weight: 500; color: var(--muted); margin-bottom: 2px; }
+.comment-text { font-size: var(--text-sm); line-height: var(--text-sm--line-height); white-space: pre-wrap; overflow-wrap: anywhere; }
 .comment-messages { max-height: min(38dvh, calc(var(--comment-viewport, 100dvh) - 148px)); overflow-y: auto; }
 .comment-compose { display: flex; align-items: flex-end; gap: 4px; }
-.emoji-reactor-bar { position: fixed; z-index: 21; display: flex; gap: 3px; padding: 3px; border: 1px solid var(--hairline); border-radius: 11px; background: var(--background); box-shadow: 0 3px 16px rgb(0 0 0 / .18); }
-.emoji-reactor-bar button { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 8px; font-size: var(--text-xl); }
-.emoji-reactor-bar button:hover, .emoji-reactor-bar button:focus-visible { background: color-mix(in srgb, var(--foreground) 10%, var(--background)); outline: 2px solid transparent; }
+.emoji-reactor-bar { position: fixed; z-index: 21; display: flex; gap: 3px; padding: 3px; border: 1px solid var(--rule-ink); border-radius: 0; background: var(--background); }
+.emoji-reactor-bar button { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 0; font-size: var(--text-xl); }
+.emoji-reactor-bar button:hover, .emoji-reactor-bar button:focus-visible { background: var(--code-background); outline: 2px solid transparent; }
 .emoji-reactor-bar button:disabled { opacity: .5; }
 .emoji-selection[aria-expanded="true"] > span[aria-hidden="true"] { display: none; }
-.emoji-picker-panel { position: fixed; z-index: 22; max-width: calc(100vw - 16px); border-radius: 10px; box-shadow: 0 4px 22px rgb(0 0 0 / .2); }
-.emoji-reactor-error { position: fixed; z-index: 22; max-width: 272px; padding: 8px; border-radius: 8px; background: var(--background); color: var(--danger); font-size: var(--text-xs); box-shadow: 0 2px 12px rgb(0 0 0 / .15); }
-.comment-compose textarea { flex: 1; min-width: 0; min-height: 36px; max-height: 120px; padding: 6px 2px; resize: vertical; outline: none; font-size: var(--text-base); line-height: var(--text-base--line-height); background: transparent; }
-[data-comments] { background: color-mix(in srgb, var(--color-yellow-500) 16%, transparent); color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--color-yellow-600) 50%, transparent); text-underline-offset: 3px; cursor: pointer; }
-@media (prefers-color-scheme: dark) { .comment-sheet, .comment-selection, .emoji-selection { box-shadow: 0 2px 24px rgb(0 0 0 / .5); outline: 1px solid var(--hairline); } }
-@media (max-width: 640px) { .comment-sheet { left: 8px; top: auto; bottom: calc(var(--comment-bottom, 0px) + 8px); width: calc(100vw - 16px); padding-bottom: max(12px, env(safe-area-inset-bottom)); } }
+.emoji-picker-panel { position: fixed; z-index: 22; max-width: calc(100vw - 16px); border: 1px solid var(--rule-ink); border-radius: 0; }
+.emoji-reactor-error { position: fixed; z-index: 22; max-width: 272px; padding: 8px 0 0; border-top: 2px solid var(--danger); background: var(--background); color: var(--danger); font-size: var(--text-xs); }
+.comment-compose textarea { flex: 1; min-width: 0; min-height: 56px; max-height: 120px; padding: 16px 0; resize: vertical; outline: none; border: 0; border-bottom: 1px solid var(--hairline); border-radius: 0; font-size: var(--text-base); line-height: var(--text-base--line-height); background: transparent; color: var(--foreground); }
+.comment-compose textarea::placeholder { color: var(--muted); }
+.comment-compose textarea:focus { border-bottom-color: var(--focus-ring); box-shadow: inset 0 -1px 0 var(--focus-ring); }
+[data-comments] { background: var(--anchor-highlight); color: inherit; text-decoration: underline; text-decoration-color: var(--anchor-rule); text-underline-offset: 3px; cursor: pointer; }
+
+@media (max-width: 640px) {
+  .comment-sheet { left: 0; top: auto; bottom: var(--comment-bottom, 0px); width: 100vw; max-width: 100vw; border-width: 1px 0 0; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .comment-sheet::backdrop { background: var(--scrim); }
+}
 @media (hover: none) { .comment-icon > span[aria-hidden="true"], .comment-selection > span[aria-hidden="true"], .emoji-selection > span[aria-hidden="true"] { display: none; } }
 
-.note-toolbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 0; margin-bottom: 24px; padding-bottom: 8px; border-bottom: 1px solid var(--hairline); }
+/* 64px including the hairline, as in Figma, where the stroke sits inside the bar. */
+.note-toolbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 0; min-height: 64px; margin-bottom: 24px; padding: 8px 0 7px; border-bottom: 1px solid var(--hairline); }
 .note-toolbar > :last-child:not(:first-child) { margin-left: auto; }
-.toolbar-menu { position: fixed; inset: auto; margin: 0; width: 200px; max-width: calc(100vw - 16px); padding: 4px; border: 1px solid var(--hairline); border-radius: 10px; color: var(--foreground); background: var(--background); box-shadow: 0 4px 24px rgb(0 0 0 / .12); }
-.toolbar-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border-radius: 6px; font-size: var(--text-sm); text-align: left; }
-.toolbar-menu-item:hover, .toolbar-menu-item:focus-visible { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
-.toolbar-menu-item:disabled { opacity: .35; }
+.toolbar-menu { position: fixed; inset: auto; margin: 0; width: 224px; max-width: calc(100vw - 16px); padding: 8px 0; border: 1px solid var(--rule-ink); border-radius: 0; color: var(--foreground); background: var(--background); }
+.toolbar-menu-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 0 16px; border-radius: 0; font-size: var(--text-sm); line-height: var(--text-sm--line-height); text-align: left; color: var(--foreground); }
+.toolbar-menu-item > svg { flex: none; width: 16px; height: 16px; color: var(--muted); transition: color var(--duration-quick) var(--ease-out); }
+.toolbar-menu-item[data-armed] { color: var(--danger); }
+.toolbar-menu-item[data-armed] > svg { color: var(--danger); }
+.toolbar-menu-rule { height: 1px; margin: 8px 16px; background: var(--hairline); border: 0; }
+/* Switch (Figma Switch): a 28×16 pill; off is an ink outline with an ink knob, on is the slab. */
+.switch { position: relative; display: inline-block; flex: none; width: 28px; height: 16px; margin-left: auto; border: 1px solid var(--rule-ink); border-radius: 999px; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--foreground); transition: transform var(--duration-quick) var(--ease-out); }
+.switch[data-on="true"] { border-color: var(--slab); background: var(--slab); }
+.switch[data-on="true"]::after { background: var(--on-slab); transform: translateX(12px); }
+.toolbar-menu-item:hover, .toolbar-menu-item:focus-visible { background: var(--code-background); outline: none; }
+.toolbar-menu-item:hover > svg, .toolbar-menu-item:focus-visible > svg { color: var(--foreground); }
+.toolbar-menu-item[data-armed]:hover > svg, .toolbar-menu-item[data-armed]:focus-visible > svg { color: var(--danger); }
+.toolbar-menu-item:disabled { opacity: .4; }
 /* Sticky in <main>: in place under the toolbar at the top, pinned to the viewport once scrolled. Below selection tools (z 21+). */
-.update-nudge { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: block; width: fit-content; max-width: calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); margin: -8px auto 16px; padding: 7px 14px; border-radius: 999px; font-size: var(--text-sm); line-height: var(--text-sm--line-height); color: var(--foreground); background: color-mix(in srgb, var(--foreground) 6%, var(--background)); box-shadow: 0 2px 12px rgb(0 0 0 / .12); touch-action: manipulation; }
-@media (prefers-color-scheme: dark) { .update-nudge { box-shadow: 0 2px 12px rgb(0 0 0 / .5); outline: 1px solid var(--hairline); } }
+.update-nudge { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: flex; align-items: center; width: fit-content; height: 32px; max-width: calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); margin: -8px auto 16px; padding: 0 16px; border-radius: 999px; font-size: var(--text-sm); line-height: var(--text-sm--line-height); font-weight: 500; color: var(--background); background: var(--accent-new); touch-action: manipulation; }
+.update-nudge:disabled, .update-nudge[aria-busy="true"] { color: var(--foreground); background: var(--accent-soft); }
+.update-nudge:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
 .tap-select { touch-action: manipulation; }
 .comment-auto-tools { position: fixed; z-index: 21; display: flex; align-items: center; gap: 3px; max-width: min(260px, calc(100vw - 8px)); color: var(--foreground); }
-.comment-auto-chip { display: inline-grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); box-shadow: 0 2px 12px rgb(0 0 0 / .18); }
+.comment-auto-chip { display: inline-grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); outline: 1px solid var(--rule-ink); }
 .comment-auto-chip:disabled { opacity: .35; }
-@media (prefers-color-scheme: dark) { .comment-auto-chip { box-shadow: 0 2px 12px rgb(0 0 0 / .5); outline: 1px solid #ffffff18; } }
-.tap-pending { position: fixed; z-index: 21; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; color: var(--foreground); background: var(--background); box-shadow: 0 2px 10px rgb(0 0 0 / .12); pointer-events: none; }
+
+.tap-pending { position: fixed; z-index: 21; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; color: var(--foreground); background: var(--background); outline: 1px solid var(--hairline); pointer-events: none; }
 .tap-pending::after { content: ""; width: 9px; height: 9px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; opacity: .55; animation: tap-spin .65s linear infinite; }
 @keyframes tap-spin { to { transform: rotate(360deg); } }
 
@@ -413,6 +459,32 @@ body {
   .comment-auto-chip { width: 36px; height: 36px; }
   .comment-selection, .emoji-selection, .comment-auto-chip { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 }
+
+/*
+ * Lists (Figma List/ListRow): folders and notes share one open list. An ink rule on top,
+ * hairlines between 72px rows, no box; hover darkens the row's rule. The unread dot is styled
+ * here but not yet wired (Marker has no per-reader unread state).
+ */
+.list { border-top: 1px solid var(--rule-ink); }
+.list-row { display: flex; align-items: center; gap: 16px; min-height: 72px; border-bottom: 1px solid var(--hairline); transition: border-color var(--duration-quick) var(--ease-out); }
+.list-row:hover, .list-row:has(> .list-link:focus-visible) { border-bottom-color: var(--rule-ink); }
+.list-link { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; padding: 12px 0; }
+.list-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.list-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-base); line-height: var(--text-base--line-height); font-weight: 500; color: var(--foreground); }
+.list-title > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.list-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-new); }
+.list-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-family: var(--font-mono); font-size: var(--text-xs); line-height: 18px; color: var(--muted); }
+.list-meta .tag { font-family: var(--font-sans); }
+.list-empty { padding: 24px 0; font-size: var(--text-sm); line-height: var(--text-sm--line-height); color: var(--muted); }
+
+/* Sort (Figma Screens): plain text options; the active one is ink, Medium and underlined. */
+.sort { display: flex; align-items: center; gap: 16px; font-size: var(--text-sm); line-height: var(--text-sm--line-height); }
+.sort-option { color: var(--muted); transition: color var(--duration-quick) var(--ease-out); }
+.sort-option:hover { color: var(--foreground); }
+.sort-option[aria-current] { color: var(--foreground); font-weight: 500; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+
+/* Banner (Figma Banner): an error is danger text under a 2px danger rule; no fill, no box. */
+.banner-error { padding: 12px 0; border-top: 2px solid var(--danger); font-size: var(--text-sm); line-height: var(--text-sm--line-height); color: var(--danger); }
 
 /*
  * Tag (Figma "Components (new)" Tag). Filter: a 32px hairline pill with an inset
