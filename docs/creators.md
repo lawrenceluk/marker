@@ -226,3 +226,24 @@ for ids. While that limit is hit, the list still shows but without names or
 counts. Switching folders from the home page (`/c/folder/<ref>`) and forgetting
 one cost nothing. Following a token link adds one `EVAL` for the `/c/enter`
 check, on top of the `/c` page itself.
+
+## What's new
+
+A note is new when it changed since a person last saw it. There are no accounts, so "a person"
+is whoever uses a browser: any device that opens the note marks it seen.
+
+- Each note stores `seen_rev` and `seen_at`. A note is unseen when `rev > seen_rev`.
+- A browser view marks the note seen after the page loads and only while the tab is visible,
+  naming the revision it rendered (link unfurlers that fetch HTML never count). Refreshing
+  through `GET /api/content` with the session cookie also marks it seen.
+- Writes, comments and reaction drafts made in the browser (session cookie) stay seen. The same
+  writes with an explicit key are an agent's: they leave the note unseen. The first agent write
+  to a note no one has seen marks the revision before it as seen, so that change shows.
+- Agent reads never mark a note seen. Any client may: `PATCH /api/meta` with
+  `{ "key", "seen": true, "rev"? }`. A mark never moves past the current revision or back
+  from an earlier one.
+- Notes that predate tracking have `seen_rev: null` and are never new until something changes.
+- Folders keep a set of their new notes (`cidx:<cid>:new`), maintained on write and verified
+  when Home counts it, so notes that were seen, moved, expired or deleted drop out.
+
+The folder page marks new notes with an accent dot; Home shows "N new" on each remembered folder.

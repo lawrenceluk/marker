@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return json({ error: (error as Error).message }, 400);
   }
-  const result = await commitResponses(key, before, responses);
+  const result = await commitResponses(key, before, responses, normalizeKey(body.key) ? "agent" : "human");
   if (result.status !== "ok") return json({
     error: result.status === "missing" ? "Note not found" : "Note or responses changed; reload and review before retrying",
   }, result.status === "missing" ? 404 : 409);

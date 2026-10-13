@@ -30,9 +30,15 @@ export function RememberedFolders({ initial }: { initial?: FolderSummary[] }) {
         {folders.map(folder => (
           <li key={folder.ref} className="list-row">
             <a href={`/c/folder/${folder.ref}`} className="list-link">
-              <span className="list-title"><span>{folder.name ?? "Untitled folder"}</span></span>
+              <span className="list-title">
+                {folder.unseen > 0 && <span className="list-dot" aria-hidden="true" />}
+                <span>{folder.name ?? "Untitled folder"}</span>
+              </span>
               {folder.count !== null && (
-                <span className="list-meta">{folder.count} {folder.count === 1 ? "note" : "notes"}</span>
+                <span className="list-meta">
+                  <span>{folder.count} {folder.count === 1 ? "note" : "notes"}</span>
+                  {folder.unseen > 0 && <span className="list-new">{folder.unseen} new</span>}
+                </span>
               )}
             </a>
             <ToolbarMenu

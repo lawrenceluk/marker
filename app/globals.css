@@ -462,8 +462,8 @@ body {
 
 /*
  * Lists (Figma List/ListRow): folders and notes share one open list. An ink rule on top,
- * hairlines between 72px rows, no box; hover darkens the row's rule. The unread dot is styled
- * here but not yet wired (Marker has no per-reader unread state).
+ * hairlines between 72px rows, no box; hover darkens the row's rule. The accent dot and
+ * "N new" mark notes changed since a person last saw them (notes.ts seen tracking).
  */
 .list { border-top: 1px solid var(--rule-ink); }
 .list-row { display: flex; align-items: center; gap: 16px; min-height: 72px; border-bottom: 1px solid var(--hairline); transition: border-color var(--duration-quick) var(--ease-out); }
@@ -473,6 +473,7 @@ body {
 .list-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: var(--text-base); line-height: var(--text-base--line-height); font-weight: 500; color: var(--foreground); }
 .list-title > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .list-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-new); }
+.list-new { color: var(--accent-new); }
 .list-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-family: var(--font-mono); font-size: var(--text-xs); line-height: 18px; color: var(--muted); }
 .list-meta .tag { font-family: var(--font-sans); }
 .list-empty { padding: 24px 0; font-size: var(--text-sm); line-height: var(--text-sm--line-height); color: var(--muted); }

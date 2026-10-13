@@ -196,9 +196,11 @@ local function prune(m)
   for _, t in ipairs(redis.call('HKEYS', counts)) do untag(m, t) end
 end
 local function load(m)
-  local f = redis.call('HMGET', note_hash(m), 'cid', 'title', 'tags', 'updated_at', 'created_at')
+  local f = redis.call('HMGET', note_hash(m), 'cid', 'title', 'tags', 'updated_at', 'created_at', 'rev', 'seen_rev')
   if f[1] ~= c then prune(m) return nil end
-  return { m, f[2] and '1' or '0', f[2] or '', f[3] or '[]', f[4] or '', f[5] or '' }
+  -- [8]: changed since a person last saw it (notes that predate tracking have no seen_rev and are not new).
+  local unseen = f[7] and (tonumber(f[6]) or 0) > (tonumber(f[7]) or 0) and '1' or '0'
+  return { m, f[2] and '1' or '0', f[2] or '', f[3] or '[]', f[4] or '', f[5] or '', '', unseen }
 end
 local function finish(r)
   if r[2] == '0' then r[3] = string.sub(redis.call('HGET', note_hash(r[1]), 'content') or '', 1, 4000) end
@@ -272,6 +274,8 @@ export type CreatorNoteRow = {
   updated_at: number | null;
   created_at: number | null;
   expires_at: number | null;
+  /** Changed since a person last saw it. */
+  unseen: boolean;
 };
 
 export type CreatorListing = {
@@ -320,7 +324,7 @@ export async function listCreatorNotes(
   tags.sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 
   const now = Date.now();
-  const notes = (rows ?? []).map(([key, hasTitle, title, rowTags, updated, created, pttl]) => {
+  const notes = (rows ?? []).map(([key, hasTitle, title, rowTags, updated, created, pttl, unseen]) => {
     const resolved = hasTitle === "1" ? String(title) : previewFromMarkdown(String(title))?.title ?? "";
     const ttl = Number(pttl);
     return {
@@ -330,6 +334,7 @@ export async function listCreatorNotes(
       updated_at: num(updated),
       created_at: num(created),
       expires_at: ttl >= 0 ? now + ttl : null,
+      unseen: unseen === "1",
     };
   });
 

@@ -118,6 +118,24 @@ export function NoteApp({
       .catch(() => {});
   }, [initialPersist]);
 
+  // Seeing the page is what marks a note seen. It runs after hydration (link unfurlers and
+  // other bots that only fetch HTML never count) and waits until the tab is visible. It names
+  // the revision that was rendered, so a change that lands in between still shows as new.
+  useEffect(() => {
+    if (!initialNote) return;
+    const urlKey = normalizeKey(new URLSearchParams(window.location.search).get("key"));
+    const body = JSON.stringify({ ...(urlKey ? { key: urlKey } : {}), seen: true, rev: initialNote.rev });
+    const mark = () => {
+      if (document.visibilityState !== "visible") return false;
+      void fetch("/api/meta", { method: "PATCH", headers: { "Content-Type": "application/json" }, body }).catch(() => {});
+      return true;
+    };
+    if (mark()) return;
+    const onVisible = () => { if (mark()) document.removeEventListener("visibilitychange", onVisible); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [initialNote]);
+
   // Opening a note from Home pushes `/n`; going Back to `/` should show Home,
   // which the server decides.
   useEffect(() => {
@@ -168,32 +186,9 @@ export function NoteApp({
         throw new Error("Couldn't open note. Try again.");
       }
 
-      const res = await fetch("/api/content");
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Couldn't open note. Try again.");
-      }
-
-      setCreator(creatorFromResponse(data));
-      setIsEditingTags(false);
-      showSessionUrl();
-      if (data.exists) {
-        setContent(data.content || "");
-        setOriginalContent(data.content || "");
-        setResponses(data.responses ?? []);
-        setAssetUrls(urlsFromAssets(data.assets));
-        setRev(data.rev ?? null);
-        setIsNew(false);
-        setAppState("viewing");
-      } else {
-        setContent("");
-        setOriginalContent("");
-        setResponses([]);
-        setRev(0);
-        setIsNew(true);
-        setAppState("editing");
-      }
+      // Land on `/n` so the note is seen once (after-load PATCH /api/meta), not again via GET /api/content.
+      window.location.assign("/n");
+      return;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't open note. Try again.");
       setRawKey(null);

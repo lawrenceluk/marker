@@ -129,7 +129,11 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
           {listing.notes.map(note => (
             <li key={note.ref} className="list-row">
               <a href={`/c/open/${note.ref}`} className="list-link">
-                <span className="list-title"><span>{note.title || "Untitled note"}</span></span>
+                <span className="list-title">
+                  {note.unseen && <span className="list-dot" aria-hidden="true" />}
+                  <span>{note.title || "Untitled note"}</span>
+                  {note.unseen && <span className="sr-only"> (new)</span>}
+                </span>
                 <span className="list-meta">
                   <span>{sort === "created" ? `Created ${formatDate(note.created_at)}` : `Updated ${formatDate(note.updated_at)}`}</span>
                   {note.expires_at !== null && <span>Expires {formatDate(note.expires_at)}</span>}
