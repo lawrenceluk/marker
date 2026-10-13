@@ -34,7 +34,7 @@ type Selection = {
   text: string;
 };
 /** Regions that own their taps; React events from the portaled lightbox still bubble here. */
-const TAP_IGNORE = ".metadata-callout, .note-image, .note-image-placeholder, .note-lightbox";
+const TAP_IGNORE = ".metadata-callout, .note-image, .note-image-placeholder, .note-lightbox, .note-embed, .note-embed-dialog";
 export function CommentedViewer({
   content,
   rev,

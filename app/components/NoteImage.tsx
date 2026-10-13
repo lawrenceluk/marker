@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { EMBED_SCHEME } from "../lib/embedPolicy";
 
 export const ASSET_SCHEME = "marker-asset:";
 const ASSET_ID = /^[A-Za-z0-9_-]{22}$/;
@@ -11,6 +12,7 @@ const RECHECK_AFTER_MS = 30 * 60_000;
 type AssetUrlsValue = {
   enabled: boolean;
   urls: Record<string, string>;
+  embedShellUrl: string | null;
   /** True when a refresh looked this id up recently, so a still-missing or failing image renders as unavailable. */
   recentlyChecked: (id: string) => boolean;
   refresh: (id: string) => void;
@@ -19,8 +21,9 @@ type AssetUrlsValue = {
 
 const AssetUrlsContext = createContext<AssetUrlsValue | null>(null);
 
-export function AssetUrlsProvider({ enabled, urls: seeded, children }: { enabled: boolean; urls: Record<string, string>; children: React.ReactNode }) {
+export function AssetUrlsProvider({ enabled, urls: seeded, embedShellUrl: seededShell = null, children }: { enabled: boolean; urls: Record<string, string>; embedShellUrl?: string | null; children: React.ReactNode }) {
   const [urls, setUrls] = useState(seeded);
+  const [embedShellUrl, setEmbedShellUrl] = useState(seededShell);
   const [checked, setChecked] = useState<ReadonlyMap<string, number>>(() => new Map());
   const pending = useRef<Set<string>>(new Set());
   const lastRefresh = useRef(0);
@@ -40,8 +43,9 @@ export function AssetUrlsProvider({ enabled, urls: seeded, children }: { enabled
       lastRefresh.current = Date.now();
       try {
         const res = await fetch("/api/assets/urls", { cache: "no-store" });
-        const data = res.ok ? await res.json() as { urls?: Record<string, string> } : null;
+        const data = res.ok ? await res.json() as { urls?: Record<string, string>; embed_shell?: string | null } : null;
         if (data?.urls) setUrls(current => ({ ...current, ...data.urls }));
+        if (data?.embed_shell) setEmbedShellUrl(data.embed_shell);
       } catch {
         // Placeholders stay; the next failed load retries after the recheck window.
       } finally {
@@ -60,7 +64,7 @@ export function AssetUrlsProvider({ enabled, urls: seeded, children }: { enabled
     return at !== undefined && Date.now() - at < RECHECK_AFTER_MS;
   }, [checked]);
   const register = useCallback((id: string, url: string) => setUrls(current => ({ ...current, [id]: url })), []);
-  const value = useMemo(() => ({ enabled, urls, recentlyChecked, refresh, register }), [enabled, urls, recentlyChecked, refresh, register]);
+  const value = useMemo(() => ({ enabled, urls, embedShellUrl, recentlyChecked, refresh, register }), [enabled, urls, embedShellUrl, recentlyChecked, refresh, register]);
   return <AssetUrlsContext.Provider value={value}>{children}</AssetUrlsContext.Provider>;
 }
 
@@ -76,9 +80,9 @@ export function useAssetUrls() {
   return useContext(AssetUrlsContext);
 }
 
-/** Lets `marker-asset:` through react-markdown's URL sanitizer; everything else keeps the default. */
+/** Lets `marker-asset:` and `marker-embed:` through react-markdown's URL sanitizer; everything else keeps the default. */
 export function markerUrlTransform(url: string, fallback: (url: string) => string): string {
-  return url.startsWith(ASSET_SCHEME) ? url : fallback(url);
+  return url.startsWith(ASSET_SCHEME) || url.startsWith(EMBED_SCHEME) ? url : fallback(url);
 }
 
 /** External images load over https only; anything else is not fetched. */

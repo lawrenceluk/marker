@@ -40,8 +40,10 @@ interface NoteAppProps {
   initialFolders?: FolderSummary[];
   /** Whether this deployment has image storage configured. */
   imagesEnabled?: boolean;
-  /** View URLs for the initial note's images, by asset id. */
+  /** View URLs for the initial note's images and embeds, by asset id. */
   initialAssetUrls?: Record<string, string>;
+  /** View URL of this bucket's embed shell document. */
+  initialEmbedShellUrl?: string | null;
 }
 
 const RANDOMIZE_ATTEMPTS = 16;
@@ -55,6 +57,7 @@ export function NoteApp({
   initialFolders,
   imagesEnabled = false,
   initialAssetUrls = NO_URLS,
+  initialEmbedShellUrl = null,
 }: NoteAppProps) {
   const [appState, setAppState] = useState<AppState>(
     initialKeyLabel ? (initialNote ? "viewing" : "editing") : "idle"
@@ -497,7 +500,7 @@ export function NoteApp({
   }
 
   return (
-    <AssetUrlsProvider enabled={imagesEnabled} urls={assetUrls}>
+    <AssetUrlsProvider enabled={imagesEnabled} urls={assetUrls} embedShellUrl={initialEmbedShellUrl}>
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-3xl px-4 py-12">
         {appState !== "viewing" && appState !== "idle" && (

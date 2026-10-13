@@ -66,6 +66,10 @@ export async function startR2Mock(options: { port?: number; basePath?: string; c
       objects.set(key, { body, contentType: String(req.headers["content-type"] ?? "") });
       return void res.writeHead(200, { etag: '"mock"' }).end();
     }
+    if (req.method === "HEAD" && key) {
+      const object = objects.get(key);
+      return void res.writeHead(object ? 200 : 404, object ? { "content-type": object.contentType, "content-length": String(object.body.length) } : {}).end();
+    }
     if (req.method === "GET" && key) {
       const object = objects.get(key);
       if (!object) return void res.writeHead(404).end();
