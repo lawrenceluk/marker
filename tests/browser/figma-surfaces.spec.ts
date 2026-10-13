@@ -95,6 +95,18 @@ async function suite(page: Page, scheme: "light" | "dark", rows: Row[], fixtures
   const more = await read(folderRow.getByRole("button"));
   num("more width", figma.ListRow.more.width, more.width);
   num("more height", figma.ListRow.more.height, more.height);
+  // Unread (Figma ListRow State=Unread): the fixture's notes are written with explicit keys
+  // (agents), so the folder arrives with new notes: an accent dot and "N new".
+  surface = "ListRow · folder unread";
+  const unread = figma.ListRow.unread;
+  const dot = await read(folderRow.locator(".list-dot"));
+  num("dot size", unread.dot.size, dot.width);
+  row("dot shape", "circle", dot.radius >= dot.width / 2 ? "circle" : `${dot.radius}px`, dot.radius >= dot.width / 2);
+  color("dot fill", unread.dot.fill, dot.background);
+  num("dot → title gap", unread.dotGap, (await read(folderRow.locator(".list-title"))).gap);
+  type("new count", unread.new, await read(folderRow.locator(".list-new")));
+  num("meta gap", unread.metaGap, (await read(folderRow.locator(".list-meta"))).gap);
+  surface = "ListRow · folder";
   await folderRow.locator(".list-link").hover();
   await page.waitForTimeout(200);
   color("hover bottom rule colour", figma.ListRow.hoverBottom, (await read(folderRow)).border[2].color);

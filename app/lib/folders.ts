@@ -30,6 +30,8 @@ export type FolderSummary = {
   name: string | null;
   /** Indexed notes, including expired ones not yet pruned. Null when refused. */
   count: number | null;
+  /** Notes changed since a person last saw them. 0 when refused. */
+  unseen: number;
   visited_at: number;
 };
 
@@ -108,7 +110,15 @@ for i = 3, #ARGV do
   local base = prefix .. 'cidx:' .. ARGV[i]
   local name = redis.call('HGET', base .. ':meta', 'name')
   if name or redis.call('EXISTS', base .. ':meta') == 1 then
-    out[#out + 1] = { ARGV[i], name or '', tostring(redis.call('ZCARD', base)) }
+    -- Notes changed since a person saw them. The set is kept on write and checked here, so
+    -- notes that were seen, moved, expired or deleted since drop out.
+    local fresh = 0
+    for _, m in ipairs(redis.call('SMEMBERS', base .. ':new')) do
+      local f = redis.call('HMGET', prefix .. 'note:' .. m, 'cid', 'rev', 'seen_rev')
+      if f[1] == ARGV[i] and f[3] and (tonumber(f[2]) or 0) > (tonumber(f[3]) or 0) then fresh = fresh + 1
+      else redis.call('SREM', base .. ':new', m) end
+    end
+    out[#out + 1] = { ARGV[i], name or '', tostring(redis.call('ZCARD', base)), tostring(fresh) }
   else
     misses = misses + 1
   end
@@ -126,12 +136,12 @@ export async function summarizeFolders(folders: RememberedFolder[], client: stri
     [],
     [storagePrefix(), rateLimitKey(client), ...cids],
   );
-  const found = new Map<string, { name: string | null; count: number | null }>();
+  const found = new Map<string, { name: string | null; count: number | null; unseen: number }>();
   if (result[0] === "limited") {
-    for (const cid of cids) found.set(cid, { name: null, count: null });
+    for (const cid of cids) found.set(cid, { name: null, count: null, unseen: 0 });
   } else {
     for (const row of result.slice(1) as string[][]) {
-      found.set(String(row[0]), { name: String(row[1]) || null, count: Number(row[2]) || 0 });
+      found.set(String(row[0]), { name: String(row[1]) || null, count: Number(row[2]) || 0, unseen: Number(row[3]) || 0 });
     }
   }
   return folders.flatMap((folder, i) => {

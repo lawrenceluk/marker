@@ -30,6 +30,18 @@
     "more": {
       "width": 48,
       "height": 48
+    },
+    "unread": {
+      "dot": {
+        "size": 8,
+        "fill": "accent/new"
+      },
+      "dotGap": 8,
+      "new": {
+        "style": "Mono/Meta",
+        "token": "accent/new"
+      },
+      "metaGap": 12
     }
   },
   "Menu": {

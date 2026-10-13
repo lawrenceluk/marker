@@ -32,7 +32,24 @@ export type Note = {
   /** R2 prefix for this note's images, or null if it never had one. Never send to a client. */
   assetNs: string | null;
   assets: Record<string, StoredAsset>;
+  /**
+   * The revision a person last saw (a browser read or write, or an explicit mark), and when.
+   * Null on notes no one has seen or changed since this was tracked; those never read as new.
+   */
+  seenRev: number | null;
+  seenAt: number | null;
 };
+
+/**
+ * Who is acting. A browser (session cookie, no explicit key) is a person: its reads and writes
+ * mark the note seen. Anything with an explicit key is an agent: its writes leave the note new.
+ */
+export type Actor = "human" | "agent";
+
+/** Changed since a person last saw it. Notes that predate tracking are never new. */
+export function isUnseen(note: Pick<Note, "rev" | "seenRev">): boolean {
+  return note.seenRev !== null && note.rev > note.seenRev;
+}
 
 /**
  * A requested change to a note's creator and tags. Ids are already hashed:
@@ -198,20 +215,20 @@ end
 /**
  * KEYS: note hash, legacy string. ARGV: comments?, access?, now, prefix.
  * Returns [content, rev, updated_at, created_at, pttl, comments, responses,
- * last_accessed_at, cid, tags, creator_name, asset_ns, assets] or nil.
+ * last_accessed_at, cid, tags, creator_name, asset_ns, assets, seen_rev, seen_at] or nil.
  */
 const READ_SCRIPT = `
 local h, legacy = KEYS[1], KEYS[2]
 
 if redis.call('EXISTS', h) == 1 then
-  local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at', 'last_accessed_at', 'cid', 'tags', 'asset_ns', 'assets')
+  local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at', 'last_accessed_at', 'cid', 'tags', 'asset_ns', 'assets', 'seen_rev', 'seen_at')
   local accessed = f[5] or ''
   if ARGV[2] == '1' and (accessed == '' or tonumber(ARGV[3]) - (tonumber(accessed) or 0) >= ${ACCESS_THROTTLE_MS}) then
     redis.call('HSET', h, 'last_accessed_at', ARGV[3])
     accessed = ARGV[3]
   end
   local name = f[6] and redis.call('HGET', ARGV[4] .. 'cidx:' .. f[6] .. ':meta', 'name') or ''
-  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]', ARGV[1] == '1' and (redis.call('HGET', h, 'responses') or '[]') or '[]', accessed, f[6] or '', f[7] or '', name or '', f[8] or '', f[9] or '' }
+  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]', ARGV[1] == '1' and (redis.call('HGET', h, 'responses') or '[]') or '[]', accessed, f[6] or '', f[7] or '', name or '', f[8] or '', f[9] or '', f[10] or '', f[11] or '' }
 end
 
 local old = redis.call('GET', legacy)
@@ -221,9 +238,9 @@ if old then
     redis.call('HSET', h, 'content', old, 'rev', '0', 'updated_at', '', 'created_at', '', 'last_accessed_at', ARGV[3])
     if pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
     redis.call('DEL', legacy)
-    return { old, '0', '', '', tostring(pttl), '[]', '[]', ARGV[3], '', '', '', '', '' }
+    return { old, '0', '', '', tostring(pttl), '[]', '[]', ARGV[3], '', '', '', '', '', '', '' }
   end
-  return { old, '0', '', '', tostring(pttl), '[]', '[]', '', '', '', '', '', '' }
+  return { old, '0', '', '', tostring(pttl), '[]', '[]', '', '', '', '', '', '', '', '' }
 end
 
 return nil
@@ -262,6 +279,16 @@ elseif not exists and pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
 redis.call('DEL', legacy)
 creator_apply(h, ARGV[19], plan, ARGV[8], ARGV[8], ARGV[17])
 asset_refs(h, ARGV[19], ARGV[5], tonumber(ARGV[8]))
+-- Seen tracking. A person's write is already seen. An agent's write is new: if no one has
+-- seen this note yet, mark the revision before it as the last one seen so the change shows.
+local folder = redis.call('HGET', h, 'cid')
+if ARGV[20] == 'human' then
+  redis.call('HSET', h, 'seen_rev', rev + 1, 'seen_at', ARGV[8])
+  if folder then redis.call('SREM', cidx(folder) .. ':new', ARGV[19]) end
+else
+  if not redis.call('HGET', h, 'seen_rev') then redis.call('HSET', h, 'seen_rev', rev) end
+  if folder then redis.call('SADD', cidx(folder) .. ':new', ARGV[19]) end
+end
 local has, tags = creator_result(h)
 return {'ok', tostring(rev + 1), tostring(redis.call('PTTL', h)), tostring(#ARGV[5]), has, tags}
 `;
@@ -434,7 +461,7 @@ export async function readNote(
 
   if (!result) return null;
 
-  const [content, rev, updatedAt, createdAt, pttl, comments, responses, lastAccessedAt, cid, tags, creatorName, assetNs, assets] = result;
+  const [content, rev, updatedAt, createdAt, pttl, comments, responses, lastAccessedAt, cid, tags, creatorName, assetNs, assets, seenRev, seenAt] = result;
   return {
     content,
     comments: JSON.parse(comments),
@@ -449,6 +476,8 @@ export async function readNote(
     creatorName: cid ? creatorName || null : null,
     assetNs: assetNs || null,
     assets: parseAssets(assets),
+    seenRev: toNumberOrNull(seenRev),
+    seenAt: toNumberOrNull(seenAt),
   };
 }
 
@@ -465,6 +494,7 @@ async function commitNote(
   responses: ResponseEntry[],
   ttl?: number | null,
   creator: CreatorChange = NO_CHANGE,
+  actor: Actor = "agent",
 ): Promise<WriteResult | { ok: false; reason: "missing" }> {
   const now = Date.now();
   const result = await redis.eval<string[], string[]>(
@@ -486,6 +516,7 @@ async function commitNote(
       storagePrefix(),
       ...creatorArgs(creator),
       key,
+      actor,
     ],
   );
   if (result[0] === "missing") return { ok: false, reason: "missing" };
@@ -514,9 +545,9 @@ async function commitNote(
 export async function writeNote(
   key: string,
   content: string,
-  options: { mode?: WriteMode; ifRev?: number; ttl?: number | null; creator?: CreatorChange } = {},
+  options: { mode?: WriteMode; ifRev?: number; ttl?: number | null; creator?: CreatorChange; actor?: Actor } = {},
 ): Promise<WriteResult> {
-  const { mode = "overwrite", ifRev, ttl, creator } = options;
+  const { mode = "overwrite", ifRev, ttl, creator, actor = "agent" } = options;
   for (let attempt = 0; attempt < 8; attempt++) {
     const before = await readNote(key, true);
     const current = before?.content ?? "",
@@ -535,7 +566,7 @@ export async function writeNote(
     if (size > MAX_CONTENT_BYTES)
       return { ok: false, reason: "too_large", size };
     const comments = remapComments(current, next, before?.comments ?? [], mode);
-    const result = await commitNote(key, before, next, comments, before?.responses ?? [], ttl, creator);
+    const result = await commitNote(key, before, next, comments, before?.responses ?? [], ttl, creator, actor);
     if (result.ok || (result.reason !== "missing" && result.reason !== "conflict")) return result;
     if (ifRev !== undefined)
       return result.reason === "missing"
@@ -606,20 +637,53 @@ export async function commitComments(
   before: Note,
   content: string,
   comments: Thread[],
+  actor: Actor = "agent",
 ): Promise<
   { status: "ok"; comments: Thread[] } | { status: "conflict" | "missing" }
 > {
   const mapped = remapComments(before.content, content, comments);
-  const result = await commitNote(key, before, content, mapped, before.responses);
+  const result = await commitNote(key, before, content, mapped, before.responses, undefined, NO_CHANGE, actor);
   if (!result.ok)
     return { status: result.reason === "missing" ? "missing" : "conflict" };
   return { status: "ok", comments: mapped };
 }
 
 /** Responses use the same note hash, expiry, and revision as content/comments. */
-export async function commitResponses(key: string, before: Note, responses: ResponseEntry[]) {
-  const result = await commitNote(key, before, before.content, before.comments, responses);
+export async function commitResponses(key: string, before: Note, responses: ResponseEntry[], actor: Actor = "agent") {
+  const result = await commitNote(key, before, before.content, before.comments, responses, undefined, NO_CHANGE, actor);
   return result.ok ? { status: "ok" as const, rev: result.rev } : {
     status: result.reason === "missing" ? "missing" as const : "conflict" as const,
   };
+}
+
+/**
+ * KEYS: note hash. ARGV: prefix, note key, now, rev ('' = current). Marks the note seen up to
+ * that revision (never past the current one, never back from an earlier mark) and, when fully
+ * seen, drops it from its folder's new set. Returns the seen revision, or nil for a missing
+ * note. Never changes rev, updated_at or expiry.
+ */
+const SEEN_SCRIPT = `
+local h = KEYS[1]
+if redis.call('EXISTS', h) == 0 then return nil end
+local f = redis.call('HMGET', h, 'rev', 'cid', 'seen_rev')
+local current = tonumber(f[1]) or 0
+local seen = ARGV[4] ~= '' and math.min(tonumber(ARGV[4]) or current, current) or current
+if f[3] and (tonumber(f[3]) or 0) > seen then seen = tonumber(f[3]) end
+redis.call('HSET', h, 'seen_rev', seen, 'seen_at', ARGV[3])
+if f[2] and seen >= current then redis.call('SREM', ARGV[1] .. 'cidx:' .. f[2] .. ':new', ARGV[2]) end
+return tostring(seen)
+`;
+
+/**
+ * A person has seen the note (any client may say so; there are no accounts). Pass the revision
+ * they actually saw so a change that lands in between still shows as new.
+ */
+export async function markSeen(key: string, options: { rev?: number; now?: number } = {}): Promise<{ rev: number; seenAt: number } | null> {
+  const now = options.now ?? Date.now();
+  const rev = await redis.eval<string[], string | null>(
+    SEEN_SCRIPT,
+    [noteKey(key)],
+    [storagePrefix(), key, String(now), options.rev === undefined ? "" : String(Math.max(0, Math.floor(options.rev)))],
+  );
+  return rev === null ? null : { rev: Number(rev) || 0, seenAt: now };
 }

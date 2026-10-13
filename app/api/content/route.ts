@@ -12,6 +12,8 @@ import {
   WRITE_MODES,
   WriteMode,
   deleteNote,
+  isUnseen,
+  markSeen,
   readAccessedNote,
   renameNote,
   writeNote,
@@ -57,6 +59,12 @@ export async function GET(request: NextRequest) {
   }
 
   const note = await readAccessedNote(key, true);
+  // A browser read (session cookie, no explicit key) is a person looking: the note is seen.
+  // Agent reads never advance it; they can mark it seen explicitly with PATCH /api/meta.
+  if (note && !normalizeKey(request.nextUrl.searchParams.get("key"))) {
+    const seen = await markSeen(key);
+    if (seen) Object.assign(note, { seenRev: seen.rev, seenAt: seen.seenAt });
+  }
 
   // Same shape either way, so callers never have to branch on `exists` before
   // reading a field. A note that doesn't exist reads as rev 0, which is also
@@ -70,6 +78,9 @@ export async function GET(request: NextRequest) {
       updated_at: null,
       created_at: null,
       last_accessed_at: null,
+      seen_rev: null,
+      seen_at: null,
+      unseen: false,
       expires_at: null,
       size: 0,
       has_creator: false,
@@ -88,6 +99,9 @@ export async function GET(request: NextRequest) {
     updated_at: note.updatedAt,
     created_at: note.createdAt,
     last_accessed_at: note.lastAccessedAt,
+    seen_rev: note.seenRev,
+    seen_at: note.seenAt,
+    unseen: isUnseen(note),
     expires_at: note.expiresAt,
     size: Buffer.byteLength(note.content, "utf8"),
     ...creatorFields(request, note),
@@ -170,7 +184,7 @@ export async function POST(request: NextRequest) {
     return json({ error: creator.error }, 400);
   }
 
-  const result = await writeNote(key, content, { mode, ifRev, ttl, creator: creator.change });
+  const result = await writeNote(key, content, { mode, ifRev, ttl, creator: creator.change, actor: normalizeKey(body.key) ? "agent" : "human" });
 
   if (!result.ok) {
     if (result.reason === "forbidden") {

@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     return json({ error: (error as Error).message }, 400);
   }
   const content = body.content ?? before.content;
-  const result = await commitComments(key, before, content, comments);
+  const result = await commitComments(key, before, content, comments, normalizeKey(body.key) ? "agent" : "human");
   if (result.status !== "ok")
     return json(
       {
