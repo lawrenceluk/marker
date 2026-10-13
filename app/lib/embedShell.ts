@@ -77,10 +77,16 @@ const BRIDGE = `(function () {
   var last = 0, queued = false;
   function measure() {
     queued = false;
-    var body = document.body;
+    var body = document.body, root = document.documentElement;
     if (!body) return;
-    var style = getComputedStyle(body);
-    var height = Math.ceil(Math.max(body.scrollHeight, body.getBoundingClientRect().height) + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0));
+    var style = getComputedStyle(body), rootStyle = getComputedStyle(root);
+    var height = Math.max(
+      Math.max(body.scrollHeight, body.getBoundingClientRect().height) + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0),
+      root.getBoundingClientRect().height + (parseFloat(rootStyle.marginTop) || 0) + (parseFloat(rootStyle.marginBottom) || 0)
+    );
+    // The root's scrollHeight never drops below the frame's own height, so it only counts when the document overflows.
+    if (root.scrollHeight > root.clientHeight) height = Math.max(height, root.scrollHeight);
+    height = Math.ceil(height);
     if (height !== last) { last = height; send({ type: "resize", height: height }); }
   }
   function schedule() { if (!queued) { queued = true; setTimeout(measure, 50); } }
@@ -124,6 +130,7 @@ const BOOT = (storageOrigin: string, parentOrigins: string[]) => `(function () {
     return false;
   }
   if (window.top === window) return say("This embed only runs inside a Marker note.");
+  if (self.origin !== "null") return say("This embed only runs in a sandboxed frame.");
   var ancestors = location.ancestorOrigins;
   if (ancestors) for (var i = 0; i < ancestors.length; i++) {
     if (ancestors[i] && ancestors[i] !== "null" && !allowed(ancestors[i])) return say("This embed only runs inside a Marker note.");

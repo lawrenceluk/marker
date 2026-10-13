@@ -82,6 +82,8 @@ test("an agent embed runs sandboxed and themed, resizes, has no network, and lin
   });
   const warnings: string[] = [];
   page.on("console", message => { if (message.type() === "warning") warnings.push(message.text()); });
+  const embedNavigations: string[] = [];
+  page.on("framenavigated", frame => { if (frame !== page.mainFrame()) embedNavigations.push(frame.url()); });
 
   const response = await page.goto(`/?key=${key}&persist=1`);
   const headers = response!.headers();
@@ -120,6 +122,14 @@ test("an agent embed runs sandboxed and themed, resizes, has no network, and lin
     const root = getComputedStyle(document.documentElement);
     return {
       origin: self.origin,
+      locationOrigin: location.origin,
+      frameSandbox: (() => {
+        try {
+          return window.frameElement ? "readable" : "hidden";
+        } catch {
+          return "blocked";
+        }
+      })(),
       unpkg: (window as unknown as { unpkgLoaded?: boolean }).unpkgLoaded ?? null,
       fetch: await attempt(() => fetch("/api/content")),
       cookie: await attempt(() => document.cookie),
@@ -133,6 +143,11 @@ test("an agent embed runs sandboxed and themed, resizes, has no network, and lin
     };
   });
   expect(inside.origin).toBe("null");
+  expect(inside.locationOrigin, "location reflects the URL, not the document's opaque origin").toBe(new URL(info.project.use.baseURL!).origin);
+  expect(inside.frameSandbox, "an opaque document can't reach its parent's iframe element").toBe("hidden");
+  expect(await iframe.evaluate(element => (element as HTMLIFrameElement).sandbox.value)).toBe("allow-scripts");
+  expect(embedNavigations.filter(url => url.includes("embed-shell-v1.html")), "the shell loads once, with no redirect or re-navigation").toHaveLength(1);
+  expect(embedNavigations.every(url => url.includes("embed-shell-v1.html"))).toBe(true);
   expect(inside.unpkg, "unpkg is outside the script allowlist").toBeNull();
   expect(inside.fetch).toBe("blocked");
   expect(inside.cookie).toBe("blocked");
@@ -213,6 +228,47 @@ test("embeds start on screen, stop for a hidden tab, are swapped out when frozen
   await expect(stuck.getByRole("button", { name: "Reload embed" })).toBeVisible();
   await stuck.getByRole("button", { name: "Reload embed" }).click();
   await expect(stuck.locator("iframe")).toHaveAttribute("data-ready", "");
+});
+
+const MARGINS = `<p style="margin:24px 0">Top</p><div style="height:200px"></div><pre>last line</pre>`;
+const SHORT = `<p>Short</p>`;
+
+test("the frame fits margins that escape the body, shrinks to short content, and the shell needs the sandbox", async ({ page, request }, info) => {
+  const key = `embeds-size-${info.project.name}-${Date.now()}`;
+  await request.post("/api/content", { data: { key, content: "# Size\n" } });
+  const margins = await upload(request, key, "text/html", MARGINS);
+  const short = await upload(request, key, "text/html", SHORT);
+  await request.post("/api/content", {
+    data: { key, content: `# Size\n\n![Short](marker-embed:${short.asset_id} "h=600")\n\n![Margins](marker-embed:${margins.asset_id} "h=120")\n` },
+  });
+  await thirdParties(page);
+  await page.goto(`/?key=${key}&persist=1`);
+
+  const shortFrame = page.getByRole("group", { name: "Short" }).locator("iframe");
+  await expect(shortFrame).toHaveAttribute("data-ready", "");
+  await expect.poll(() => shortFrame.evaluate(element => element.getBoundingClientRect().height), { message: "h is only the first paint" }).toBeLessThan(200);
+
+  const group = page.getByRole("group", { name: "Margins" });
+  await group.scrollIntoViewIfNeeded();
+  const marginFrame = group.locator("iframe");
+  await expect(marginFrame).toHaveAttribute("data-ready", "");
+  const content = (await (await marginFrame.elementHandle())!.contentFrame())!;
+  await expect.poll(async () => {
+    const m = await content.evaluate(() => {
+      const pre = document.querySelector("pre")!;
+      return { bottom: pre.getBoundingClientRect().bottom + parseFloat(getComputedStyle(pre).marginBottom), viewport: innerHeight, scroll: document.documentElement.scrollHeight };
+    });
+    return m.bottom <= m.viewport && m.scroll <= m.viewport;
+  }, { message: "the trailing <pre> margin and the first child's top margin fit in the frame" }).toBe(true);
+
+  const { urls, embed_shell } = await (await request.get(`/api/assets/urls?key=${key}`)).json();
+  await page.evaluate(src => {
+    const frame = document.createElement("iframe");
+    frame.id = "unsandboxed";
+    frame.src = src;
+    document.body.append(frame);
+  }, `${embed_shell}#src=${encodeURIComponent(urls[short.asset_id])}`);
+  await expect(page.frameLocator("#unsandboxed").locator("body")).toHaveText("This embed only runs in a sandboxed frame.");
 });
 
 test("the raw file is served as text and the shell refuses to run outside a frame", async ({ page, request }, info) => {
