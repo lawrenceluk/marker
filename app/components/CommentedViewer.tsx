@@ -621,7 +621,7 @@ export function CommentedViewer({
         </ToolbarButton>,
       )}
       {error && !active && (
-        <p role="alert" className="mb-3 text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="mb-3 text-sm text-danger">
           {error}
         </p>
       )}
@@ -821,7 +821,7 @@ export function CommentedViewer({
           </ToolbarButton>
         </div>
         {error && (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <p role="alert" className="text-sm text-danger">
             {error}{" "}
             <button
               className="underline"

@@ -56,7 +56,7 @@ export default async function CreatorFolder({ searchParams }: { searchParams: Pr
         <FolderNav canForget={listing !== null} />
 
         {error && (
-          <div role="alert" className="mb-6 rounded-lg bg-red-50 p-4 text-center text-red-600 dark:bg-red-900/20 dark:text-red-400">
+          <div role="alert" className="mb-6 rounded-lg bg-danger-surface p-4 text-center text-danger">
             {error}
           </div>
         )}
@@ -71,7 +71,7 @@ function PasteId() {
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6">
       <div className="space-y-2 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Open a folder</h1>
+        <h1 className="text-2xl font-bold text-foreground">Open a folder</h1>
         <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
           Paste the creator id your agent gave you. It is a secret: anyone holding it can see this
           folder and open every note in it.
@@ -98,7 +98,7 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
   return (
     <div className="flex flex-col gap-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{listing.creator_name ?? "Untitled folder"}</h1>
+        <h1 className="text-2xl font-bold text-foreground">{listing.creator_name ?? "Untitled folder"}</h1>
         <p className="text-sm text-zinc-500">
           {listing.total} {listing.total === 1 ? "note" : "notes"}{tags.length ? ` tagged ${tags.join(" + ")}` : ""}
         </p>

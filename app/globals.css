@@ -5,36 +5,72 @@
   --foreground: #171717;
   /* Dividers and menu borders; derived so it follows both color schemes. */
   --hairline: color-mix(in srgb, var(--foreground) 12%, transparent);
+  --muted: color-mix(in srgb, var(--foreground) 70%, var(--background));
+  /* Status text. Red-700 keeps 4.5:1 on white and on --danger-surface. */
+  --danger: #b91c1c;
+  --danger-surface: color-mix(in srgb, var(--danger) 8%, var(--background));
+  --code-background: var(--color-zinc-100);
+  --code-foreground: var(--color-zinc-900);
+}
+
+/*
+ * Type scale (docs/typography.md). Every font size uses one of these steps;
+ * Tailwind's other text-* steps are removed so off-scale sizes can't creep back.
+ */
+@theme {
+  --text-*: initial;
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 0.875rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 2rem;
+  --text-2xl: 2rem;
+  --text-2xl--line-height: 2.5rem;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans-italic: var(--font-geist-italic), var(--font-sans);
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-hairline: var(--hairline);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-danger: var(--danger);
+  --color-danger-surface: var(--danger-surface);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    /* Red-400: 7.2:1 on the dark background. */
+    --danger: #f87171;
+    --code-background: var(--color-zinc-800);
+    --code-foreground: var(--color-zinc-200);
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 /* Metadata is separate from prose so YAML cannot become a Markdown heading. */
-.metadata-callout { margin: 0 0 1.25rem; font-size: 0.8rem; line-height: 1.5; color: color-mix(in srgb, var(--foreground) 75%, var(--background)); overflow-wrap: anywhere; }
-.metadata-callout summary { width: fit-content; padding: 0.65rem 0; cursor: pointer; font-weight: 550; min-height: 44px; }
+.metadata-callout { margin: 0 0 1.25rem; font-size: var(--text-xs); line-height: 1.5; color: color-mix(in srgb, var(--foreground) 75%, var(--background)); overflow-wrap: anywhere; }
+.metadata-callout summary { width: fit-content; padding: 0.65rem 0; cursor: pointer; font-weight: 600; min-height: 44px; }
 .metadata-callout summary:focus-visible { outline: 2px solid var(--foreground); outline-offset: 3px; border-radius: 0.2rem; }
-.metadata-content { padding: 0.65rem 0.85rem; border: 1px solid var(--hairline); border-radius: 0.6rem; background: color-mix(in srgb, var(--foreground) 2%, var(--background)); font-family: var(--font-geist-mono, ui-monospace), SFMono-Regular, Menlo, monospace; }
+.metadata-content { padding: 0.65rem 0.85rem; border: 1px solid var(--hairline); border-radius: 0.6rem; background: color-mix(in srgb, var(--foreground) 2%, var(--background)); font-family: var(--font-mono); }
 .metadata-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 0.35rem 0.8rem; padding: 0.25rem 0; }
-.metadata-field dt { font-weight: 550; color: var(--foreground); }
+.metadata-field dt { font-weight: 600; color: var(--foreground); }
 .metadata-field dd { min-width: 0; white-space: pre-wrap; }
 .metadata-field .metadata-field { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
 .metadata-content ul { list-style: disc; padding-left: 1rem; }
@@ -50,28 +86,55 @@ body {
   word-wrap: break-word;
 }
 
+/*
+ * Heading ladder: H1 2xl/700, H2 xl/600, H3 lg/600, H4 base/600, H5 sm/600,
+ * H6 sm/600 muted. UI page titles (<h1> on Home and /c) use the H1 style.
+ */
 .prose h1 {
-  font-size: 2rem;
+  font-size: var(--text-2xl);
   font-weight: 700;
   margin-top: 2rem;
   margin-bottom: 1rem;
-  line-height: 1.25;
+  line-height: var(--text-2xl--line-height);
 }
 
 .prose h2 {
-  font-size: 1.5rem;
+  font-size: var(--text-xl);
   font-weight: 600;
   margin-top: 1.75rem;
   margin-bottom: 0.75rem;
-  line-height: 1.3;
+  line-height: var(--text-xl--line-height);
 }
 
 .prose h3 {
-  font-size: 1.25rem;
+  font-size: var(--text-lg);
   font-weight: 600;
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
-  line-height: 1.4;
+  line-height: var(--text-lg--line-height);
+}
+
+.prose h4,
+.prose h5,
+.prose h6 {
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose h4 {
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+}
+
+.prose h5,
+.prose h6 {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+}
+
+.prose h6 {
+  color: var(--muted);
 }
 
 .prose p {
@@ -79,17 +142,14 @@ body {
   line-height: 1.6;
 }
 
-/* Tighter line-height for wrapped content within paragraphs */
-.prose p:has(a) {
-  line-height: 1.5;
+.prose :is(em, i, cite, blockquote) {
+  font-family: var(--font-sans-italic);
 }
 
 .prose a {
   color: var(--color-blue-500);
   text-decoration: underline;
-  word-break: break-all;
-  overflow-wrap: break-word;
-  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .prose a:hover {
@@ -97,17 +157,17 @@ body {
 }
 
 .prose code {
-  background: var(--color-zinc-100);
-  color: var(--color-zinc-900);
+  background: var(--code-background);
+  color: var(--code-foreground);
   padding: 0.2rem 0.4rem;
   border-radius: 0.25rem;
   font-size: 0.875em;
-  font-family: var(--font-mono), monospace;
+  font-family: var(--font-mono);
 }
 
 .prose pre {
-  background: var(--color-zinc-900);
-  color: var(--color-zinc-200);
+  background: var(--code-background);
+  color: var(--code-foreground);
   padding: 1rem;
   border-radius: 0.5rem;
   overflow-x: auto;
@@ -148,16 +208,16 @@ body {
 .reaction-task-control input:focus-visible { outline: 2px solid var(--foreground); outline-offset: 3px; }
 .reaction-task-label span { min-width: 0; }
 .reaction-ask { border: 1px solid var(--hairline); border-radius: 0.9rem; padding: 1rem; margin: 1.5rem 0; background: color-mix(in srgb, var(--foreground) 3%, var(--background)); }
-.reaction-ask legend { font-weight: 650; line-height: 1.35; padding: 0 0.25rem; }
+.reaction-ask legend { font-weight: 600; line-height: 1.35; padding: 0 0.25rem; }
 .reaction-options { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.25rem; }
-.reaction-option { appearance: none; border: 1px solid color-mix(in srgb, var(--foreground) 65%, transparent); border-radius: 999px; padding: 0.55rem 0.85rem; min-height: 2.75rem; background: var(--background); color: var(--foreground); font-size: 0.9rem; line-height: 1.2; }
+.reaction-option { appearance: none; border: 1px solid color-mix(in srgb, var(--foreground) 65%, transparent); border-radius: 999px; padding: 0.55rem 0.85rem; min-height: 2.75rem; background: var(--background); color: var(--foreground); font-size: var(--text-sm); line-height: var(--text-sm--line-height); }
 .reaction-option.selected { background: var(--foreground); border-color: var(--foreground); color: var(--background); }
 .reaction-option:disabled, .reaction-task-label input:disabled { opacity: 1; cursor: wait; }
 .reaction-other { width: 100%; margin-top: 0.75rem; border: 1px solid var(--hairline); border-radius: 0.65rem; padding: 0.65rem 0.75rem; background: var(--background); }
 .reaction-other:focus-visible, .reaction-option:focus-visible { outline: 2px solid var(--foreground); outline-offset: 2px; }
-.prose .reaction-hint { color: color-mix(in srgb, var(--foreground) 55%, transparent); font-size: 0.75rem; margin: 0.7rem 0 0; }
-.reaction-status { display: flex; align-items: center; flex-wrap: wrap; gap: 0.8rem; margin: 1rem 0 2rem; font-size: 0.85rem; }
-.reaction-status p { color: #b91c1c; width: 100%; }
+.prose .reaction-hint { color: color-mix(in srgb, var(--foreground) 55%, transparent); font-size: var(--text-xs); margin: 0.7rem 0 0; }
+.reaction-status { display: flex; align-items: center; flex-wrap: wrap; gap: 0.8rem; margin: 1rem 0 2rem; font-size: var(--text-sm); }
+.reaction-status p { color: var(--danger); width: 100%; }
 .reaction-status p button { text-decoration: underline; }
 
 .prose blockquote {
@@ -195,30 +255,16 @@ body {
 .note-image { display: inline-block; max-width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; vertical-align: middle; -webkit-touch-callout: default; }
 .note-image img { display: block; max-width: 100%; max-height: 80vh; height: auto; border-radius: 0.5rem; }
 .note-image:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 0.5rem; }
-.note-image-placeholder { display: inline-flex; align-items: center; gap: 0.5rem; max-width: 100%; padding: 0.6rem 0.85rem; border: 1px dashed var(--hairline); border-radius: 0.6rem; font-size: 0.8rem; color: color-mix(in srgb, var(--foreground) 55%, transparent); overflow-wrap: anywhere; }
+.note-image-placeholder { display: inline-flex; align-items: center; gap: 0.5rem; max-width: 100%; padding: 0.6rem 0.85rem; border: 1px dashed var(--hairline); border-radius: 0.6rem; font-size: var(--text-xs); color: color-mix(in srgb, var(--foreground) 55%, transparent); overflow-wrap: anywhere; }
 .note-image-placeholder svg { width: 1.1rem; height: 1.1rem; flex: none; }
 .note-lightbox { max-width: 100vw; max-height: 100dvh; width: 100vw; height: 100dvh; margin: 0; padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); border: 0; background: transparent; cursor: zoom-out; }
 .note-lightbox[open] { display: flex; align-items: center; justify-content: center; }
 .note-lightbox::backdrop { background: rgb(0 0 0 / 0.85); }
 .note-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.note-lightbox-close { position: fixed; top: max(0.75rem, env(safe-area-inset-top)); right: max(0.75rem, env(safe-area-inset-right)); width: 2.5rem; height: 2.5rem; border-radius: 999px; background: rgb(0 0 0 / 0.55); color: #fff; font-size: 1.5rem; line-height: 1; }
+.note-lightbox-close { position: fixed; top: max(0.75rem, env(safe-area-inset-top)); right: max(0.75rem, env(safe-area-inset-right)); width: 2.5rem; height: 2.5rem; border-radius: 999px; background: rgb(0 0 0 / 0.55); color: #fff; font-size: var(--text-xl); line-height: 1; }
 
-/*
- * Dark mode prose — match prefers-color-scheme (Marker has no .dark class).
- * Inline code previously kept a light chip background while inheriting the
- * light foreground, so chips like `state.md` were unreadable.
- */
+/* Dark mode prose — match prefers-color-scheme (Marker has no .dark class). Code colours come from --code-*. */
 @media (prefers-color-scheme: dark) {
-  .prose code {
-    background: var(--color-zinc-800);
-    color: var(--color-zinc-200);
-  }
-
-  .prose pre code {
-    background: transparent;
-    color: inherit;
-  }
-
   .prose blockquote {
     border-left-color: var(--color-zinc-600);
     color: var(--color-zinc-400);
@@ -247,27 +293,27 @@ body {
 }
 
 /* Comments use the reader's icon language; the native text-selection menu stays intact. */
-.comment-count { position: absolute; right: -4px; top: -5px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 8px; font-size: 10px; line-height: 14px; background: var(--foreground); color: var(--background); }
+.comment-count { position: absolute; right: -4px; top: -5px; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 8px; font-size: var(--text-2xs); line-height: var(--text-2xs--line-height); background: var(--foreground); color: var(--background); }
 .comment-selection, .emoji-selection { position: fixed; z-index: 20; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); color: var(--foreground); box-shadow: 0 2px 12px rgb(0 0 0 / .18); }
 .comment-sheet { position: fixed; inset: auto; margin: 0; left: clamp(8px, var(--comment-x, 8px), calc(100vw - 336px)); top: var(--comment-y, 20vh); width: min(328px, calc(100vw - 16px)); max-height: min(70dvh, calc(var(--comment-viewport, 100dvh) - 16px)); padding: 12px; border-radius: 12px; color: var(--foreground); background: var(--background); box-shadow: 0 4px 28px rgb(0 0 0 / .16); overflow-y: auto; }
 .comment-sheet::backdrop { background: rgb(0 0 0 / .06); }
 .comment-heading { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
-.comment-quote { flex: 1; min-width: 0; font-size: 12px; opacity: .6; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.comment-quote { flex: 1; min-width: 0; font-size: var(--text-xs); opacity: .6; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .comment-heading > label { flex: 1; }
 .comment-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px; color: inherit; }
 .comment-icon:hover, .comment-row:hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
 .comment-icon:disabled { opacity: .3; }
-.comment-row { display: block; width: 100%; text-align: left; padding: 8px 4px; border-radius: 6px; font-size: 14px; }
+.comment-row { display: block; width: 100%; text-align: left; padding: 8px 4px; border-radius: 6px; font-size: var(--text-sm); }
 .comment-messages { max-height: min(38dvh, calc(var(--comment-viewport, 100dvh) - 148px)); overflow-y: auto; }
 .comment-compose { display: flex; align-items: flex-end; gap: 4px; }
 .emoji-reactor-bar { position: fixed; z-index: 21; display: flex; gap: 3px; padding: 3px; border: 1px solid var(--hairline); border-radius: 11px; background: var(--background); box-shadow: 0 3px 16px rgb(0 0 0 / .18); }
-.emoji-reactor-bar button { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 8px; font-size: 25px; }
+.emoji-reactor-bar button { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 8px; font-size: var(--text-xl); }
 .emoji-reactor-bar button:hover, .emoji-reactor-bar button:focus-visible { background: color-mix(in srgb, var(--foreground) 10%, var(--background)); outline: 2px solid transparent; }
 .emoji-reactor-bar button:disabled { opacity: .5; }
 .emoji-selection[aria-expanded="true"] > span[aria-hidden="true"] { display: none; }
 .emoji-picker-panel { position: fixed; z-index: 22; max-width: calc(100vw - 16px); border-radius: 10px; box-shadow: 0 4px 22px rgb(0 0 0 / .2); }
-.emoji-reactor-error { position: fixed; z-index: 22; max-width: 272px; padding: 8px; border-radius: 8px; background: var(--background); color: #b91c1c; font-size: 12px; box-shadow: 0 2px 12px rgb(0 0 0 / .15); }
-.comment-compose textarea { flex: 1; min-width: 0; min-height: 36px; max-height: 120px; padding: 6px 2px; resize: vertical; outline: none; font-size: 16px; line-height: 24px; background: transparent; }
+.emoji-reactor-error { position: fixed; z-index: 22; max-width: 272px; padding: 8px; border-radius: 8px; background: var(--background); color: var(--danger); font-size: var(--text-xs); box-shadow: 0 2px 12px rgb(0 0 0 / .15); }
+.comment-compose textarea { flex: 1; min-width: 0; min-height: 36px; max-height: 120px; padding: 6px 2px; resize: vertical; outline: none; font-size: var(--text-base); line-height: var(--text-base--line-height); background: transparent; }
 [data-comments] { background: color-mix(in srgb, var(--color-yellow-500) 16%, transparent); color: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--color-yellow-600) 50%, transparent); text-underline-offset: 3px; cursor: pointer; }
 @media (prefers-color-scheme: dark) { .comment-sheet, .comment-selection, .emoji-selection { box-shadow: 0 2px 24px rgb(0 0 0 / .5); outline: 1px solid var(--hairline); } }
 @media (max-width: 640px) { .comment-sheet { left: 8px; top: auto; bottom: calc(var(--comment-bottom, 0px) + 8px); width: calc(100vw - 16px); padding-bottom: max(12px, env(safe-area-inset-bottom)); } }
@@ -276,11 +322,11 @@ body {
 .note-toolbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--hairline); }
 .note-toolbar > :last-child:not(:first-child) { margin-left: auto; }
 .toolbar-menu { position: fixed; inset: auto; margin: 0; width: 200px; max-width: calc(100vw - 16px); padding: 4px; border: 1px solid var(--hairline); border-radius: 10px; color: var(--foreground); background: var(--background); box-shadow: 0 4px 24px rgb(0 0 0 / .12); }
-.toolbar-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border-radius: 6px; font-size: 14px; text-align: left; }
+.toolbar-menu-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border-radius: 6px; font-size: var(--text-sm); text-align: left; }
 .toolbar-menu-item:hover, .toolbar-menu-item:focus-visible { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
 .toolbar-menu-item:disabled { opacity: .35; }
 /* Sticky in <main>: in place under the toolbar at the top, pinned to the viewport once scrolled. Below selection tools (z 21+). */
-.update-nudge { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: block; width: fit-content; max-width: calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); margin: -8px auto 16px; padding: 7px 14px; border-radius: 999px; font-size: 14px; line-height: 20px; color: var(--foreground); background: color-mix(in srgb, var(--foreground) 6%, var(--background)); box-shadow: 0 2px 12px rgb(0 0 0 / .12); touch-action: manipulation; }
+.update-nudge { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 8px); z-index: 20; display: block; width: fit-content; max-width: calc(100vw - 16px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); margin: -8px auto 16px; padding: 7px 14px; border-radius: 999px; font-size: var(--text-sm); line-height: var(--text-sm--line-height); color: var(--foreground); background: color-mix(in srgb, var(--foreground) 6%, var(--background)); box-shadow: 0 2px 12px rgb(0 0 0 / .12); touch-action: manipulation; }
 @media (prefers-color-scheme: dark) { .update-nudge { box-shadow: 0 2px 12px rgb(0 0 0 / .5); outline: 1px solid var(--hairline); } }
 .tap-select { touch-action: manipulation; }
 .comment-auto-tools { position: fixed; z-index: 21; display: flex; align-items: center; gap: 3px; max-width: min(260px, calc(100vw - 8px)); color: var(--foreground); }
@@ -301,10 +347,10 @@ body {
 }
 
 /* Creator folder tags: chips on /c, pills inside a note. */
-.creator-tag { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 32px; padding: 0.2rem 0.7rem; border: 1px solid var(--hairline); border-radius: 999px; font-size: 0.8rem; color: color-mix(in srgb, var(--foreground) 80%, var(--background)); }
+.creator-tag { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 32px; padding: 0.2rem 0.7rem; border: 1px solid var(--hairline); border-radius: 999px; font-size: var(--text-xs); color: color-mix(in srgb, var(--foreground) 80%, var(--background)); }
 a.creator-tag:hover, button.creator-tag:not(.creator-tag-on):hover { background: color-mix(in srgb, var(--foreground) 6%, transparent); }
 /* Long-press selects one tag, so suppress the callout, text selection and double-tap zoom it would otherwise trigger. */
 .creator-tag-chip { cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
-.creator-tag-on { border-color: var(--foreground); color: var(--foreground); background: color-mix(in srgb, var(--foreground) 8%, transparent); font-weight: 550; }
-.creator-tag-small { min-height: 0; padding: 0 0.5rem; font-size: 0.7rem; }
-.note-creator { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 1rem; font-size: 0.85rem; color: color-mix(in srgb, var(--foreground) 70%, var(--background)); }
+.creator-tag-on { border-color: var(--foreground); color: var(--foreground); background: color-mix(in srgb, var(--foreground) 8%, transparent); font-weight: 600; }
+.creator-tag-small { min-height: 0; padding: 0 0.5rem; }
+.note-creator { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 1rem; font-size: var(--text-sm); line-height: var(--text-sm--line-height); color: var(--muted); }

@@ -508,7 +508,7 @@ export function NoteApp({
         )}
 
         {error && (
-          <div role="alert" className="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-center">
+          <div role="alert" className="mb-6 p-4 rounded-lg bg-danger-surface text-danger text-center">
             {error}
           </div>
         )}
