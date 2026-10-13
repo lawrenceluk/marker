@@ -8,6 +8,7 @@ import { creatorHash } from "../lib/creators";
 import type { FolderSummary } from "../lib/folders";
 import { r2Config } from "../lib/r2";
 import { assetUrlMap } from "../lib/assets";
+import { shellForNote } from "../lib/embeds";
 import { NoteApp } from "./NoteApp";
 
 /** Shared by metadata and the page body so a request reads the note once. */
@@ -55,6 +56,7 @@ export async function NoteView({
         initialFolders={folders}
         imagesEnabled={r2 !== null}
         initialAssetUrls={assetUrlMap(r2, note)}
+        initialEmbedShellUrl={(await shellForNote(r2, note))?.url ?? null}
       />
     </>
   );

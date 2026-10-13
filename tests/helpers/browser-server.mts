@@ -49,6 +49,7 @@ const app = spawn(
       // The proxy's certificate is self-signed; only server-side R2 calls (deletes, base64 puts) need this.
       NODE_TLS_REJECT_UNAUTHORIZED: "0",
       CRON_SECRET: "browser-test-cron-secret",
+      EMBED_PARENT_ORIGINS: "https://127.0.0.1:17382",
     },
   },
 );

@@ -98,6 +98,31 @@ export function presign(
   return url.toString();
 }
 
+const HOUR_MS = 60 * 60 * 1000;
+
+export type AssetUrl = { url: string; expires_at: number };
+
+/**
+ * Hour-aligned GET URLs: signed at the top of the hour for two hours, so a
+ * URL is byte-identical (and browser-cacheable) for the whole hour and stays
+ * valid at least an hour after it is minted.
+ */
+export function viewUrl(config: R2Config, objectKey: string, contentType: string, now = Date.now()): AssetUrl {
+  const signedAt = Math.floor(now / HOUR_MS) * HOUR_MS;
+  return {
+    url: presign(config, "GET", objectKey, {
+      now: signedAt,
+      expiresIn: 2 * 3600,
+      query: {
+        "response-content-type": contentType,
+        "response-content-disposition": "inline",
+        "response-cache-control": "private, max-age=3600",
+      },
+    }),
+    expires_at: signedAt + 2 * HOUR_MS,
+  };
+}
+
 export function objectUrl(config: R2Config, objectKey: string): URL {
   return new URL(`${config.endpoint}/${config.bucket}/${objectKey.split("/").map(uriEncode).join("/")}`);
 }
@@ -126,6 +151,13 @@ async function signedFetch(
 export async function putObject(config: R2Config, objectKey: string, body: Uint8Array, contentType: string): Promise<void> {
   const res = await signedFetch(config, "PUT", objectUrl(config, objectKey), body, { "content-type": contentType });
   if (!res.ok) throw new Error(`R2 PUT failed: ${res.status}`);
+}
+
+export async function objectExists(config: R2Config, objectKey: string): Promise<boolean> {
+  const res = await signedFetch(config, "HEAD", objectUrl(config, objectKey));
+  if (res.status === 404) return false;
+  if (!res.ok) throw new Error(`R2 HEAD failed: ${res.status}`);
+  return true;
 }
 
 /** DeleteObject is idempotent: a missing object is still a 204. */

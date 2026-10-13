@@ -15,10 +15,12 @@ import {
   STORAGE_WARN_REARM_BYTES,
   type AssetType,
 } from "./assetIndex";
-import { presign, type R2Config } from "./r2";
+import { MAX_NOTE_EMBEDS } from "./embedPolicy";
+import { presign, viewUrl, type AssetUrl, type R2Config } from "./r2";
+
+export type { AssetUrl };
 
 export const UPLOAD_URL_TTL_SECONDS = 600;
-const HOUR_MS = 60 * 60 * 1000;
 
 const CONTENT_TYPES: Record<string, AssetType> = {
   "image/png": "png",
@@ -26,14 +28,18 @@ const CONTENT_TYPES: Record<string, AssetType> = {
   "image/jpg": "jpeg",
   "image/gif": "gif",
   "image/webp": "webp",
+  "text/html": "html",
 };
 
 export function assetTypeFor(contentType: unknown): AssetType | null {
   if (typeof contentType !== "string") return null;
-  return CONTENT_TYPES[contentType.trim().toLowerCase()] ?? null;
+  return CONTENT_TYPES[contentType.split(";")[0].trim().toLowerCase()] ?? null;
 }
 
-export const contentTypeOf = (t: AssetType) => `image/${t}`;
+export const contentTypeOf = (t: AssetType) => (t === "html" ? "text/html" : `image/${t}`);
+/** Embeds are stored and served as text so the raw file never renders outside the shell. */
+export const storedContentType = (t: AssetType) => (t === "html" ? "text/plain; charset=utf-8" : contentTypeOf(t));
+export const assetMarkdown = (t: AssetType, id: string) => (t === "html" ? `![](marker-embed:${id})` : `![](marker-asset:${id})`);
 export const objectKey = (ns: string, id: string) => `${ns}/${id}`;
 export const newAssetId = () => randomBytes(16).toString("base64url");
 const newAssetNs = () => randomBytes(12).toString("base64url");
@@ -54,6 +60,11 @@ local assets = decode_assets(redis.call('HGET', h, 'assets')) or {}
 local count, bytes = 0, 0
 for _, a in pairs(assets) do count = count + 1; bytes = bytes + (a.s or 0) end
 if count >= ${MAX_NOTE_ASSETS} then return {'too_many'} end
+if ARGV[4] == 'html' then
+  local embeds = 0
+  for _, a in pairs(assets) do if a.t == 'html' then embeds = embeds + 1 end end
+  if embeds >= ${MAX_NOTE_EMBEDS} then return {'too_many_embeds'} end
+end
 if bytes + size > ${MAX_NOTE_ASSET_BYTES} then return {'note_full'} end
 local total = tonumber(redis.call('GET', asset_key('bytes'))) or 0
 if total + size > ${STORAGE_STOP_BYTES} then
@@ -80,7 +91,7 @@ return {'ok', ns, tostring(warn), tostring(after)}
 
 export type ReserveResult =
   | { ok: true; ns: string; id: string; totalBytes: number; warn: boolean }
-  | { ok: false; reason: "not_found" | "too_many" | "note_full" }
+  | { ok: false; reason: "not_found" | "too_many" | "too_many_embeds" | "note_full" }
   | { ok: false; reason: "rate_limited"; retryAfter: number }
   | { ok: false; reason: "storage_full"; totalBytes: number; alert: boolean };
 
@@ -99,49 +110,27 @@ export async function reserveAsset(key: string, type: AssetType, size: number): 
     case "storage_full":
       return { ok: false, reason: "storage_full", alert: result[1] === "1", totalBytes: Number(result[2]) };
     default:
-      return { ok: false, reason: result[0] as "not_found" | "too_many" | "note_full" };
+      return { ok: false, reason: result[0] as "not_found" | "too_many" | "too_many_embeds" | "note_full" };
   }
 }
 
 /** Presigned PUT that locks the type and exact length. */
 export function uploadUrl(config: R2Config, ns: string, id: string, type: AssetType, size: number, now = Date.now()) {
-  const headers = { "content-type": contentTypeOf(type), "content-length": String(size) };
+  const headers = { "content-type": storedContentType(type), "content-length": String(size) };
   return {
     url: presign(config, "PUT", objectKey(ns, id), { now, expiresIn: UPLOAD_URL_TTL_SECONDS, headers }),
     headers: { "Content-Type": headers["content-type"], "Content-Length": headers["content-length"] },
   };
 }
 
-export type AssetUrl = { url: string; expires_at: number };
-
-/**
- * Hour-aligned GET URLs: signed at the top of the hour for two hours, so a
- * URL is byte-identical (and browser-cacheable) for the whole hour and stays
- * valid at least an hour after it is minted.
- */
 export function assetUrls(config: R2Config | null, note: Pick<Note, "assetNs" | "assets">, now = Date.now()): Record<string, AssetUrl> {
   if (!config || !note.assetNs) return {};
-  const signedAt = Math.floor(now / HOUR_MS) * HOUR_MS;
-  const expiresAt = signedAt + 2 * HOUR_MS;
   const out: Record<string, AssetUrl> = {};
-  for (const [id, asset] of Object.entries(note.assets)) {
-    out[id] = {
-      url: presign(config, "GET", objectKey(note.assetNs, id), {
-        now: signedAt,
-        expiresIn: 2 * 3600,
-        query: {
-          "response-content-type": contentTypeOf(asset.t),
-          "response-content-disposition": "inline",
-          "response-cache-control": "private, max-age=3600",
-        },
-      }),
-      expires_at: expiresAt,
-    };
-  }
+  for (const [id, asset] of Object.entries(note.assets)) out[id] = viewUrl(config, objectKey(note.assetNs, id), storedContentType(asset.t), now);
   return out;
 }
 
-/** `{id: url}` for the browser's image renderer. */
+/** `{id: url}` for the browser's image and embed renderers. */
 export function assetUrlMap(config: R2Config | null, note: Pick<Note, "assetNs" | "assets"> | null, now = Date.now()): Record<string, string> {
   if (!note) return {};
   return Object.fromEntries(Object.entries(assetUrls(config, note, now)).map(([id, u]) => [id, u.url]));
@@ -157,7 +146,7 @@ export function assetSummaries(config: R2Config | null, note: Pick<Note, "assetN
       type: contentTypeOf(asset.t),
       size: asset.s,
       created_at: asset.c,
-      markdown: `![](marker-asset:${id})`,
+      markdown: assetMarkdown(asset.t, id),
       url: urls[id]?.url ?? null,
       expires_at: urls[id]?.expires_at ?? null,
       delete_after: asset.r === undefined ? null : asset.r + ASSET_GRACE_MS,

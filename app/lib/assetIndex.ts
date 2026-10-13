@@ -1,8 +1,8 @@
 /**
- * Per-note image index, stored on the note hash so rename, TTL and delete
- * carry it with no extra keys:
+ * Per-note asset index (images and embeds), stored on the note hash so
+ * rename, TTL and delete carry it with no extra keys:
  *   `asset_ns` random R2 prefix; objects live at `<asset_ns>/<asset id>`
- *   `assets`   JSON { <id>: { t: "png"|"jpeg"|"gif"|"webp", s: bytes, c: createdMs, r?: unreferencedSinceMs } }
+ *   `assets`   JSON { <id>: { t: "png"|"jpeg"|"gif"|"webp"|"html", s: bytes, c: createdMs, r?: unreferencedSinceMs } }
  * Global keys under the storage prefix:
  *   `assets:sweep`   ZSET `<asset_ns>|<note key>` -> when the daily sweep must next look
  *   `assets:bytes`   STRING reserved bytes across all notes
@@ -10,7 +10,7 @@
  *   `assets:alerts`  HASH warn|stop -> ms the alert was raised (one email per crossing)
  */
 
-export const ASSET_TYPES = ["png", "jpeg", "gif", "webp"] as const;
+export const ASSET_TYPES = ["png", "jpeg", "gif", "webp", "html"] as const;
 export type AssetType = (typeof ASSET_TYPES)[number];
 
 export const MAX_ASSET_BYTES = 5 * 1024 * 1024;
@@ -28,7 +28,7 @@ export const STORAGE_WARN_REARM_BYTES = 7.5e9;
 export const STORAGE_STOP_REARM_BYTES = 9e9;
 
 export const ASSET_ID_PATTERN = /^[A-Za-z0-9_-]{22}$/;
-export const ASSET_REF_PATTERN = /marker-asset:([A-Za-z0-9_-]{22})/g;
+export const ASSET_REF_PATTERN = /marker-(?:asset|embed):([A-Za-z0-9_-]{22})/g;
 
 export type StoredAsset = { t: AssetType; s: number; c: number; r?: number };
 
@@ -81,8 +81,9 @@ local function asset_schedule(h, member, assets, now)
   if due then redis.call('ZADD', asset_key('sweep'), due, member)
   else redis.call('ZREM', asset_key('sweep'), member) end
 end
--- After a content commit: images the content references lose their removal
--- mark; images it no longer references get one (kept if already marked).
+-- After a content commit: assets the content references (as an image, an
+-- embed or an embed's poster) lose their removal mark; assets it no longer
+-- references get one (kept if already marked).
 local function asset_refs(h, key, content, now)
   local assets = decode_assets(redis.call('HGET', h, 'assets'))
   if not assets then return end
@@ -90,6 +91,7 @@ local function asset_refs(h, key, content, now)
   if not ns then return end
   local seen = {}
   for id in string.gmatch(content, 'marker%-asset:([%w_%-]+)') do seen[id] = true end
+  for id in string.gmatch(content, 'marker%-embed:([%w_%-]+)') do seen[id] = true end
   for id, a in pairs(assets) do
     if seen[id] then a.r = nil elseif not a.r then a.r = now end
   end

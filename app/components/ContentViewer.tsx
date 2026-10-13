@@ -9,6 +9,8 @@ import { reactionBlocks, type ReactionBlock, type ResponseEntry } from "../lib/r
 import { bodyMarkdown, frontMatter } from "../lib/frontmatter";
 import { MetadataCallout } from "./MetadataCallout";
 import { NoteImage, markerUrlTransform } from "./NoteImage";
+import { NoteEmbed } from "./NoteEmbed";
+import { EMBED_SCHEME } from "../lib/embedPolicy";
 
 export type ResponseChange = { block_id: string; selections: string[]; free_text: string };
 type ReactionContextValue = {
@@ -29,7 +31,9 @@ const urlTransform = (url: string) => markerUrlTransform(url, defaultUrlTransfor
 
 const markdownComponents: Components = {
   a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
-  img: ({ src, alt, title }) => <NoteImage src={typeof src === "string" ? src : undefined} alt={alt} title={title} />,
+  img: ({ src, alt, title }) => typeof src === "string" && src.startsWith(EMBED_SCHEME)
+    ? <NoteEmbed src={src} alt={alt} title={title} />
+    : <NoteImage src={typeof src === "string" ? src : undefined} alt={alt} title={title} />,
   li: function ReactionLi({ node, children, ...props }) {
     const context = useContext(ReactionContext);
     const block = context?.blocks.get(node?.position?.start.offset ?? -1);
