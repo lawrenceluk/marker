@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   PERSIST_QUERY,
   generateRandomKey,
@@ -11,6 +11,7 @@ import {
 import { useNoteRevision } from "../lib/useNoteRevision";
 import { HomeIdle } from "./HomeIdle";
 import { CommentedViewer } from "./CommentedViewer";
+import { frontMatter } from "../lib/frontmatter";
 import { ContentEditor } from "./ContentEditor";
 import { AssetUrlsProvider, urlsFromAssets } from "./NoteImage";
 import { NoteToolbar } from "./NoteToolbar";
@@ -85,6 +86,7 @@ export function NoteApp({
   const [deleteResetKey, setDeleteResetKey] = useState(0);
   const [isComposing, setIsComposing] = useState(false);
   const [creator, setCreator] = useState<NoteCreatorInfo | null>(initialCreator);
+  const metadata = useMemo(() => frontMatter(content), [content]);
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [isSavingTags, setIsSavingTags] = useState(false);
   const { updated, noticeRevision } = useNoteRevision(
@@ -556,16 +558,15 @@ export function NoteApp({
                 setError(null);
               } : undefined}
             />
-            {creator && (
-              <NoteCreator
+            <NoteCreator
                 key={isEditingTags ? "editing" : "viewing"}
                 info={creator}
+                metadata={metadata}
                 editing={isEditingTags}
                 isSaving={isSavingTags}
                 onSave={tags => void handleSaveTags(tags)}
                 onCancel={() => setIsEditingTags(false)}
               />
-            )}
             {updated && !isComposing && (
               <button type="button" className="update-nudge" disabled={isReloading} aria-busy={isReloading} onClick={() => void handleReload()}>
                 {isReloading ? "Refreshing…" : "Note updated · Refresh"}

@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { CopyButton } from "./CopyButton";
 import { primaryButtonClass, secondaryButtonClass } from "./controlStyles";
 import { useAssetUrls } from "./NoteImage";
+import { ToolbarTooltip } from "./ToolbarButton";
+
+const noSubscribe = () => () => {};
+/** Apple keyboards save with ⌘S; everything else with Ctrl+S. */
+const isApple = () => /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 
 interface ContentEditorProps {
   content: string;
@@ -53,6 +58,7 @@ export function ContentEditor({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const { register } = useAssetUrls() ?? {};
   const uploading = uploads > 0;
+  const apple = useSyncExternalStore(noSubscribe, isApple, () => false);
 
   useEffect(() => {
     contentRef.current = content;
@@ -234,9 +240,6 @@ export function ContentEditor({
     <div className="fixed inset-0 bg-background z-50 flex flex-col">
       <div className="border-b border-rule-ink bg-background">
         <div className="mx-auto flex min-h-16 w-full max-w-3xl flex-wrap items-center justify-between gap-2 px-4 py-4 sm:py-0">
-          <span className="text-sm text-muted">
-            {isNew ? "New note" : "Editing note"} · Cmd/Ctrl+S to save
-          </span>
           <div className="flex flex-wrap items-center gap-2">
             {imagesEnabled && <>
               <button
@@ -261,6 +264,8 @@ export function ContentEditor({
               />
             </>}
             <CopyButton text={content} disabled={isSaving} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={onCancel}
               disabled={isSaving}
@@ -271,9 +276,11 @@ export function ContentEditor({
             <button
               onClick={onSave}
               disabled={isSaving || uploading}
-              className={primaryButtonClass()}
+              aria-keyshortcuts={apple ? "Meta+S" : "Control+S"}
+              className={`group relative ${primaryButtonClass()}`}
             >
               {isSaving ? "Saving…" : "Save"}
+              <ToolbarTooltip label={apple ? "⌘S" : "Ctrl+S"} align="end" />
             </button>
           </div>
         </div>

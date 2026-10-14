@@ -109,7 +109,6 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
       )}
 
       <div className="sort" aria-label="Sort">
-        <span className="text-muted">Sort</span>
         {CREATOR_SORTS.map(option => (
           <Link prefetch={false}
             key={option}
@@ -135,7 +134,7 @@ function Folder({ listing, tags, sort, cursor }: { listing: CreatorListing; tags
                   {note.unseen && <span className="sr-only"> (new)</span>}
                 </span>
                 <span className="list-meta">
-                  <span>{sort === "created" ? `Created ${formatDate(note.created_at)}` : `Updated ${formatDate(note.updated_at)}`}</span>
+                  <span>{formatDate(sort === "created" ? note.created_at : note.updated_at)}</span>
                   {note.expires_at !== null && <span>Expires {formatDate(note.expires_at)}</span>}
                   {note.tags.map(tag => <span key={tag} className="tag tag-small">{tag}</span>)}
                 </span>

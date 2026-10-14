@@ -132,16 +132,6 @@ body {
 }
 
 /* Metadata is separate from prose so YAML cannot become a Markdown heading. */
-.metadata-callout { margin: 0 0 1.25rem; font-size: var(--text-xs); line-height: 1.5; color: color-mix(in srgb, var(--foreground) 75%, var(--background)); overflow-wrap: anywhere; }
-.metadata-callout summary { width: fit-content; padding: 0.65rem 0; cursor: pointer; font-weight: 600; min-height: 44px; }
-.metadata-callout summary:focus-visible { outline: 2px solid var(--foreground); outline-offset: 3px; border-radius: 0.2rem; }
-.metadata-content { padding: 0.65rem 0.85rem; border: 1px solid var(--hairline); border-radius: 0.6rem; background: color-mix(in srgb, var(--foreground) 2%, var(--background)); font-family: var(--font-mono); }
-.metadata-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 0.35rem 0.8rem; padding: 0.25rem 0; }
-.metadata-field dt { font-weight: 600; color: var(--foreground); }
-.metadata-field dd { min-width: 0; white-space: pre-wrap; }
-.metadata-field .metadata-field { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
-.metadata-content ul { list-style: disc; padding-left: 1rem; }
-.metadata-content li + li { margin-top: 0.2rem; }
 .metadata-content pre { font-size: inherit; white-space: pre-wrap; margin-top: 0.5rem; }
 @media (max-width: 480px) { .metadata-field .metadata-field { display: block; } }
 
@@ -292,7 +282,6 @@ body {
 .reaction-other::placeholder { color: var(--muted); }
 .reaction-other:focus { border-bottom-color: var(--focus-ring); box-shadow: inset 0 -1px 0 var(--focus-ring); }
 .reaction-option:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.prose .reaction-hint { color: var(--muted); font-size: var(--text-xs); margin: 0.7rem 0 0; }
 .reaction-status { display: flex; align-items: center; flex-wrap: wrap; gap: 0.8rem; margin: 1rem 0 2rem; font-size: var(--text-sm); }
 .reaction-status p { color: var(--danger); width: 100%; }
 .reaction-status p button { text-decoration: underline; }
@@ -563,4 +552,34 @@ body {
 .tag-clear:is(a, button):hover { border-color: transparent; color: var(--foreground); }
 /* Long-press selects one tag, so suppress the callout, text selection and double-tap zoom it would otherwise trigger. */
 .tag-touch { cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
-.note-creator { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; margin: 0 0 1rem; font-size: var(--text-sm); line-height: var(--text-sm--line-height); color: var(--muted); }
+/*
+ * The byline (Figma Note "byline" and BylineMetadata): folder, tags, then front matter. Values
+ * read inline in Mono/Meta; "N more" opens every field as a key/value list ruled like a table.
+ */
+.byline-block { margin: 0 0 1rem; }
+.note-creator { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 12px; font-size: var(--text-sm); line-height: var(--text-sm--line-height); color: var(--muted); }
+.byline-folder { color: var(--foreground); font-weight: 400; }
+a.byline-folder { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+a.byline-folder:hover { text-decoration-thickness: 2px; }
+.byline-values, .byline-more { font-family: var(--font-mono); font-size: var(--text-xs); line-height: 18px; overflow-wrap: anywhere; }
+.byline-values { color: var(--muted); }
+.byline-more { padding: 0; border: 0; background: none; color: var(--foreground); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.2em; cursor: pointer; }
+.byline-more:hover { text-decoration-thickness: 2px; }
+.byline-more:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.metadata-list { margin: 12px 0 0; border-top: 1px solid var(--hairline); font-family: var(--font-mono); font-size: var(--text-xs); line-height: 18px; color: var(--foreground); }
+.metadata-row { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 16px; padding: 6px 0; border-bottom: 1px solid var(--hairline); }
+.metadata-row dt { font-weight: 600; color: var(--muted); overflow-wrap: anywhere; }
+.metadata-row dd { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.metadata-list p { padding: 6px 0; color: var(--muted); }
+.metadata-list pre { padding: 6px 0; border-bottom: 1px solid var(--hairline); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/*
+ * Figma Tag Kind=Preview: only on preview deployments, whose notes are separate from production.
+ * The one place red means something other than an error. In a toolbar it sits just left of the
+ * last control (or at the far right when it is the last).
+ */
+.preview-tag { display: inline-flex; flex: none; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; background: var(--danger); color: var(--background); font-size: var(--text-xs); font-weight: 400; line-height: 18px; cursor: default; }
+.preview-tag:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.note-toolbar > .preview-tag { margin-left: auto; margin-right: 8px; }
+.note-toolbar > .preview-tag:last-child { margin-right: 0; }
+.note-toolbar > .preview-tag + :last-child { margin-left: 0; }

@@ -1,0 +1,46 @@
+{
+  "source": {
+    "fileKey": "Ov96GbFnYeWrUXw7Olvyn7",
+    "page": "Components (new)",
+    "nodes": { "BylineMetadata": "72:1414", "Tag Kind=Preview": "72:1370", "board": "67:786" },
+    "exportedAt": "2026-10-13",
+    "note": "Byline front matter and the preview tag, exported from Figma via the Figma MCP, plus the labels the comparison board (Screens (new), 'Labels — with / without') removes. Colours are Figma variable names, type is Figma text styles; graded live by tests/browser/figma-labels.spec.ts."
+  },
+  "Byline": {
+    "gap": 12,
+    "folder": { "token": "text/ink", "size": 14, "weight": 400, "underline": true },
+    "values": { "style": "Mono/Meta", "token": "text/muted", "separator": " · ", "max": 3 },
+    "more": { "style": "Mono/Meta", "token": "text/ink", "underline": true }
+  },
+  "MetadataList": {
+    "gapAbove": 12,
+    "top": { "token": "rule/hair", "width": 1 },
+    "row": { "padding": [6, 0, 6, 0], "gap": 16, "bottom": { "token": "rule/hair", "width": 1 } },
+    "key": { "style": "Mono/Meta Key", "token": "text/muted", "width": 120 },
+    "value": { "style": "Mono/Meta", "token": "text/ink" }
+  },
+  "PreviewTag": {
+    "height": 20,
+    "padding": [0, 8, 0, 8],
+    "radius": "pill",
+    "fill": "status/danger",
+    "stroke": null,
+    "label": { "style": "UI/Tag", "token": "bg/paper" },
+    "text": "preview"
+  },
+  "Removed": [
+    "Sort",
+    "Updated ",
+    "Created ",
+    "Choose one",
+    "Choose any that fit",
+    "Editing note",
+    "New note ·",
+    "Cmd/Ctrl+S to save",
+    "Preview sandbox",
+    "Separate note namespace",
+    "Open metadata demo",
+    "Open reaction demo",
+    "Open commenting demo"
+  ]
+}

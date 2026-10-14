@@ -31,8 +31,13 @@ export function ToolbarMenu({ label, icon, children, triggerLabel, tooltipAlign,
     }}>{icon}</ToolbarButton>
     <div id={id} ref={panel} popover="auto" role="dialog" aria-label={`${triggerLabel ?? label} options`} className="toolbar-menu"
       onToggle={event => {
-        if (event.currentTarget.matches(":popover-open"))
-          event.currentTarget.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+        if (event.currentTarget.matches(":popover-open")) {
+          // A menu that won't fit below its trigger opens above it, so it is never off-screen.
+          const menu = event.currentTarget, rect = trigger.current?.getBoundingClientRect();
+          if (rect && rect.bottom + 8 + menu.offsetHeight > window.innerHeight - 8)
+            menu.style.top = `${Math.max(8, rect.top - 8 - menu.offsetHeight)}px`;
+          menu.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+        }
         else if (document.activeElement === document.body || event.currentTarget.contains(document.activeElement))
           trigger.current?.focus();
       }}

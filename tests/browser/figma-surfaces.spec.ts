@@ -155,15 +155,6 @@ async function suite(page: Page, scheme: "light" | "dark", rows: Row[], fixtures
   num("offset right", figma.Badge.offset.right, host.right - badge.right);
   num("offset top", figma.Badge.offset.top, badge.top - host.top);
 
-  surface = "Banner · preview";
-  const aside = page.locator("aside").first();
-  if (await aside.count()) {
-    const a = await read(aside);
-    color("fill", figma.Banner.preview.fill, a.background);
-    color("text", figma.Banner.preview.text, a.color);
-    color("action", figma.Banner.preview.action, (await read(aside.locator("a"))).color);
-  }
-
   surface = "Menu · more";
   await nav.getByRole("button", { name: "More" }).click();
   const menu = page.getByRole("dialog", { name: "More options" });
