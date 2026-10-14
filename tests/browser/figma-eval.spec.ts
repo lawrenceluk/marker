@@ -131,7 +131,10 @@ test("the app matches the Figma design system, property for property", async ({ 
         rows.push({ group: "motion", name, property: token.css, expected, actual, pass: squash(expected) === squash(actual) });
       }
       for (const [style, selector] of Object.entries(TEXT_SELECTORS)) {
-        const want = figma.text[style], got = live.text[style];
+        // On a phone the table takes the Compact row density (Figma TableRow; graded in full by
+        // figma-tables.spec.ts), so its header is UI/Small SemiBold rather than Prose/Table Header.
+        const narrow = (page.viewportSize()?.width ?? 1280) < 640 + 32;
+        const want = figma.text[style === "Prose/Table Header" && narrow ? "UI/Small SemiBold" : style], got = live.text[style];
         const check = (property: string, expected: string, actual: string | undefined, pass: boolean) =>
           rows.push({ group: "type", name: style, property, expected, actual: actual ?? `(no ${selector})`, pass: !!got && pass });
         const family = got?.family.split(",")[0].replace(/"/g, "").trim();

@@ -1,6 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
+/**
+ * Where the arrows can sit over the note's column (a 736px column, a 16px gutter, the 48px
+ * arrows 24px from the edge), they step aside while the page moves and return once it settles.
+ */
+export const OVERLAP_QUERY = "(max-width: 879px)";
+export const SETTLE_MS = 700;
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { ToolbarTooltip } from "./ToolbarButton";
 
@@ -8,9 +15,17 @@ export function ScrollActions() {
   const [isAtTop, setIsAtTop] = useState(true);
   const [isAtBottom, setIsAtBottom] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
 
   useEffect(() => {
-    function handleScroll() {
+    const overlap = window.matchMedia(OVERLAP_QUERY);
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    function handleScroll(event?: Event) {
+      if (event?.type === "scroll" && overlap.matches) {
+        setIsMoving(true);
+        clearTimeout(settle);
+        settle = setTimeout(() => setIsMoving(false), SETTLE_MS);
+      }
       const scrollTop = window.scrollY || document.documentElement.scrollTop;
       const scrollHeight = document.documentElement.scrollHeight;
       const clientHeight = window.innerHeight;
@@ -30,6 +45,7 @@ export function ScrollActions() {
     return () => {
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleScroll);
+      clearTimeout(settle);
     };
   }, []);
 
@@ -47,7 +63,7 @@ export function ScrollActions() {
   return (
     <div
       className={`scroll-actions fixed bottom-6 right-6 z-50 flex flex-col gap-2 transition-opacity duration-300 ${
-        isVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+        isVisible && !isMoving ? "opacity-100" : "opacity-0 pointer-events-none"
       }`}
     >
       {!isAtTop && (
