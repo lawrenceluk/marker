@@ -1,0 +1,39 @@
+{
+  "source": {
+    "fileKey": "Ov96GbFnYeWrUXw7Olvyn7",
+    "page": "Components (new)",
+    "nodes": { "TableRow": "60:1205", "TableRecord": "60:1206", "screens": ["61:612", "61:749", "61:874"] },
+    "exportedAt": "2026-10-13",
+    "note": "Prose table node properties exported from Figma via the Figma MCP. Regular is the desktop density, Compact the phone density; TableRecord is a prose table row stacked on a narrow column. Colours are Figma variable names, type is Figma text styles; graded live by tests/browser/figma-tables.spec.ts."
+  },
+  "Table": { "top": { "token": "rule/ink", "width": 1 } },
+  "TableRow": {
+    "Regular": {
+      "padding": [10, 0, 10, 0],
+      "gap": 16,
+      "align": "top",
+      "fill": null,
+      "bottom": { "token": "rule/hair", "width": 1 },
+      "header": { "style": "Prose/Table Header", "token": "text/ink" },
+      "body": { "style": "Prose/Body", "token": "text/ink" }
+    },
+    "Compact": {
+      "padding": [8, 0, 8, 0],
+      "gap": 12,
+      "align": "top",
+      "fill": null,
+      "bottom": { "token": "rule/hair", "width": 1 },
+      "header": { "style": "UI/Small SemiBold", "token": "text/ink" },
+      "body": { "style": "UI/Small Relaxed", "token": "text/ink" }
+    }
+  },
+  "TableRecord": {
+    "padding": [16, 0, 16, 0],
+    "gap": 12,
+    "bottom": { "token": "rule/hair", "width": 1 },
+    "heading": { "style": "Prose/Table Header", "token": "text/ink" },
+    "fieldGap": 2,
+    "label": { "style": "Mono/Meta", "token": "text/muted" },
+    "value": { "style": "UI/Small Relaxed", "token": "text/ink" }
+  }
+}

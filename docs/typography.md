@@ -74,6 +74,33 @@ The palette is paper and ink (Figma "Foundations / Color"). Full list in
 selection, not decoration. `--danger` is only for errors and the armed second
 tap of a destructive action. Both stay above 4.5:1 on paper.
 
+## Tables
+
+Figma `TableRow` and `TableRecord` (Components (new)); the phone screens
+"Mobile — table, stacked / scroll / today" show them in a note.
+
+- Rules, not boxes: a 1px ink rule over the table, a hairline under every
+  row, no vertical rules, no header fill. Cells are top-aligned; columns are
+  separated by a gap (16px, 12px on a phone), not by padding inside a box.
+- Each table sits in a `.prose-table` wrapper, which is a size container.
+  Below 640px of width the grid takes the phone density (UI/Small headers,
+  UI/Small Relaxed cells).
+- A **prose table** stacks below 640px: each row becomes a record whose
+  heading is the first cell, with every other cell under its column name
+  (Mono/Meta, muted). A table is prose when it has 3 or more columns and any
+  body cell runs past 60 characters (`app/lib/tableShape.ts`). Short-value
+  tables never stack, even on a phone.
+- A grid that still doesn't fit scrolls sideways, out to the screen edge,
+  and fades at the edge while there is more to see. Links in cells break only
+  when a word can't fit, so columns never collapse to a letter, and are never
+  hyphenated.
+- The agent brief draws the same line for authors: tables are for comparing
+  short values; when a cell would need a sentence, write a list of items
+  with bold leads instead. Stacking is the fallback for tables that don't.
+
+On a phone the scroll arrows fade out while the page moves and come back
+once it settles, so they never sit over text being read.
+
 ## Checking against Figma
 
 `tests/fixtures/figma-tokens.json` is an export of the Figma file's Foundations

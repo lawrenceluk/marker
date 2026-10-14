@@ -11,6 +11,7 @@ import { MetadataCallout } from "./MetadataCallout";
 import { NoteImage, markerUrlTransform } from "./NoteImage";
 import { NoteEmbed } from "./NoteEmbed";
 import { EMBED_SCHEME } from "../lib/embedPolicy";
+import { tableShapes } from "../lib/tableShape";
 
 export type ResponseChange = { block_id: string; selections: string[]; free_text: string };
 type ReactionContextValue = {
@@ -30,6 +31,9 @@ function answer(context: ReactionContextValue, id: string) {
 const urlTransform = (url: string) => markerUrlTransform(url, defaultUrlTransform);
 
 const markdownComponents: Components = {
+  // The wrapper is the table's container: it scrolls a grid that is too wide, and its width
+  // decides when a prose table stacks (globals.css, "Tables").
+  table: ({ node, children, ...props }) => <div className="prose-table" data-shape={String(node?.properties?.dataShape ?? "grid")}><table {...props}>{children}</table></div>,
   a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
   img: ({ src, alt, title }) => typeof src === "string" && src.startsWith(EMBED_SCHEME)
     ? <NoteEmbed src={src} alt={alt} title={title} />
@@ -89,7 +93,7 @@ export function ContentViewer({ content, comments, responses = [], drafts = {}, 
     <div className="w-full">
       {metadata && <MetadataCallout key={metadata.raw} metadata={metadata} />}
       <div className="prose max-w-none break-words">
-      {content ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={comments ? [commentMarkup(content, comments)] : []} components={markdownComponents} urlTransform={urlTransform}>{markdown}</ReactMarkdown> :
+      {content ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={comments ? [tableShapes, commentMarkup(content, comments)] : [tableShapes]} components={markdownComponents} urlTransform={urlTransform}>{markdown}</ReactMarkdown> :
         <p className="font-sans-italic italic text-muted">This note is empty. Edit it to add text.</p>}
     </div></div>
   </ReactionContext.Provider>;
