@@ -6,6 +6,7 @@ import { CopyButton } from "./CopyButton";
 import { DeleteButton } from "./DeleteButton";
 import { ToolbarButton } from "./ToolbarButton";
 import { ToolbarMenu, closeMenu } from "./ToolbarMenu";
+import { PreviewTag } from "./Preview";
 
 interface NoteToolbarProps {
   commentsButton?: ReactNode;
@@ -41,6 +42,7 @@ export function NoteToolbar({
       </ToolbarMenu>
       {commentsButton}
       <ToolbarButton label="Edit" onClick={onEdit}><Pencil size={18} /></ToolbarButton>
+      <PreviewTag />
       <ToolbarMenu label="More" icon={<Ellipsis size={18} />}>
         <button type="button" className="toolbar-menu-item" onClick={event => { closeMenu(event.currentTarget); onChangeKey?.(); }}><Search size={18} aria-hidden="true" />Open another note</button>
         <CopyButton text={content} label="Copy text" icon="with-label" className="toolbar-menu-item" />
@@ -49,5 +51,6 @@ export function NoteToolbar({
         {onDelete && <><hr className="toolbar-menu-rule" /><DeleteButton onDelete={onDelete} disabled={deleteDisabled} menu /></>}
       </ToolbarMenu>
     </>}
+    {!showNoteTools && <PreviewTag />}
   </nav>;
 }

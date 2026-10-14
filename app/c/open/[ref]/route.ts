@@ -4,7 +4,7 @@ import { applyNoIndexHeaders } from "@/app/lib/robots";
 import { clientFingerprint, requestCreatorId, resolveNoteRef } from "@/app/lib/creators";
 
 /**
- * Open a folder row: resolve the opaque ref against the creator's index,
+ * Resolve a folder list row: match the opaque ref against the creator's index,
  * put the note key in the session cookie, and land on `/n` — the same
  * one-off session a `/?key=` share produces. The key never reaches the URL.
  */

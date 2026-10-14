@@ -32,7 +32,7 @@ test("creator folder: token link, AND tag filter, open a row, edit tags in the n
 
   await page.getByRole("button", { name: "More" }).click();
   await page.getByRole("button", { name: "Edit tags" }).click();
-  await page.getByLabel("Tags, separated by commas").fill("plans, Done");
+  await page.getByLabel("Tags").fill("plans, Done");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(folder.getByRole("link", { name: "done" })).toBeVisible();
   await expect(folder.getByRole("link", { name: "q4" })).toHaveCount(0);

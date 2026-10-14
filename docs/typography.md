@@ -71,8 +71,29 @@ The palette is paper and ink (Figma "Foundations / Color"). Full list in
 | `--slab` / `--on-slab` / `--on-slab-muted` | #1f2a37 / #fbf8f2 / #c9c2b5 | #2e4258 / #f3eee4 / #c9c2b5 | 13.7 / 8.9 on the slab |
 
 `--accent-new` means "new or unread" and nothing else: not links, not
-selection, not decoration. `--danger` is only for errors and the armed second
-tap of a destructive action. Both stay above 4.5:1 on paper.
+selection, not decoration. `--danger` is for errors, the armed second tap of
+a destructive action, and one exception: the "preview" tag (Figma Tag
+Kind=Preview), which marks a Vercel preview deployment whose notes are
+separate from production. Both stay above 4.5:1 on paper.
+
+## Labels
+
+The interface doesn't explain itself in words a reader can do without
+(Figma Screens (new), "Labels — with / without"). Sort options carry no
+"Sort" label (it stays the accessible name), row dates carry no "Updated" or
+"Created" (the selected sort says which), ask blocks carry no "Choose one"
+and no save status (screen readers still hear it; only a failure shows),
+and the editor bar carries no status line (Save's tooltip shows the
+shortcut). Labels that carry information stay, such as "Expires".
+
+Front matter reads in the byline (Figma BylineMetadata,
+`app/lib/metadataSummary.ts`): the first three short single-line string
+values inline in Mono/Meta, then "N more", which opens every field as a
+key/value list with nested keys flattened to dotted paths. Malformed YAML
+opens as the original text under "metadata".
+
+On preview deployments a red "preview" tag sits in every page header in
+place of the old banner.
 
 ## Tables
 

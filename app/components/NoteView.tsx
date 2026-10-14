@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { DEMO_KEY, METADATA_DEMO_KEY, REACTION_DEMO_KEY, ensurePreviewDemo } from "../lib/demo";
-import { maskKey, persistPath } from "../lib/key";
+import { ensurePreviewDemo } from "../lib/demo";
+import { maskKey } from "../lib/key";
 import { readNote as loadNote } from "../lib/notes";
 import { CREATOR_COOKIE, normalizeCreatorId } from "../lib/creatorId";
 import { creatorHash } from "../lib/creators";
@@ -16,11 +16,6 @@ export const readPageNote = cache(async (key: string, recordAccess: boolean) => 
   await ensurePreviewDemo(key);
   return recordAccess ? loadNote(key, true, true) : loadNote(key);
 });
-
-function PreviewBanner() {
-  if (process.env.VERCEL_ENV !== "preview") return null;
-  return <aside className="bg-slab px-6 py-3.5 text-center text-sm text-on-slab-muted [&_a]:font-medium [&_a]:text-on-slab">Preview sandbox · Separate note namespace · <a className="underline" href={persistPath(METADATA_DEMO_KEY)}>Open metadata demo</a> · <a className="underline" href={persistPath(REACTION_DEMO_KEY)}>Open reaction demo</a> · <a className="underline" href={persistPath(DEMO_KEY)}>Open commenting demo</a></aside>;
-}
 
 /** Home (no key) or a note, server-rendered. */
 export async function NoteView({
@@ -47,7 +42,6 @@ export async function NoteView({
 
   return (
     <>
-      <PreviewBanner />
       <NoteApp
         initialKeyLabel={noteKey ? maskKey(noteKey) : null}
         initialNote={note ? { content: note.content, rev: note.rev, responses: note.responses } : null}

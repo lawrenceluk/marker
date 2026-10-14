@@ -268,11 +268,6 @@
         "style": "UI/Small",
         "token": "status/danger"
       }
-    },
-    "preview": {
-      "fill": "slab/bg",
-      "text": "slab/on-muted",
-      "action": "slab/on"
     }
   }
 }

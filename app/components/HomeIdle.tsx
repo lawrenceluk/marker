@@ -7,6 +7,7 @@ import { MARKER_AGENT_PROMPT } from "../lib/agentPrompt";
 import { REACTION_AGENT_PROMPT } from "../lib/reactionAgentPrompt";
 import type { FolderSummary } from "../lib/folders";
 import { RememberedFolders } from "./RememberedFolders";
+import { PreviewTag } from "./Preview";
 
 interface HomeIdleProps {
   onSubmit: (key: string) => void;
@@ -25,6 +26,7 @@ export function HomeIdle({
 }: HomeIdleProps) {
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-8">
+      <PreviewTag className="self-end" />
       <div className="flex flex-col items-center gap-4 text-center">
         <div className="space-y-2">
           <h1 className="text-2xl font-bold text-foreground">

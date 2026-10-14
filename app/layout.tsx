@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
+import { PreviewProvider } from "./components/Preview";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -60,7 +61,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistItalic.variable} ${geistMono.variable}`}
     >
-      <body className="antialiased">{children}</body>
+      <body className="antialiased"><PreviewProvider preview={process.env.VERCEL_ENV === "preview"}>{children}</PreviewProvider></body>
     </html>
   );
 }

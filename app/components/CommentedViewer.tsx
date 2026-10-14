@@ -670,10 +670,13 @@ export function CommentedViewer({
       >
         <ContentViewer content={content} comments={threads} responses={visibleResponses} drafts={reactionDrafts} onReaction={changeReaction} onTextFocus={setReactionTextFocused} busy={!snapshot || snapshot.rev !== rev} />
       </div>
-      {blocks.length > 0 && <div className="reaction-status">
-        <span role="status">{reactionError ? "Choices not saved" : reactionBusy || Object.keys(reactionDrafts).length ? "Saving choices…" : "Choices saved as drafts. Respond in chat."}</span>
-        {reactionError && <p role="alert">{reactionError} <button type="button" onClick={() => void load()}>Refresh choices</button></p>}
-      </div>}
+      {/* Saving is silent on screen (screen readers still hear it); only a failure shows. */}
+      {blocks.length > 0 && (reactionError
+        ? <div className="reaction-status">
+            <span role="status">Choices not saved</span>
+            <p role="alert">{reactionError} <button type="button" onClick={() => void load()}>Refresh choices</button></p>
+          </div>
+        : <span role="status" className="sr-only">{reactionBusy || Object.keys(reactionDrafts).length ? "Saving choices…" : "Choices saved"}</span>)}
       {pending && !active && <span className="tap-pending" role="status" aria-label="Choosing quote" style={{ left: pending.x, top: pending.y }} />}
       {selection && !active && !emojiOpen && (
         <SelectionActionButton

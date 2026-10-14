@@ -7,7 +7,6 @@ import { commentMarkup } from "../lib/comment-markup";
 import type { LocatedThread } from "../lib/comments";
 import { reactionBlocks, type ReactionBlock, type ResponseEntry } from "../lib/responses";
 import { bodyMarkdown, frontMatter } from "../lib/frontmatter";
-import { MetadataCallout } from "./MetadataCallout";
 import { NoteImage, markerUrlTransform } from "./NoteImage";
 import { NoteEmbed } from "./NoteEmbed";
 import { EMBED_SCHEME } from "../lib/embedPolicy";
@@ -71,7 +70,6 @@ const markdownComponents: Components = {
         })}
       </div>
       {selections.includes("Other") && <input className="reaction-other" aria-label={`Other answer for ${block.question}`} placeholder="Add your answer…" maxLength={1000} value={freeText} onFocus={() => context.onTextFocus?.(true)} onBlur={() => context.onTextFocus?.(false)} onChange={event => context.onReaction?.({ block_id: block.id, selections, free_text: event.target.value }, false)} />}
-      <p className="reaction-hint">{block.mode === "multi" ? "Choose any that fit" : "Choose one"}</p>
     </fieldset>;
   },
 };
@@ -91,7 +89,6 @@ export function ContentViewer({ content, comments, responses = [], drafts = {}, 
   const context: ReactionContextValue = { blocks, responses, drafts, onReaction, onTextFocus, busy };
   return <ReactionContext.Provider value={context}>
     <div className="w-full">
-      {metadata && <MetadataCallout key={metadata.raw} metadata={metadata} />}
       <div className="prose max-w-none break-words">
       {content ? <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={comments ? [tableShapes, commentMarkup(content, comments)] : [tableShapes]} components={markdownComponents} urlTransform={urlTransform}>{markdown}</ReactMarkdown> :
         <p className="font-sans-italic italic text-muted">This note is empty. Edit it to add text.</p>}

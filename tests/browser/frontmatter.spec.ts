@@ -27,28 +27,34 @@ status: this stays code
 `;
 
 for (const colorScheme of ["light", "dark"] as const) {
-  test(`metadata collapses and expands without changing Markdown or quote anchors in ${colorScheme}`, async ({ page, request }, info) => {
+  test(`metadata reads inline and opens under "more" without changing Markdown or quote anchors in ${colorScheme}`, async ({ page, request }, info) => {
     await page.emulateMedia({ colorScheme });
     const key = `metadata-${colorScheme}-${info.project.name}-${Date.now()}`;
     await request.post("/api/content", { data: { key, content } });
     await page.goto(`/?key=${key}&persist=1`);
-    const details = page.locator(".metadata-callout");
-    const summary = details.locator("summary");
-    await expect(details).not.toHaveAttribute("open");
-    await expect(details.getByText("draft", { exact: true })).not.toBeVisible();
+    // The first three short values read inline in the byline; the rest wait under "5 more".
+    const byline = page.locator(".byline-block");
+    await expect(byline.locator(".byline-values")).toHaveText("Small launch · draft · 2026-09-30");
+    const more = byline.getByRole("button", { name: "5 more" });
+    const list = byline.locator(".metadata-list");
+    await expect(more).toHaveAttribute("aria-expanded", "false");
+    await expect(list).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Small launch" })).toHaveCount(1);
     await expect(page.getByRole("link", { name: "Example link" })).toBeVisible();
     await expect(page.locator(".prose pre")).toHaveText("status: this stays code");
     await page.screenshot({ path: `test-results/metadata-collapsed-${colorScheme}-${info.project.name}.png`, fullPage: true });
-    if (info.project.name === "iphone-webkit") await summary.tap();
-    else { await summary.focus(); await page.keyboard.press("Enter"); }
-    await expect(details).toHaveAttribute("open", "");
-    for (const value of ["draft", "false", "2026-09-30", "planning", "Demo team", "2"]) await expect(details.getByText(value, { exact: true })).toBeVisible();
-    await expect(details.getByText("A short synthetic plan.", { exact: false })).toBeVisible();
+    if (info.project.name === "iphone-webkit") await more.tap();
+    else { await more.focus(); await page.keyboard.press("Enter"); }
+    const less = byline.getByRole("button", { name: "less" });
+    await expect(less).toHaveAttribute("aria-expanded", "true");
+    for (const [key, value] of [["status", "draft"], ["ready", "false"], ["last-updated", "2026-09-30"], ["tags", "planning, design"], ["review.owner", "Demo team"], ["review.round", "2"]]) {
+      await expect(list.locator(".metadata-row").filter({ has: page.locator("dt", { hasText: new RegExp(`^${key.replace(".", "\\.")}$`) }) }).locator("dd")).toHaveText(value);
+    }
+    await expect(list.getByText("A short synthetic plan.", { exact: false })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: `test-results/metadata-expanded-${colorScheme}-${info.project.name}.png`, fullPage: true });
-    await summary.click();
-    await expect(details).not.toHaveAttribute("open");
+    await less.click();
+    await expect(list).toHaveCount(0);
     const checkbox = page.getByRole("checkbox", { name: "Review the plan" });
     await expect(checkbox).toBeEnabled();
     await checkbox.click();
@@ -69,7 +75,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     expect(state.comments[0].anchor.exact).toBe("dinosaur");
     expect(state.comments[0].messages[0].text).toMatch(/[🦕🦖]/u);
     await page.reload();
-    await expect(details).not.toHaveAttribute("open");
+    await expect(page.locator(".byline-block .metadata-list")).toHaveCount(0);
     await expect(checkbox).toBeChecked();
     await expect(page.locator(".prose mark").filter({ hasText: "dinosaur" })).toBeVisible();
   });
@@ -80,13 +86,13 @@ test("malformed metadata is readable and ordinary Markdown is preserved", async 
   await request.post("/api/content", { data: { key, content: "---\ntags: [unclosed\n---\n# Body survives\n\nA normal paragraph." } });
   await page.goto(`/?key=${key}&persist=1`);
   await expect(page.getByRole("heading", { name: "Body survives" })).toBeVisible();
-  await page.locator(".metadata-callout summary").click();
+  await page.locator(".byline-block").getByRole("button", { name: "metadata" }).click();
   await expect(page.getByText("Couldn’t format this metadata. Original YAML:")).toBeVisible();
-  await expect(page.locator(".metadata-callout pre")).toHaveText("tags: [unclosed");
+  await expect(page.locator(".metadata-list pre")).toHaveText("tags: [unclosed");
   key = `metadata-unclosed-${info.project.name}-${Date.now()}`;
   await request.post("/api/content", { data: { key, content: "---\nstatus: draft\n\n# Unclosed body\n\nA normal paragraph." } });
   await page.goto(`/?key=${key}&persist=1`);
-  await expect(page.locator(".metadata-callout")).toHaveCount(0);
+  await expect(page.locator(".byline-block")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Unclosed body" })).toBeVisible();
   await expect(page.locator(".prose").getByText("status: draft", { exact: true })).toBeVisible();
 });

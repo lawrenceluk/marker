@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Ellipsis, FolderMinus, Home } from "lucide-react";
 import { ToolbarTooltip, toolbarButtonClass } from "./ToolbarButton";
 import { ToolbarMenu } from "./ToolbarMenu";
+import { PreviewTag } from "./Preview";
 
 export function FolderNav({ canForget }: { canForget: boolean }) {
   return (
@@ -12,6 +13,7 @@ export function FolderNav({ canForget }: { canForget: boolean }) {
         <Home size={18} />
         <ToolbarTooltip label="Home" align="start" />
       </Link>
+      <PreviewTag />
       {canForget && (
         <ToolbarMenu label="More" icon={<Ellipsis size={18} />} tooltipAlign="end">
           <form method="post" action="/api/creator/session">
