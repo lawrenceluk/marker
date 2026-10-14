@@ -20,6 +20,7 @@ test("one-off links land on /n, and remembered folders cost at most one EVAL on 
     const enter = await import("../app/c/enter/route");
     const switchFolder = await import("../app/c/folder/[ref]/route");
     const foldersApi = await import("../app/api/creator/folders/route");
+    const contentApi = await import("../app/api/content/route");
     const session = await import("../app/api/creator/session/route");
 
     // `/?key=` moves the key into the session cookie and lands on `/n`, never `/`.
@@ -87,11 +88,33 @@ test("one-off links land on /n, and remembered folders cost at most one EVAL on 
 
     // Reopening via ref makes it active and most recent, without Redis.
     const aliceRef = listed.folders[1].ref as string;
+    // A note can navigate to its remembered folder even while another folder is active.
+    assert.equal(folders.noteFolderHref(creatorHash(ALICE), { get: name => jar.has(name) ? { value: jar.get(name)! } : undefined }), `/c/folder/${aliceRef}`);
+    const noteMeta = await (await contentApi.GET(req("/api/content?key=a1"))).json();
+    assert.equal(noteMeta.creator_linked, false); // Tag editing still needs the active credential.
+    assert.equal(noteMeta.creator_folder_href, `/c/folder/${aliceRef}`);
+    assert.ok(!JSON.stringify(noteMeta).includes(ALICE));
+    const bare = new NextRequest("http://localhost/api/content?key=a1");
+    assert.equal((await (await contentApi.GET(bare)).json()).creator_folder_href, null);
+    const bearer = new NextRequest("http://localhost/api/content?key=a1", { headers: { authorization: `Bearer ${ALICE}` } });
+    const bearerMeta = await (await contentApi.GET(bearer)).json();
+    assert.equal(bearerMeta.creator_linked, true);
+    assert.equal(bearerMeta.creator_folder_href, null); // A bearer API call doesn't create browser access.
+    const emptyJar = { get: () => undefined };
+    assert.equal(folders.noteFolderHref(creatorHash(ALICE), emptyJar), null);
+    assert.equal(folders.noteFolderHref(null, emptyJar), null);
+    assert.equal(folders.noteFolderHref(creatorHash(ALICE), { get: () => ({ value: "malformed" }) }), null);
     fixture.commands.length = 0;
     const reopened = absorb(await switchFolder.GET(req(`/c/folder/${aliceRef}`), { params: Promise.resolve({ ref: aliceRef }) }));
     assert.deepEqual(fixture.commands, []);
     assert.equal(reopened.headers.get("location"), "/c");
     assert.equal(jar.get("marker_creator"), ALICE);
+    assert.equal(folders.noteFolderHref(creatorHash(ALICE), { get: name => jar.has(name) ? { value: jar.get(name)! } : undefined }), "/c");
+    const filtered = await switchFolder.GET(req(`/c/folder/${aliceRef}?tag=Q4&tag=plans&token=ignored&key=ignored&next=https://example.test`), { params: Promise.resolve({ ref: aliceRef }) });
+    assert.equal(filtered.headers.get("location"), "/c?tag=plans&tag=q4");
+    const invalidFilter = await switchFolder.GET(req(`/c/folder/${aliceRef}?tag=bad!`), { params: Promise.resolve({ ref: aliceRef }) });
+    assert.equal(invalidFilter.status, 400);
+    assert.equal(invalidFilter.cookies.getAll().length, 0);
     const reordered = await (await foldersApi.GET(req("/api/creator/folders"))).json();
     assert.deepEqual(reordered.folders.map((f: { name: string | null }) => f.name), ["Alice", null]);
     const unknown = await switchFolder.GET(req("/c/folder/nope"), { params: Promise.resolve({ ref: "nope" }) });
@@ -106,6 +129,9 @@ test("one-off links land on /n, and remembered folders cost at most one EVAL on 
     assert.equal(forgot.status, 303);
     assert.equal(forgot.headers.get("location"), "/");
     assert.equal(jar.get("marker_creator"), undefined);
+    assert.equal(folders.noteFolderHref(creatorHash(ALICE), { get: name => jar.has(name) ? { value: jar.get(name)! } : undefined }), null);
+    const forgottenLink = await switchFolder.GET(req(`/c/folder/${aliceRef}?tag=plans`), { params: Promise.resolve({ ref: aliceRef }) });
+    assert.equal(forgottenLink.headers.get("location"), "/");
     const afterForget = await (await foldersApi.GET(req("/api/creator/folders"))).json();
     assert.equal(afterForget.folders.length, 1);
 

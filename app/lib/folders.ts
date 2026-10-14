@@ -83,6 +83,15 @@ export function findFolderByRef(folders: RememberedFolder[], ref: string): Remem
   return folders.find(f => folderRef(creatorHash(f.id)) === ref) ?? null;
 }
 
+/** A note key alone grants no folder access. Only link credentials this browser already holds. */
+export function noteFolderHref(cid: string | null, cookies: CookieSource): string | null {
+  if (!cid) return null;
+  const active = normalizeCreatorId(cookies.get(CREATOR_COOKIE)?.value);
+  if (active && creatorHash(active) === cid) return "/c";
+  const remembered = readRememberedFolders(cookies).find(folder => creatorHash(folder.id) === cid);
+  return remembered ? `/c/folder/${folderRef(cid)}` : null;
+}
+
 /** Make `id` the active folder and the most recent remembered one. */
 export function activateFolder(request: CookieSource, response: CookieSetter, id: string) {
   response.set(CREATOR_COOKIE, id, creatorCookieOptions());

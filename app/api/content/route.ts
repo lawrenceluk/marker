@@ -30,6 +30,7 @@ import {
 import { r2Config } from "@/app/lib/r2";
 import { assetSummaries } from "@/app/lib/assets";
 import { deleteAssetObjects, runAfter } from "@/app/lib/assetJobs";
+import { noteFolderHref } from "@/app/lib/folders";
 
 function json(data: unknown, status = 200) {
   const response = NextResponse.json(data, { status });
@@ -86,6 +87,7 @@ export async function GET(request: NextRequest) {
       has_creator: false,
       creator_name: null,
       creator_linked: false,
+      creator_folder_href: null,
       tags: [],
       assets: [],
     });
@@ -116,6 +118,7 @@ function creatorFields(request: NextRequest, note: Note) {
     has_creator: note.cid !== null,
     creator_name: note.creatorName,
     creator_linked: Boolean(note.cid && id && creatorHash(id) === note.cid),
+    creator_folder_href: noteFolderHref(note.cid, request.cookies),
     tags: note.tags,
   };
 }
