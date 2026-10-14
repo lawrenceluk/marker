@@ -43,13 +43,18 @@ test("select → icon → type → send, then agent edit/resolve and focused rep
       .sort((a, b) => b.bottom - a.bottom || b.right - a.right)[0]
       .toJSON(),
   );
-  expect(bounds!.width).toBe(touch ? 36 : 32);
+  expect(bounds!.width).toBe(48);
   if (touch) {
-    expect(bounds!.y - selected.bottom).toBeCloseTo(14, 1);
-    expect(bounds!.x).toBeGreaterThanOrEqual(4);
+    // Phones: the actions sit in a bar along the bottom of the screen.
+    const bar = (await page.locator(".selection-bar").boundingBox())!;
+    expect(bar.y + bar.height).toBeCloseTo(page.viewportSize()!.height, 0);
+    expect(bounds!.y).toBeGreaterThanOrEqual(bar.y);
   } else {
-    expect(bounds!.x - selected.right).toBeCloseTo(4, 1);
-    expect(Math.abs(bounds!.y + bounds!.height / 2 - (selected.top + selected.bottom) / 2)).toBeLessThan(1);
+    // Desktop: a slab pill in the right margin, level with the selection's last line.
+    const group = (await page.locator(".selection-group").boundingBox())!;
+    const column = (await page.locator(".tap-select").boundingBox())!;
+    expect(group.x - (column.x + column.width)).toBeCloseTo(16, 0);
+    expect(Math.abs(group.y + group.height / 2 - (selected.top + selected.bottom) / 2)).toBeLessThan(1);
   }
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
     page.viewportSize()!.width,
@@ -64,40 +69,8 @@ test("select → icon → type → send, then agent edit/resolve and focused rep
     path: `test-results/selection-dark-${info.project.name}.png`,
   });
   await page.emulateMedia({ colorScheme: "light" });
-  // A visible extension control occupying the preferred spot should get a fallback.
-  await page.evaluate(({ x, y, width, height }) => {
-    const control = document.createElement("button");
-    control.id = "synthetic-extension-control";
-    Object.assign(control.style, {
-      position: "fixed",
-      zIndex: "999",
-      left: `${x}px`,
-      top: `${y}px`,
-      width: `${width}px`,
-      height: `${height}px`,
-    });
-    document.body.append(control);
-    document.dispatchEvent(new Event("selectionchange"));
-  }, bounds!);
-  await expect
-    .poll(async () => {
-      const moved = await icon.boundingBox();
-      return (
-        moved &&
-        (moved.x + moved.width <= bounds!.x ||
-          moved.x >= bounds!.x + bounds!.width ||
-          moved.y >= bounds!.y + bounds!.height ||
-          moved.y + moved.height <= bounds!.y)
-      );
-    })
-    .toBeTruthy();
-  await page.evaluate(() => {
-    document.getElementById("synthetic-extension-control")!.remove();
-    document.dispatchEvent(new Event("selectionchange"));
-  });
-  await expect
-    .poll(async () => Math.abs((await icon.boundingBox())!.x - bounds!.x))
-    .toBeLessThan(1);
+  // The actions have fixed homes (the right margin; the bottom bar on phones), so they no longer
+  // hop around fixed overlays such as browser-extension buttons.
   await activate(icon, touch);
   await expect(page.getByLabel("Comment as You")).toBeFocused();
   await expect(page.locator(".comment-quote")).toHaveText("Try a little text");

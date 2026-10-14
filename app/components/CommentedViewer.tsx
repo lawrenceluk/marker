@@ -12,9 +12,9 @@ import { flushSync } from "react-dom";
 import { Check, MessageCircle, MessageSquarePlus, Minus, Plus, RotateCcw, Search, Send, SmilePlus, X } from "lucide-react";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import { ContentViewer, type ResponseChange } from "./ContentViewer";
-import { ToolbarButton } from "./ToolbarButton";
+import { ToolbarButton, toolbarButtonClass } from "./ToolbarButton";
 import { SelectionActionButton } from "./SelectionActionButton";
-import { plainQuote, selectionBubble, selectionRevealScroll } from "../lib/comment-presentation";
+import { GROUP_HEIGHT, SELECTION_BAR_CLEARANCE, marginSpot, plainQuote, selectionBubble, selectionRevealScroll } from "../lib/comment-presentation";
 import { selectSourceRange, sourceSelection, tapSourceOffset } from "../lib/comment-markup";
 import { adjacentSizeCandidate, heuristicRanking, tapCandidates, tapContext, type TapCandidate } from "../lib/tap-select";
 import type { CommentOperation, LocatedThread } from "../lib/comments";
@@ -34,7 +34,7 @@ type Selection = {
   text: string;
 };
 /** Regions that own their taps; React events from the portaled lightbox still bubble here. */
-const TAP_IGNORE = ".metadata-callout, .note-image, .note-image-placeholder, .note-lightbox, .note-embed, .note-embed-dialog";
+const TAP_IGNORE = ".note-image, .note-image-placeholder, .note-lightbox, .note-embed, .note-embed-dialog";
 export function CommentedViewer({
   content,
   rev,
@@ -197,13 +197,14 @@ export function CommentedViewer({
             parseFloat(root.current ? getComputedStyle(root.current).getPropertyValue("--selection-safe-right") : "0") || 0,
           )
         : null;
-      if (source && bubble && !bubble.candidates.length && touch && settled && !held && range && root.current) {
-        // Only after settling: expose the end of a long selection with enough
-        // clearance for all actions. Mobile bottom padding makes this possible
-        // even at the document end. Never fight an active native handle drag.
+      if (source && bubble && touch && settled && !held && range && root.current) {
+        // Only after settling: a selection ending behind the bottom bar scrolls up so its end
+        // shows above the bar. Mobile bottom padding makes this possible even at the document
+        // end. Never fight an active native handle drag.
         const bottom = Math.max(...Array.from(range.getClientRects(), r => r.bottom));
         const viewBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
-        const delta = selectionRevealScroll(bottom, viewBottom);
+        const underBar = bottom > viewBottom - SELECTION_BAR_CLEARANCE;
+        const delta = underBar ? selectionRevealScroll(bottom, viewBottom) : 0;
         if (delta > 0 && window.innerHeight >= 160) {
           revealUntil = performance.now() + 250;
           hitTesting(false);
@@ -214,37 +215,18 @@ export function CommentedViewer({
           return;
         }
       }
-      // Avoid visible fixed/absolute extension controls when the page can observe them.
-      const spot =
-        bubble?.candidates.find((p) => {
-          const centers = window.matchMedia("(pointer: coarse)").matches
-            ? [p.x + bubble.size / 2, p.x + bubble.size * 1.5 + 4]
-            : [p.x + bubble.size / 2];
-          return centers.every(x => {
-            const element = document.elementFromPoint(x, p.y + bubble.size / 2);
-            if (!element || element.closest(".comment-selection, .emoji-selection, .emoji-reactor-bar, .emoji-picker-panel")) return true;
-            // These mobile arrows hide as soon as selection controls mount.
-            if (window.matchMedia("(pointer: coarse)").matches && element.closest(".scroll-actions")) return true;
-            for (
-              let el: Element | null = element;
-              el && el !== document.body;
-              el = el.parentElement
-            ) {
-              if (["fixed", "absolute"].includes(getComputedStyle(el).position))
-                return false;
-            }
-            return true;
-          });
-        }) ?? bubble?.candidates[0];
-      shown = source && spot && bubble ? source : null;
+      // Phones: the actions live in a bar along the bottom, so any selection gets them.
+      // Desktop: they sit in the right margin beside the selection's last line.
+      const coarse = window.matchMedia("(pointer: coarse)").matches;
+      const spot = coarse
+        ? bubble ? { x: 0, y: 0 } : null
+        : range && root.current
+          ? marginSpot(Array.from(range.getClientRects()), root.current.getBoundingClientRect().right, window.innerWidth, window.innerHeight)
+          : null;
+      shown = source && spot ? source : null;
       setSelection(
-        source && spot && bubble
-          ? {
-              ...source,
-              ...spot,
-              size: bubble.size,
-              text: window.getSelection()?.toString() ?? "",
-            }
+        source && spot
+          ? { ...source, x: spot.x, y: spot.y, size: GROUP_HEIGHT, text: window.getSelection()?.toString() ?? "" }
           : null,
       );
     }
@@ -288,7 +270,7 @@ export function CommentedViewer({
     }
     function onBubble(event: Event) {
       return event.target instanceof Element &&
-        !!event.target.closest(".comment-selection, .emoji-selection, .emoji-reactor-bar, .emoji-picker-panel, .comment-auto-chip");
+        !!event.target.closest(".selection-group, .selection-bar, .comment-selection, .emoji-selection, .emoji-reactor-bar, .emoji-picker-panel, .comment-auto-chip");
     }
     function pointerStart(event: PointerEvent) {
       if (event.button !== 0 || onBubble(event)) return;
@@ -329,6 +311,18 @@ export function CommentedViewer({
         return;
       }
       if (emojiOpenRef.current && event.target instanceof Element && event.target.closest(".emoji-picker-panel")) return;
+      // C comments on the selection and E reacts to it, by pressing the visible button. Plain keys
+      // only (Cmd/Ctrl+C still copies), never while typing, composing, or with a sheet open.
+      if (event.type === "keydown" && shown && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey &&
+        !event.isComposing && !dialog.current?.open && !emojiOpenRef.current &&
+        !(event.target instanceof Element && event.target.closest("input, textarea, select, [contenteditable]"))) {
+        const button = document.querySelector<HTMLButtonElement>({ c: ".comment-selection", e: ".emoji-selection" }[event.key.toLowerCase()] ?? ":not(*)");
+        if (button) {
+          event.preventDefault();
+          if (!event.repeat) button.click();
+          return;
+        }
+      }
       if (!/^(Arrow|Home$|End$|Page)/.test(event.key)) return;
       touch = false;
       keyHeld = event.type === "keydown";
@@ -678,88 +672,75 @@ export function CommentedViewer({
           </div>
         : <span role="status" className="sr-only">{reactionBusy || Object.keys(reactionDrafts).length ? "Saving choices…" : "Choices saved"}</span>)}
       {pending && !active && <span className="tap-pending" role="status" aria-label="Choosing quote" style={{ left: pending.x, top: pending.y }} />}
-      {selection && !active && !emojiOpen && (
-        <SelectionActionButton
-          label="Comment on selection"
-          className="comment-selection group"
-          style={{
-            left: selection.x,
-            top: selection.y,
-            width: selection.size,
-            height: selection.size,
-          }}
-          onPointerDown={(e) => {
-            e.preventDefault();
-          }}
-          onClick={(e) => open("new", e.currentTarget.getBoundingClientRect())}
-        >
-          <MessageSquarePlus size={15} />
-        </SelectionActionButton>
-      )}
-      {selection && !active && !emojiOpen && <SelectionActionButton
-        label="React to selection"
-        className="emoji-selection group"
-        aria-expanded={emojiOpen}
-        style={{
-          left: window.matchMedia("(pointer: coarse)").matches || selection.x + selection.size * 2 + 4 <= window.innerWidth - 4
-            ? selection.x + selection.size + 4 : selection.x - selection.size - 4,
-          top: selection.y,
-          width: selection.size,
-          height: selection.size,
-        }}
-        onPointerDown={e => {
-          if (e.pointerType === "mouse") emojiOpenRef.current = true;
-          e.preventDefault();
-        }}
-        onClick={() => {
-          const next = !emojiOpen;
-          emojiOpenRef.current = next;
-          setEmojiOpen(next);
-          setShowEmojiPicker(false);
-          setError("");
-        }}
-      ><SmilePlus size={15} /></SelectionActionButton>}
-      {selection && !active && emojiOpen && (() => {
+      {selection && !active && (() => {
+        // Figma SelectionGroup / ReactBar (desktop) and SelectionBar (phones): slab is what is
+        // chosen and the one thing to do with it, so the selection's actions are slab too.
+        const coarse = window.matchMedia("(pointer: coarse)").matches;
+        const state = autoSelection.current;
+        const size = state ? state.candidates[state.index].end - state.candidates[state.index].start : 0;
+        const smaller = !!state && state.ranking.some(i => state.candidates[i].end - state.candidates[i].start < size);
+        const larger = !!state && state.ranking.some(i => state.candidates[i].end - state.candidates[i].start > size);
         const viewBottom = visualBottom || window.innerHeight;
-        const barTop = selection.above ? selection.y - 59
-          : selection.y + selection.size + 56 < viewBottom
-            ? selection.y + selection.size + 5 : Math.max(4, selection.y - 56);
+        const sizing = state && <>
+          <SelectionActionButton label="Smaller selection" className={`${toolbarButtonClass} comment-auto-chip`} disabled={!smaller} onPointerDown={e => e.preventDefault()} onClick={() => stepAuto(-1)}><Minus size={20} /></SelectionActionButton>
+          <SelectionActionButton label="Larger selection" className={`${toolbarButtonClass} comment-auto-chip`} disabled={!larger} onPointerDown={e => e.preventDefault()} onClick={() => stepAuto(1)}><Plus size={20} /></SelectionActionButton>
+        </>;
+        const openReact = () => { emojiOpenRef.current = true; setEmojiOpen(true); setShowEmojiPicker(false); setError(""); };
+        // Phones use the touch-safe button so a tap never collapses the selection first.
+        const comment = coarse
+          ? <SelectionActionButton label="Comment on selection" className={`${toolbarButtonClass} comment-selection`} onPointerDown={e => e.preventDefault()} onClick={e => open("new", e.currentTarget.getBoundingClientRect())}><MessageSquarePlus size={20} /></SelectionActionButton>
+          : <button type="button" className="comment-selection selection-action" aria-label="Comment on selection" aria-keyshortcuts="C"
+              onPointerDown={e => e.preventDefault()} onClick={e => open("new", e.currentTarget.getBoundingClientRect())}>
+              <MessageSquarePlus size={20} /><span className="shortcut-tooltip" aria-hidden="true">Comment<kbd>C</kbd></span>
+            </button>;
+        const react = coarse
+          ? <SelectionActionButton label="React to selection" className={`${toolbarButtonClass} emoji-selection`} aria-expanded={emojiOpen} onPointerDown={e => e.preventDefault()} onClick={openReact}><SmilePlus size={20} /></SelectionActionButton>
+          : <button type="button" className="emoji-selection selection-action" aria-label="React to selection" aria-keyshortcuts="E" aria-expanded={emojiOpen}
+              onPointerDown={e => { emojiOpenRef.current = true; e.preventDefault(); }} onClick={openReact}>
+              <SmilePlus size={20} /><span className="shortcut-tooltip" aria-hidden="true">React<kbd>E</kbd></span>
+            </button>;
+        const emojis = <>
+          {suggestedEmojis.map((emoji, index) => <button type="button" key={`${index}-${emoji}`} className="selection-action" disabled={busy} aria-label={`React with ${emoji}`} onClick={() => sendEmoji(emoji)}>{emoji}</button>)}
+          <button type="button" className="selection-action" aria-label="Search emoji" aria-expanded={showEmojiPicker} onClick={() => setShowEmojiPicker(value => !value)}><Search size={20} /></button>
+        </>;
         const pickerWidth = Math.min(320, window.innerWidth - 16);
+        if (coarse) {
+          const bottom = Math.max(0, window.innerHeight - viewBottom);
+          const pickerHeight = Math.min(310, Math.max(180, viewBottom - 160));
+          return <>
+            {emojiOpen
+              ? <div className="selection-bar emoji-reactor-bar" role="toolbar" aria-label="Emoji reactions" style={{ bottom }}>
+                  {emojis}
+                  <span className="selection-bar-spacer" />
+                  <SelectionActionButton label="Back" onClick={() => { emojiOpenRef.current = false; setEmojiOpen(false); setShowEmojiPicker(false); }}><X size={20} /></SelectionActionButton>
+                </div>
+              : <div className="selection-bar" role="toolbar" aria-label="Selection" style={{ bottom }}>
+                  {sizing}
+                  <span className="selection-bar-spacer" />
+                  {react}{comment}
+                </div>}
+            {emojiOpen && showEmojiPicker && <div className="emoji-picker-panel" style={{ left: 8, bottom: bottom + 72, width: pickerWidth }}>
+              <EmojiPicker theme={Theme.AUTO} width="100%" height={pickerHeight} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />
+            </div>}
+            {emojiOpen && error && <p className="emoji-reactor-error" role="alert" style={{ left: 16, right: 16, bottom: bottom + 72 }}>{error}</p>}
+          </>;
+        }
         const pickerHeight = Math.min(310, Math.max(180, viewBottom - 16));
-        const pickerTop = barTop + pickerHeight + 56 < viewBottom
-          ? barTop + 56 : Math.max(8, Math.min(barTop - pickerHeight - 5, viewBottom - pickerHeight - 8));
+        const below = selection.y + GROUP_HEIGHT + 8;
+        const pickerTop = below + pickerHeight < viewBottom ? below : Math.max(8, selection.y - pickerHeight - 8);
+        const left = Math.min(selection.x, window.innerWidth - pickerWidth - 8);
         return <>
-          <div className="emoji-reactor-bar" role="toolbar" aria-label="Emoji reactions" style={{ left: selection.above !== undefined ? selection.x - 132 : Math.max(4, Math.min(selection.x, window.innerWidth - 208)), top: barTop }}>
-            {suggestedEmojis.map((emoji, index) => <button type="button" key={`${index}-${emoji}`} disabled={busy} aria-label={`React with ${emoji}`} onClick={() => sendEmoji(emoji)}>{emoji}</button>)}
-            <button type="button" aria-label="Search emoji" aria-expanded={showEmojiPicker} onClick={() => setShowEmojiPicker(value => !value)}><Search size={18} /></button>
-          </div>
-          {showEmojiPicker && <div className="emoji-picker-panel" style={{ left: Math.max(8, Math.min(selection.x, window.innerWidth - pickerWidth - 8)), top: pickerTop, width: pickerWidth }}>
+          {emojiOpen
+            ? <div className="selection-group emoji-reactor-bar" role="toolbar" aria-label="Emoji reactions" style={{ left: selection.x, top: selection.y }}>{emojis}</div>
+            : <div className="selection-group" role="toolbar" aria-label="Selection" style={{ left: selection.x, top: selection.y }}>
+                {sizing}{state && <span className="selection-divider" aria-hidden="true" />}
+                {comment}{react}
+              </div>}
+          {emojiOpen && showEmojiPicker && <div className="emoji-picker-panel" style={{ left, top: pickerTop, width: pickerWidth }}>
             <EmojiPicker theme={Theme.AUTO} width="100%" height={pickerHeight} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />
           </div>}
-          {error && <p className="emoji-reactor-error" role="alert" style={{
-            left: selection.above !== undefined ? selection.x - 132 : Math.max(8, Math.min(selection.x, window.innerWidth - 280)),
-            top: selection.above !== undefined ? selection.y : barTop + 58,
-            maxWidth: selection.above !== undefined ? 208 : undefined,
-            maxHeight: selection.above !== undefined ? 36 : undefined,
-            overflow: "auto",
-          }}>{error}</p>}
+          {emojiOpen && error && <p className="emoji-reactor-error" role="alert" style={{ left: selection.x, top: below, maxWidth: 272 }}>{error}</p>}
         </>;
-      })()}
-      {selection && !active && !emojiOpen && autoSelection.current && (() => {
-        const state = autoSelection.current;
-        const size = state.candidates[state.index].end - state.candidates[state.index].start;
-        const smaller = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start < size);
-        const larger = state.ranking.some(i => state.candidates[i].end - state.candidates[i].start > size);
-        const viewBottom = (window.visualViewport?.offsetTop ?? 0) + (window.visualViewport?.height ?? window.innerHeight);
-        return <div className="comment-auto-tools" style={{ left: selection.above !== undefined ? selection.x : Math.max(4, Math.min(selection.x - 64, window.innerWidth - 72)), top: Math.max(4, Math.min(selection.above ? selection.y - 41 : selection.y + selection.size + 5, viewBottom - 64)) }}>
-          {selection.above !== undefined ? <>
-            <SelectionActionButton label="Smaller selection" className="comment-auto-chip" disabled={!smaller} onPointerDown={e => e.preventDefault()} onClick={() => stepAuto(-1)}><Minus size={15} /></SelectionActionButton>
-            <SelectionActionButton label="Larger selection" className="comment-auto-chip" disabled={!larger} onPointerDown={e => e.preventDefault()} onClick={() => stepAuto(1)}><Plus size={15} /></SelectionActionButton>
-          </> : <>
-          <button type="button" className="comment-auto-chip" aria-label="Smaller selection" disabled={!smaller} onPointerDown={e => { if (e.pointerType === "mouse") e.preventDefault(); }} onClick={() => stepAuto(-1)}><Minus size={13} /></button>
-          <button type="button" className="comment-auto-chip" aria-label="Larger selection" disabled={!larger} onPointerDown={e => { if (e.pointerType === "mouse") e.preventDefault(); }} onClick={() => stepAuto(1)}><Plus size={13} /></button>
-          </>}
-        </div>;
       })()}
       <dialog
         ref={dialog}

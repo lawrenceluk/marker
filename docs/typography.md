@@ -76,6 +76,17 @@ a destructive action, and one exception: the "preview" tag (Figma Tag
 Kind=Preview), which marks a Vercel preview deployment whose notes are
 separate from production. Both stay above 4.5:1 on paper.
 
+## Slab vs paper
+
+Slab is what is chosen right now, and the one thing to do with it (Figma
+Foundations, "Slab vs paper"). Chosen: a selected tag, a switch that is on,
+selected note text. Primary: one per context, such as Save in the editor,
+Open on a folder, and the actions on the current selection, which are the
+only next step. Everything else is paper: the page, the header and its icons,
+menus, popovers, sheets, tooltips, Cancel and secondary buttons. For a new
+element, ask whether it is the chosen thing or the one thing to do with it;
+if not, it is paper.
+
 ## Labels
 
 The interface doesn't explain itself in words a reader can do without

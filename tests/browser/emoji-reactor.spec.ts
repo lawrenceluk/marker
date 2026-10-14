@@ -20,7 +20,7 @@ test("selection separates compact emoji reactions from the written comment compo
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(page.getByRole("button", { name: "React to selection" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Comment on selection" })).toHaveCount(0);
-  expect((await page.getByRole("button", { name: "Search emoji" }).boundingBox())!.width).toBe(46);
+  expect((await page.getByRole("button", { name: "Search emoji" }).boundingBox())!.width).toBe(48);
   await page.screenshot({ path: `test-results/emoji-reactor-inline-${test.info().project.name}.png` });
   await expect(page.getByRole("button", { name: /^React with / })).toHaveCount(3);
   await page.getByRole("button", { name: "Search emoji" }).click();
@@ -61,8 +61,9 @@ test("selection separates compact emoji reactions from the written comment compo
   await expect(page.getByRole("toolbar", { name: "Emoji reactions" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Comment on selection" })).toBeVisible();
   await page.getByRole("button", { name: "React to selection" }).click();
-  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(20, page.viewportSize()!.height - 30);
-  else await page.mouse.click(20, page.viewportSize()!.height - 30);
+  // Tap outside (mid-screen: on phones the bottom edge is the bar itself).
+  if (info.project.name === "iphone-webkit") await page.touchscreen.tap(20, page.viewportSize()!.height / 2);
+  else await page.mouse.click(20, page.viewportSize()!.height / 2);
   await expect(page.getByRole("toolbar", { name: "Emoji reactions" })).toHaveCount(0);
   await select(0, 8);
   await page.getByRole("button", { name: "Comment on selection" }).click();

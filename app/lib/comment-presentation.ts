@@ -83,3 +83,27 @@ export function selectionBubble(
 export function selectionRevealScroll(bottom: number, viewBottom: number): number {
   return Math.max(0, Math.ceil(bottom - (viewBottom - 126)));
 }
+
+/** Phones: the selection bar is 64px plus the safe area; keep a selection's end above it. */
+export const SELECTION_BAR_CLEARANCE = 80;
+
+/** Figma SelectionGroup: 48px tall; 209px is its widest state (−, +, comment, react). */
+export const GROUP_HEIGHT = 48;
+export const GROUP_MAX_WIDTH = 209;
+const MARGIN_GAP = 16;
+
+/**
+ * Desktop selection actions sit in the right margin, level with the selection's last line, so
+ * they never cover text. When the window is too narrow for the margin they sit just below the
+ * selection's last line, ending at its right edge.
+ */
+export function marginSpot(rects: Rect[], columnRight: number, viewportWidth: number, viewportHeight: number) {
+  const last = rects
+    .filter(r => r.right > r.left && r.bottom > r.top)
+    .sort((a, b) => Math.abs(a.bottom - b.bottom) < 2 ? b.right - a.right : b.bottom - a.bottom)[0];
+  if (!last) return null;
+  const clampY = (y: number) => Math.max(8, Math.min(y, viewportHeight - GROUP_HEIGHT - 8));
+  if (columnRight + MARGIN_GAP + GROUP_MAX_WIDTH <= viewportWidth - 8)
+    return { x: columnRight + MARGIN_GAP, y: clampY((last.top + last.bottom) / 2 - GROUP_HEIGHT / 2), margin: true };
+  return { x: Math.max(8, Math.min(last.right - GROUP_MAX_WIDTH, viewportWidth - GROUP_MAX_WIDTH - 8)), y: clampY(last.bottom + 8), margin: false };
+}

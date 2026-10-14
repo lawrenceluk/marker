@@ -1,0 +1,41 @@
+{
+  "source": {
+    "fileKey": "Ov96GbFnYeWrUXw7Olvyn7",
+    "page": "Components (new)",
+    "nodes": { "SelectionGroup": "79:1333", "ReactBar": "79:1334", "ShortcutTooltip": "79:1349", "SelectionBar": "79:1272", "rule": "Foundations 85:5217", "screens": ["81:1301", "81:1331", "81:1371", "80:1105", "80:1216", "80:1343"] },
+    "exportedAt": "2026-10-13",
+    "note": "Selection actions exported from Figma via the Figma MCP. Slab is what is chosen and the one thing to do with it: selected text is slab, so are its actions; tooltips and the phone bar stay paper. Graded live by tests/browser/figma-selection.spec.ts."
+  },
+  "Selection": { "fill": "slab/bg", "text": "slab/on" },
+  "SelectionGroup": {
+    "height": 48,
+    "padding": [0, 8, 0, 8],
+    "radius": "pill",
+    "fill": "slab/bg",
+    "stroke": null,
+    "button": 48,
+    "icon": "slab/on",
+    "divider": { "width": 1, "height": 24, "fill": "slab/on-muted" },
+    "placement": { "marginGap": 16, "align": "centre of the selection's last line" },
+    "order": { "Default": ["Comment", "React"], "Sized": ["Smaller", "Larger", "divider", "Comment", "React"] },
+    "keys": { "Comment": "C", "React": "E" }
+  },
+  "ReactBar": { "height": 48, "padding": [0, 8, 0, 8], "radius": "pill", "fill": "slab/bg", "stroke": null, "emoji": 3, "button": 48 },
+  "ShortcutTooltip": {
+    "padding": [4, 8, 4, 8],
+    "gap": 8,
+    "radius": 0,
+    "fill": "bg/paper",
+    "stroke": { "token": "rule/ink", "width": 1 },
+    "label": { "family": "Geist", "weight": 500, "size": 12, "lineHeight": 16, "token": "text/ink" },
+    "key": { "family": "Geist Mono", "weight": 400, "size": 12, "lineHeight": 16, "token": "text/muted" }
+  },
+  "SelectionBar": {
+    "height": 64,
+    "padding": [0, 12, 0, 12],
+    "fill": "bg/paper",
+    "top": { "token": "rule/ink", "width": 1 },
+    "button": 48,
+    "order": { "Default": ["React", "Comment"], "Sized": ["Smaller", "Larger", "React", "Comment"], "React": ["emoji", "emoji", "emoji", "Search emoji", "Back"] }
+  }
+}
