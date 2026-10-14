@@ -72,13 +72,12 @@ export function NoteCreator({
           onSave(result.tags);
         }}
       >
-        <label className="text-sm text-muted" htmlFor="note-tags">Tags, separated by commas</label>
         <div className="flex items-center gap-3">
           <input
-            id="note-tags"
             autoFocus
             value={draft}
             onChange={event => setDraft(event.target.value)}
+            aria-label="Tags"
             placeholder="plans, q4"
             className={`min-w-0 flex-1 ${textInputClass()}`}
           />

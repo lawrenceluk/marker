@@ -70,13 +70,6 @@ export default async function CreatorFolder({ searchParams }: { searchParams: Pr
 function PasteId() {
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6">
-      <div className="space-y-2 text-center">
-        <h1 className="text-2xl font-bold text-foreground">Open a folder</h1>
-        <p className="text-sm leading-relaxed text-muted">
-          Paste the creator id your agent gave you. It is a secret: anyone holding it can see this
-          folder and open every note in it.
-        </p>
-      </div>
       <form method="post" action="/api/creator/session" className="flex items-center gap-3">
         <input
           name="creator_id"

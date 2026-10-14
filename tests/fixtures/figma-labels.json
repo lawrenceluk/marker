@@ -43,6 +43,9 @@
     "Open reaction demo",
     "Open commenting demo",
     "Choices saved as drafts",
-    "Respond in chat"
+    "Respond in chat",
+    "Tags, separated by commas",
+    "Open a folder",
+    "Paste the creator id"
   ]
 }
