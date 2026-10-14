@@ -27,7 +27,7 @@ test("creator folder: token link, AND tag filter, open a row, edit tags in the n
   await expect(page).toHaveURL(/\/n$/);
   await expect(page.getByRole("heading", { name: "Q4 plan" })).toBeVisible();
   const folder = page.getByLabel("Folder");
-  await expect(folder.getByRole("link", { name: "Lawrence's plans" })).toHaveAttribute("href", "/c");
+  await expect(folder.getByRole("link", { name: "Lawrence's plans" })).toHaveAttribute("href", /^\/c\/folder\/[A-Za-z0-9_-]+$/);
   await expect(folder.getByRole("link", { name: "q4" })).toBeVisible();
 
   await page.getByRole("button", { name: "More" }).click();

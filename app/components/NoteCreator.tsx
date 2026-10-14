@@ -12,6 +12,8 @@ export type NoteCreatorInfo = {
   tags: string[];
   /** The viewer's folder cookie matches this note's creator. */
   linked: boolean;
+  /** Credential-free destination for an active or remembered folder; null without access. */
+  folderHref: string | null;
 };
 
 /** Read the creator fields off a `GET /api/content` response. */
@@ -20,17 +22,19 @@ export function creatorFromResponse(data: {
   creator_name?: string | null;
   tags?: string[];
   creator_linked?: boolean;
+  creator_folder_href?: string | null;
 }): NoteCreatorInfo {
   return {
     hasCreator: Boolean(data.has_creator),
     name: data.creator_name ?? null,
     tags: data.tags ?? [],
     linked: Boolean(data.creator_linked),
+    folderHref: data.creator_folder_href ?? null,
   };
 }
 
-function folderHref(tag?: string) {
-  return tag ? `/c?tag=${encodeURIComponent(tag)}` : "/c";
+function folderHref(base: string, tag?: string) {
+  return tag ? `${base}?${new URLSearchParams({ tag })}` : base;
 }
 
 /**
@@ -99,11 +103,11 @@ export function NoteCreator({
     <div className="byline-block">
       <div className="note-creator">
         {folder && <span className="contents" aria-label="Folder">
-          {folder.name && (folder.linked
-            ? <a href={folderHref()} className="byline-folder">{folder.name}</a>
+          {folder.name && (folder.folderHref
+            ? <a href={folderHref(folder.folderHref)} className="byline-folder">{folder.name}</a>
             : <span className="byline-folder">{folder.name}</span>)}
-          {folder.tags.map(tag => folder.linked
-            ? <a key={tag} href={folderHref(tag)} className="tag tag-small">{tag}</a>
+          {folder.tags.map(tag => folder.folderHref
+            ? <a key={tag} href={folderHref(folder.folderHref, tag)} className="tag tag-small">{tag}</a>
             : <span key={tag} className="tag tag-small">{tag}</span>)}
         </span>}
         {summary && summary.inline.length > 0 && <span className="byline-values">{summary.inline.join(" · ")}</span>}

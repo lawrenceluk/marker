@@ -101,6 +101,7 @@ the needed creator id, and 400 for invalid input or an empty request.
 - `tags` (string[])
 - `creator_linked` (boolean): true when the request's creator credential
   (`Authorization: Bearer` or the folder cookie) matches the note's creator.
+- `creator_folder_href` (string or null): a credential-free browser link to the matching active or remembered folder. Null without a matching browser cookie; an API bearer header alone does not establish a browser session.
 
 The id itself is never returned, because it isn't stored.
 
@@ -153,10 +154,7 @@ or removes it from the filter (selected tags AND together). Double-tapping,
 double-clicking or long-pressing a chip shows only that tag. Quick taps are
 combined into one listing request.
 Opening a row opens the note at `/n` in a normal one-off browser session.
-Inside a note, the creator name and tag pills appear under the toolbar. When
-the browser's folder cookie matches the note's creator, the name links back to
-the folder and **More → Edit tags** is available. **⋯ → Forget this folder** on `/c`
-removes the cookie and drops the folder from the home page list.
+Inside a note, the creator name and tag pills appear under the toolbar. When the browser holds the matching active or remembered folder credential, the name opens that folder and each tag opens it with only that tag selected (`/c?tag=…`, preserved across reloads). A remembered folder opens through its existing opaque `/c/folder/<ref>` handle, keeping the creator id out of the page and URL. Viewers with only the note key see plain text. **More → Edit tags** remains available only when the active folder cookie matches the note’s creator. **⋯ → Forget this folder** on `/c` removes the cookie and drops the folder from the home page list.
 
 ## Folders on the home page
 

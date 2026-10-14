@@ -6,6 +6,7 @@ import { readNote as loadNote } from "../lib/notes";
 import { CREATOR_COOKIE, normalizeCreatorId } from "../lib/creatorId";
 import { creatorHash } from "../lib/creators";
 import type { FolderSummary } from "../lib/folders";
+import { noteFolderHref } from "../lib/folders";
 import { r2Config } from "../lib/r2";
 import { assetUrlMap } from "../lib/assets";
 import { shellForNote } from "../lib/embeds";
@@ -30,13 +31,15 @@ export async function NoteView({
 }) {
   const note = noteKey ? await readPageNote(noteKey, true) : null;
   const r2 = r2Config();
-  const creatorId = normalizeCreatorId((await cookies()).get(CREATOR_COOKIE)?.value);
+  const jar = await cookies();
+  const creatorId = normalizeCreatorId(jar.get(CREATOR_COOKIE)?.value);
   const creator = note?.cid
     ? {
         hasCreator: true,
         name: note.creatorName,
         tags: note.tags,
         linked: creatorId !== null && creatorHash(creatorId) === note.cid,
+        folderHref: noteFolderHref(note.cid, jar),
       }
     : null;
 
