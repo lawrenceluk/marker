@@ -109,7 +109,9 @@ test("one-off links land on /n, and remembered folders cost at most one EVAL on 
     assert.deepEqual(fixture.commands, []);
     assert.equal(reopened.headers.get("location"), "/c");
     assert.equal(jar.get("marker_creator"), ALICE);
-    assert.equal(folders.noteFolderHref(creatorHash(ALICE), { get: name => jar.has(name) ? { value: jar.get(name)! } : undefined }), "/c");
+    assert.equal(folders.noteFolderHref(creatorHash(ALICE), { get: name => jar.has(name) ? { value: jar.get(name)! } : undefined }), `/c/folder/${aliceRef}`);
+    // Legacy active-only cookies retain /c navigation without exposing the credential.
+    assert.equal(folders.noteFolderHref(creatorHash(ALICE), { get: name => name === "marker_creator" ? { value: ALICE } : undefined }), "/c");
     const filtered = await switchFolder.GET(req(`/c/folder/${aliceRef}?tag=Q4&tag=plans&token=ignored&key=ignored&next=https://example.test`), { params: Promise.resolve({ ref: aliceRef }) });
     assert.equal(filtered.headers.get("location"), "/c?tag=plans&tag=q4");
     const invalidFilter = await switchFolder.GET(req(`/c/folder/${aliceRef}?tag=bad!`), { params: Promise.resolve({ ref: aliceRef }) });

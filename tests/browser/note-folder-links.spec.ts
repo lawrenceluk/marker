@@ -18,6 +18,10 @@ test("note byline opens active and remembered folders, with deep-linked tags and
   const folder = byline.getByRole("link", { name: "Synthetic notes", exact: true });
   await expect(folder).toHaveAttribute("class", "byline-folder");
   await expect(byline.getByRole("link", { name: "proposals", exact: true })).toHaveAttribute("class", "tag tag-small");
+  // A different tab switches the shared cookie after this byline has already rendered.
+  const otherTab = await page.context().newPage();
+  await otherTab.goto(`/c?token=${second.creator_id}`);
+  await otherTab.close();
   await folder.click();
   await expect(page).toHaveURL(/\/c$/);
   await expect(page.getByRole("link", { name: "Other synthetic note" })).toBeVisible();
