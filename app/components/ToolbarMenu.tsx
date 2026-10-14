@@ -7,6 +7,16 @@ export function closeMenu(button: HTMLElement) {
   button.closest<HTMLElement>("[popover]")?.hidePopover();
 }
 
+function positionMenu(menu: HTMLElement, triggerEl: HTMLElement) {
+  const rect = triggerEl.getBoundingClientRect();
+  menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 208))}px`;
+  const belowTop = rect.bottom + 8;
+  const fitsBelow = belowTop + menu.offsetHeight <= window.innerHeight - 8;
+  menu.style.top = fitsBelow
+    ? `${belowTop}px`
+    : `${Math.max(8, rect.top - 8 - menu.offsetHeight)}px`;
+}
+
 interface ToolbarMenuProps {
   label: string;
   icon: ReactNode;
@@ -25,17 +35,13 @@ export function ToolbarMenu({ label, icon, children, triggerLabel, tooltipAlign,
   return <div className={className}>
     <ToolbarButton label={label} aria-label={triggerLabel ?? label} tooltipAlign={tooltipAlign} popoverTarget={id} aria-haspopup="dialog" onClick={event => {
       trigger.current = event.currentTarget;
-      const rect = event.currentTarget.getBoundingClientRect();
-      panel.current!.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 208))}px`;
-      panel.current!.style.top = `${rect.bottom + 8}px`;
     }}>{icon}</ToolbarButton>
     <div id={id} ref={panel} popover="auto" role="dialog" aria-label={`${triggerLabel ?? label} options`} className="toolbar-menu"
       onToggle={event => {
         if (event.currentTarget.matches(":popover-open")) {
-          // A menu that won't fit below its trigger opens above it, so it is never off-screen.
-          const menu = event.currentTarget, rect = trigger.current?.getBoundingClientRect();
-          if (rect && rect.bottom + 8 + menu.offsetHeight > window.innerHeight - 8)
-            menu.style.top = `${Math.max(8, rect.top - 8 - menu.offsetHeight)}px`;
+          // Recompute on every open so a prior upward flip does not stick when there is room below.
+          const menu = event.currentTarget;
+          if (trigger.current) positionMenu(menu, trigger.current);
           menu.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
         }
         else if (document.activeElement === document.body || event.currentTarget.contains(document.activeElement))
