@@ -56,11 +56,11 @@ test("selection bubble waits for gesture completion and never intercepts a drag"
       }, end);
       await expect(icon).toBeVisible();
       await page.clock.runFor(20); // One animation frame, well before settling.
-      const selected = await page.evaluate(() => Array.from(window.getSelection()!.getRangeAt(0).getClientRects())
-        .sort((a, b) => b.bottom - a.bottom || b.right - a.right)[0].toJSON());
-      const box = await icon.boundingBox();
-      expect(box!.y - selected.bottom).toBeCloseTo(14, 1);
-      expect(box!.x).toBeGreaterThanOrEqual(4);
+      // Phones: the actions stay put in the bottom bar while the handles move.
+      const bar = (await page.locator(".selection-bar").boundingBox())!;
+      const box = (await icon.boundingBox())!;
+      expect(bar.y + bar.height).toBeCloseTo(page.viewportSize()!.height, 0);
+      expect(box.y).toBeGreaterThanOrEqual(bar.y);
       await expect(icon).toHaveCSS("pointer-events", "none");
     }
     await page.clock.runFor(370);
@@ -114,9 +114,11 @@ test("selection bubble waits for gesture completion and never intercepts a drag"
     await page.mouse.up();
     await expect(icon).toBeVisible();
     expect(await page.evaluate(() => window.getSelection()!.toString())).toBe(content.slice(0, 45));
-    const box = await icon.boundingBox();
-    expect(box!.x - points.end).toBeCloseTo(4, 1);
-    expect(box!.y + box!.height / 2).toBeCloseTo(points.y, 1);
+    // The actions sit in the right margin, level with the selected line.
+    const group = (await page.locator(".selection-group").boundingBox())!;
+    const column = (await page.locator(".tap-select").boundingBox())!;
+    expect(group.x - (column.x + column.width)).toBeCloseTo(16, 0);
+    expect(group.y + group.height / 2).toBeCloseTo(points.y, 0);
     await page.screenshot({ path: "test-results/selection-after-drag.png" });
 
     // Keyboard selection stays hidden while a key is held, then debounces on release.

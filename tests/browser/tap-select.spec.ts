@@ -111,16 +111,17 @@ test("tap or double-click ranks a whole span, steps size, and opens the normal c
   await expect(bubble).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe(content.split(". ")[0] + ".");
   if (info.project.name === "iphone-webkit") {
+    // The bottom bar after a double-tap: − and + on the left, react and comment on the right.
     const commentBox = (await bubble.boundingBox())!;
-    const reactionBox = (await page.getByRole("button", { name: "React to selection" }).boundingBox())!;
-    expect(reactionBox.x + reactionBox.width).toBeCloseTo(page.viewportSize()!.width - 16, 1);
-    for (const name of ["Smaller selection", "Larger selection"]) {
+    const bar = (await page.locator(".selection-bar").boundingBox())!;
+    expect(commentBox.x + commentBox.width).toBeCloseTo(page.viewportSize()!.width - 12, 0);
+    for (const [index, name] of ["Smaller selection", "Larger selection"].entries()) {
       const chip = page.getByRole("button", { name });
       const box = (await chip.boundingBox())!;
       expect(box.width).toBe(commentBox.width);
       expect(box.height).toBe(commentBox.height);
-      expect(box.x).toBe(name === "Smaller selection" ? commentBox.x : reactionBox.x);
-      await expect(chip.locator("svg")).toHaveAttribute("width", "15");
+      expect(box.x).toBeCloseTo(bar.x + 12 + index * 48, 0);
+      await expect(chip.locator("svg")).toHaveAttribute("width", "20");
     }
   }
   if (info.project.name === "iphone-webkit") await page.getByRole("button", { name: "Smaller selection" }).tap();

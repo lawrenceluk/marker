@@ -28,13 +28,15 @@ test("mobile selection actions avoid every highlighted line and accept touch tap
     }).toPass({ timeout: 15_000 });
     await expect(reaction).toBeVisible();
     const rects = await page.evaluate(() => Array.from(window.getSelection()!.getRangeAt(0).getClientRects(), r => r.toJSON()));
-    expect((await reaction.boundingBox())!.x + 36).toBeCloseTo(page.viewportSize()!.width - 16, 1);
+    // The bottom bar: comment at the right edge (12px inset), react just left of it.
+    expect((await comment.boundingBox())!.x + 48).toBeCloseTo(page.viewportSize()!.width - 12, 0);
+    expect((await reaction.boundingBox())!.x + 48).toBeCloseTo((await comment.boundingBox())!.x, 0);
     for (const button of [comment, reaction]) {
       const box = (await button.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(4);
       expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width - 4);
       expect(box.y).toBeGreaterThanOrEqual(Math.max(...rects.map(r => r.bottom)) + 13.9);
-      expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height - 4);
+      expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height);
       expect(rects.some(r => box.x < r.right && box.x + box.width > r.left && box.y < r.bottom && box.y + box.height > r.top)).toBe(false);
     }
   };
@@ -91,7 +93,7 @@ for (const scenario of ["bottom", "long"] as const) {
     const clear = async (locator: typeof comment) => {
       const box = (await locator.boundingBox())!;
       expect(box.y).toBeGreaterThanOrEqual(4);
-      expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height - 4);
+      expect(box.y + box.height).toBeLessThanOrEqual(page.viewportSize()!.height);
       const overlaps = await page.evaluate(box => Array.from(window.getSelection()!.getRangeAt(0).getClientRects())
         .some(r => box.x < r.right && box.x + box.width > r.left && box.y < r.bottom && box.y + box.height > r.top), box);
       expect(overlaps).toBe(false);
@@ -100,12 +102,15 @@ for (const scenario of ["bottom", "long"] as const) {
     await clear(reaction);
     await expect(page.getByRole("button", { name: "Scroll to top" })).not.toBeVisible();
     await expect(page.getByRole("button", { name: "Scroll to bottom" })).not.toBeVisible();
-    expect((await reaction.boundingBox())!.x + 36).toBeCloseTo(page.viewportSize()!.width - 16, 1);
+    // The bottom bar: comment at the right edge (12px inset), react just left of it.
+    expect((await comment.boundingBox())!.x + 48).toBeCloseTo(page.viewportSize()!.width - 12, 0);
+    expect((await reaction.boundingBox())!.x + 48).toBeCloseTo((await comment.boundingBox())!.x, 0);
     expect(await page.evaluate(() => window.getSelection()!.toString())).toBe(content);
     if (scenario === "long") {
       expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(initialScroll);
       const bottom = await page.evaluate(() => Math.max(...Array.from(window.getSelection()!.getRangeAt(0).getClientRects(), r => r.bottom)));
-      expect((await comment.boundingBox())!.y - bottom).toBeCloseTo(14, 1);
+      // The selection's end scrolled up above the bar.
+      expect(bottom).toBeLessThanOrEqual((await page.locator(".selection-bar").boundingBox())!.y);
     }
     await reaction.tap();
     const bar = page.getByRole("toolbar", { name: "Emoji reactions" });

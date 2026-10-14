@@ -190,3 +190,19 @@ test("touch actions stay right-pinned with safe-area inset and only move vertica
     assert.ok(p.y + bubble.size <= 286 || p.y >= 654);
   }
 });
+
+test("desktop selection actions sit in the right margin, or below the selection when it is too narrow", async () => {
+  const { marginSpot, GROUP_HEIGHT, GROUP_MAX_WIDTH } = await import("../app/lib/comment-presentation");
+  const lines = [{ left: 300, right: 900, top: 100, bottom: 126 }, { left: 272, right: 520, top: 126, bottom: 152 }];
+  // A 736px column ending at 1008 in a 1280px window: 16px into the margin, centred on the last line.
+  assert.deepEqual(marginSpot(lines, 1008, 1280, 800), { x: 1024, y: 139 - GROUP_HEIGHT / 2, margin: true });
+  // The margin must hold the widest group (−, +, comment, react) with 8px to spare.
+  assert.equal(marginSpot(lines, 1008, 1008 + 16 + GROUP_MAX_WIDTH + 8, 800)!.margin, true);
+  assert.equal(marginSpot(lines, 1008, 1008 + 16 + GROUP_MAX_WIDTH + 7, 800)!.margin, false);
+  // Too narrow: just below the last line, ending at its right edge, kept inside the window.
+  assert.deepEqual(marginSpot(lines, 784, 800, 800), { x: 520 - GROUP_MAX_WIDTH, y: 160, margin: false });
+  assert.equal(marginSpot([{ left: 8, right: 100, top: 10, bottom: 30 }], 784, 800, 800)!.x, 8);
+  // Never off the bottom of the window, and nothing to place without a line.
+  assert.equal(marginSpot([{ left: 8, right: 600, top: 780, bottom: 800 }], 784, 800, 800)!.y, 800 - GROUP_HEIGHT - 8);
+  assert.equal(marginSpot([], 1008, 1280, 800), null);
+});

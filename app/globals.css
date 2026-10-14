@@ -416,7 +416,6 @@ body {
 /* Comments use the reader's icon language; the native text-selection menu stays intact. */
 /* Rides on the comments glyph inside the 48px icon button (Figma Header: badge at 28,6). */
 .comment-count { position: absolute; right: 4px; top: 6px; display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; font-size: var(--text-2xs); line-height: var(--text-2xs--line-height); background: var(--slab); color: var(--on-slab); }
-.comment-selection, .emoji-selection { position: fixed; z-index: 20; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); color: var(--foreground); outline: 1px solid var(--rule-ink); }
 .comment-sheet { position: fixed; inset: auto; margin: 0; left: clamp(8px, var(--comment-x, 8px), calc(100vw - 336px)); top: var(--comment-y, 20vh); width: min(328px, calc(100vw - 16px)); max-height: min(70dvh, calc(var(--comment-viewport, 100dvh) - 16px)); padding: 0 4px 16px 16px; border: 1px solid var(--rule-ink); border-radius: 0; color: var(--foreground); background: var(--background); overflow-y: auto; }
 .comment-sheet::backdrop { background: transparent; }
 .comment-heading { display: flex; align-items: center; gap: 0; min-height: 48px; }
@@ -447,11 +446,26 @@ body {
 .comment-text { font-size: var(--text-sm); line-height: var(--text-sm--line-height); white-space: pre-wrap; overflow-wrap: anywhere; }
 .comment-messages { max-height: min(38dvh, calc(var(--comment-viewport, 100dvh) - 148px)); overflow-y: auto; }
 .comment-compose { display: flex; align-items: flex-end; gap: 4px; }
-.emoji-reactor-bar { position: fixed; z-index: 21; display: flex; gap: 3px; padding: 3px; border: 1px solid var(--rule-ink); border-radius: 0; background: var(--background); }
-.emoji-reactor-bar button { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 0; font-size: var(--text-xl); }
-.emoji-reactor-bar button:hover, .emoji-reactor-bar button:focus-visible { background: var(--code-background); outline: 2px solid transparent; }
-.emoji-reactor-bar button:disabled { opacity: .5; }
-.emoji-selection[aria-expanded="true"] > span[aria-hidden="true"] { display: none; }
+/*
+ * Selection actions (Figma SelectionGroup, ReactBar, SelectionBar, ShortcutTooltip). Slab is what
+ * is chosen and the one thing to do with it: selected note text is slab, and so are its actions
+ * on desktop, a pill in the right margin. Phones put them in a paper bar along the bottom, like
+ * the editor bar. Tooltips stay paper.
+ */
+.tap-select ::selection { background: var(--slab); color: var(--on-slab); }
+.selection-group { position: fixed; z-index: 21; display: flex; align-items: center; height: 48px; padding: 0 8px; border-radius: 999px; background: var(--slab); color: var(--on-slab); }
+.selection-action, .selection-group .comment-auto-chip { position: relative; display: grid; flex: none; place-items: center; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: inherit; font-size: var(--text-xl); line-height: 1; cursor: pointer; }
+.selection-group .selection-action:hover, .selection-group .comment-auto-chip:hover { background: var(--slab-hover); }
+.selection-action:focus-visible { outline: 2px solid currentColor; outline-offset: -4px; }
+.selection-action:disabled, .comment-auto-chip:disabled { opacity: .4; cursor: default; }
+.selection-divider { flex: none; width: 1px; height: 24px; background: var(--on-slab-muted); }
+.shortcut-tooltip { position: absolute; top: calc(100% + 6px); left: 0; z-index: 22; display: inline-flex; gap: 8px; padding: 4px 8px; border: 1px solid var(--rule-ink); background: var(--background); color: var(--foreground); font-size: var(--text-xs); font-weight: 500; line-height: 16px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity var(--duration-quick) var(--ease-out); }
+.shortcut-tooltip kbd { font-family: var(--font-mono); font-weight: 400; color: var(--muted); }
+.selection-action:hover > .shortcut-tooltip, .selection-action:focus-visible > .shortcut-tooltip { opacity: 1; }
+.selection-bar { position: fixed; left: 0; right: 0; z-index: 21; display: flex; align-items: center; min-height: 64px; padding: 0 12px env(safe-area-inset-bottom); border-top: 1px solid var(--rule-ink); background: var(--background); color: var(--foreground); }
+.selection-bar .selection-action { font-size: var(--text-xl); }
+.selection-bar-spacer { flex: 1; }
+body:has(.selection-group, .selection-bar) .scroll-actions { visibility: hidden; pointer-events: none; }
 .emoji-picker-panel { position: fixed; z-index: 22; max-width: calc(100vw - 16px); border: 1px solid var(--rule-ink); border-radius: 0; }
 .emoji-reactor-error { position: fixed; z-index: 22; max-width: 272px; padding: 8px 0 0; border-top: 2px solid var(--danger); background: var(--background); color: var(--danger); font-size: var(--text-xs); }
 .comment-compose textarea { flex: 1; min-width: 0; min-height: 56px; max-height: 120px; padding: 16px 0; resize: vertical; outline: none; border: 0; border-bottom: 1px solid var(--hairline); border-radius: 0; font-size: var(--text-base); line-height: var(--text-base--line-height); background: transparent; color: var(--foreground); }
@@ -489,9 +503,6 @@ body {
 .update-nudge:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 .tap-select { touch-action: manipulation; }
-.comment-auto-tools { position: fixed; z-index: 21; display: flex; align-items: center; gap: 3px; max-width: min(260px, calc(100vw - 8px)); color: var(--foreground); }
-.comment-auto-chip { display: inline-grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--background); outline: 1px solid var(--rule-ink); }
-.comment-auto-chip:disabled { opacity: .35; }
 
 .tap-pending { position: fixed; z-index: 21; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; color: var(--foreground); background: var(--background); outline: 1px solid var(--hairline); pointer-events: none; }
 .tap-pending::after { content: ""; width: 9px; height: 9px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; opacity: .55; animation: tap-spin .65s linear infinite; }
@@ -500,10 +511,7 @@ body {
 /* Touch selection actions must not become native selection/callout targets. */
 @media (pointer: coarse) {
   .tap-select { padding-bottom: 128px; --selection-safe-right: env(safe-area-inset-right, 0px); }
-  body:has(.comment-selection, .emoji-selection, .emoji-reactor-bar, .comment-auto-tools) .scroll-actions { visibility: hidden; pointer-events: none; }
-  .comment-auto-tools { gap: 4px; }
-  .comment-auto-chip { width: 36px; height: 36px; }
-  .comment-selection, .emoji-selection, .comment-auto-chip { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .selection-bar, .selection-bar button { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 }
 
 /*
