@@ -163,7 +163,7 @@ async function suite(page: Page, scheme: "light" | "dark", rows: Row[], key: str
   num("gap to More", 8, moreButton.left - t.right);
 
   surface = "Removed · note";
-  await absent("labels", page.locator("body"), ["Choose one", "Choose any that fit", "Preview sandbox", "Separate note namespace", "Open metadata demo", "Open reaction demo", "Open commenting demo"]);
+  await absent("labels", page.locator("body"), ["Choose one", "Choose any that fit", "Choices saved as drafts", "Respond in chat", "Saving choices", "Preview sandbox", "Separate note namespace", "Open metadata demo", "Open reaction demo", "Open commenting demo"]);
   row("metadata disclosure", "none", String(await page.locator("details summary").count()), (await page.locator("details summary").count()) === 0);
 
   // ---- The editor: no status line; the shortcut is on Save's tooltip.

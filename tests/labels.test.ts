@@ -19,7 +19,8 @@ function sources(dir: string): string[] {
 }
 
 test("the labels the Figma board removes are gone from the app", () => {
-  const files = sources("app").map(path => [path, readFileSync(path, "utf8")] as const);
+  // app/lib/demo.ts is the text of preview's demo notes (content, not interface).
+  const files = sources("app").filter(path => !path.endsWith("lib/demo.ts")).map(path => [path, readFileSync(path, "utf8")] as const);
   const hits = figma.Removed.flatMap(label => {
     // "Sort" stays as the control's accessible name; only the visible word goes.
     const pattern = label === "Sort" ? />\s*Sort\s*</ : new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));

@@ -49,7 +49,7 @@ test("mobile tidy checkboxes and multi-select ask persist without Send", async (
   await expect(page.getByRole("textbox", { name: "Other answer for What should the next review include?" })).toHaveValue("A small action list");
   await page.screenshot({ path: `test-results/reactions-${info.project.name}.png`, fullPage: true, animations: "disabled" });
   await expect(page.getByRole("button", { name: "Send", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("status").filter({ hasText: "Choices saved as drafts" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Choices saved" })).toHaveText("Choices saved");
   const state = await (await request.get(`/api/drafts?key=${key}`)).json();
   expect(state.responses).toHaveLength(2);
   expect(state.responses.every((entry: Record<string, unknown>) => !("submitted_at" in entry))).toBe(true);
@@ -230,7 +230,7 @@ test("failed autosave retains the choice and explicit refresh resumes saving", a
   expect((await (await request.get(`/api/drafts?key=${key}`)).json()).responses).toEqual([]);
   await page.getByRole("button", { name: "Refresh choices", exact: true }).tap();
   await expect.poll(async () => (await (await request.get(`/api/drafts?key=${key}`)).json()).responses.length).toBe(1);
-  await expect(page.getByRole("status").filter({ hasText: "Choices saved as drafts" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Choices saved" })).toHaveText("Choices saved");
   await page.reload();
   await expect(checkbox).toBeChecked();
   await expect(page.getByRole("button", { name: "Send", exact: true })).toHaveCount(0);

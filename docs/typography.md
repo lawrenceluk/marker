@@ -81,7 +81,8 @@ separate from production. Both stay above 4.5:1 on paper.
 The interface doesn't explain itself in words a reader can do without
 (Figma Screens (new), "Labels — with / without"). Sort options carry no
 "Sort" label (it stays the accessible name), row dates carry no "Updated" or
-"Created" (the selected sort says which), ask blocks carry no "Choose one",
+"Created" (the selected sort says which), ask blocks carry no "Choose one"
+and no save status (screen readers still hear it; only a failure shows),
 and the editor bar carries no status line (Save's tooltip shows the
 shortcut). Labels that carry information stay, such as "Expires".
 
