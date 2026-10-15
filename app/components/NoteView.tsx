@@ -39,7 +39,7 @@ export async function NoteView({
         name: note.creatorName,
         tags: note.tags,
         linked: creatorId !== null && creatorHash(creatorId) === note.cid,
-        folderHref: noteFolderHref(note.cid, jar),
+        folderHref: noteFolderHref(note.cid),
       }
     : null;
 

@@ -15,7 +15,7 @@ test("one-off links land on /n, and remembered folders cost at most one EVAL on 
   try {
     const { proxy } = await import("../proxy");
     const notes = await import("../app/lib/notes");
-    const { creatorHash } = await import("../app/lib/creators");
+    const { creatorHash, folderRef } = await import("../app/lib/creators");
     const folders = await import("../app/lib/folders");
     const enter = await import("../app/c/enter/route");
     const switchFolder = await import("../app/c/folder/[ref]/route");
@@ -89,29 +89,27 @@ test("one-off links land on /n, and remembered folders cost at most one EVAL on 
     // Reopening via ref makes it active and most recent, without Redis.
     const aliceRef = listed.folders[1].ref as string;
     // A note can navigate to its remembered folder even while another folder is active.
-    assert.equal(folders.noteFolderHref(creatorHash(ALICE), { get: name => jar.has(name) ? { value: jar.get(name)! } : undefined }), `/c/folder/${aliceRef}`);
+    assert.equal(folders.noteFolderHref(creatorHash(ALICE)), `/c/folder/${aliceRef}`);
     const noteMeta = await (await contentApi.GET(req("/api/content?key=a1"))).json();
     assert.equal(noteMeta.creator_linked, false); // Tag editing still needs the active credential.
     assert.equal(noteMeta.creator_folder_href, `/c/folder/${aliceRef}`);
     assert.ok(!JSON.stringify(noteMeta).includes(ALICE));
     const bare = new NextRequest("http://localhost/api/content?key=a1");
-    assert.equal((await (await contentApi.GET(bare)).json()).creator_folder_href, null);
+    assert.equal((await (await contentApi.GET(bare)).json()).creator_folder_href, `/c/folder/${aliceRef}`);
     const bearer = new NextRequest("http://localhost/api/content?key=a1", { headers: { authorization: `Bearer ${ALICE}` } });
     const bearerMeta = await (await contentApi.GET(bearer)).json();
     assert.equal(bearerMeta.creator_linked, true);
-    assert.equal(bearerMeta.creator_folder_href, null); // A bearer API call doesn't create browser access.
-    const emptyJar = { get: () => undefined };
-    assert.equal(folders.noteFolderHref(creatorHash(ALICE), emptyJar), null);
-    assert.equal(folders.noteFolderHref(null, emptyJar), null);
-    assert.equal(folders.noteFolderHref(creatorHash(ALICE), { get: () => ({ value: "malformed" }) }), null);
+    assert.equal(bearerMeta.creator_folder_href, `/c/folder/${aliceRef}`); // A destination never grants browser access.
+    assert.equal(folders.noteFolderHref(creatorHash(ALICE)), `/c/folder/${aliceRef}`);
+    assert.equal(folders.noteFolderHref(null), null);
     fixture.commands.length = 0;
     const reopened = absorb(await switchFolder.GET(req(`/c/folder/${aliceRef}`), { params: Promise.resolve({ ref: aliceRef }) }));
     assert.deepEqual(fixture.commands, []);
     assert.equal(reopened.headers.get("location"), "/c");
     assert.equal(jar.get("marker_creator"), ALICE);
-    assert.equal(folders.noteFolderHref(creatorHash(ALICE), { get: name => jar.has(name) ? { value: jar.get(name)! } : undefined }), `/c/folder/${aliceRef}`);
-    // Legacy active-only cookies retain /c navigation without exposing the credential.
-    assert.equal(folders.noteFolderHref(creatorHash(ALICE), { get: name => name === "marker_creator" ? { value: ALICE } : undefined }), "/c");
+    assert.equal(folders.noteFolderHref(creatorHash(ALICE)), `/c/folder/${aliceRef}`);
+    // Active-only cookies resolve through the same stable destination.
+    assert.equal(folders.noteFolderHref(creatorHash(ALICE)), `/c/folder/${aliceRef}`);
     const filtered = await switchFolder.GET(req(`/c/folder/${aliceRef}?tag=Q4&tag=plans&token=ignored&key=ignored&next=https://example.test`), { params: Promise.resolve({ ref: aliceRef }) });
     assert.equal(filtered.headers.get("location"), "/c?tag=plans&tag=q4");
     const invalidFilter = await switchFolder.GET(req(`/c/folder/${aliceRef}?tag=bad!`), { params: Promise.resolve({ ref: aliceRef }) });
@@ -120,7 +118,7 @@ test("one-off links land on /n, and remembered folders cost at most one EVAL on 
     const reordered = await (await foldersApi.GET(req("/api/creator/folders"))).json();
     assert.deepEqual(reordered.folders.map((f: { name: string | null }) => f.name), ["Alice", null]);
     const unknown = await switchFolder.GET(req("/c/folder/nope"), { params: Promise.resolve({ ref: "nope" }) });
-    assert.equal(unknown.headers.get("location"), "/");
+    assert.equal(unknown.headers.get("location"), "/c?folder=nope");
 
     // Forget one: gone from the list, and no longer the active folder.
     const forgot = absorb(await foldersApi.POST(req("/api/creator/folders", {
@@ -131,9 +129,32 @@ test("one-off links land on /n, and remembered folders cost at most one EVAL on 
     assert.equal(forgot.status, 303);
     assert.equal(forgot.headers.get("location"), "/");
     assert.equal(jar.get("marker_creator"), undefined);
-    assert.equal(folders.noteFolderHref(creatorHash(ALICE), { get: name => jar.has(name) ? { value: jar.get(name)! } : undefined }), null);
+    assert.equal(folders.noteFolderHref(creatorHash(ALICE)), `/c/folder/${aliceRef}`);
     const forgottenLink = await switchFolder.GET(req(`/c/folder/${aliceRef}?tag=plans`), { params: Promise.resolve({ ref: aliceRef }) });
-    assert.equal(forgottenLink.headers.get("location"), "/");
+    assert.equal(forgottenLink.headers.get("location"), `/c?folder=${aliceRef}&tag=plans`);
+    assert.equal(forgottenLink.cookies.getAll().length, 0);
+    assert.equal(forgottenLink.headers.get("Cache-Control"), "no-store, private");
+    const submit = (id: string, ref = aliceRef) => session.POST(req("/api/creator/session", {
+      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ creator_id: id, folder: ref, tag: "plans" }).toString(),
+    }));
+    const wrong = await submit(BOB);
+    assert.equal(wrong.headers.get("location"), `/c?folder=${aliceRef}&tag=plans&error=wrong_folder`);
+    assert.equal(wrong.cookies.getAll().length, 0);
+    const invalid = await submit("bad");
+    assert.equal(invalid.headers.get("location"), `/c?folder=${aliceRef}&tag=plans&error=invalid`);
+    const nonexistent = await submit(GHOST, folderRef(creatorHash(GHOST)));
+    assert.match(nonexistent.headers.get("location")!, /error=not_found$/);
+    assert.equal(nonexistent.cookies.getAll().length, 0);
+    const opened = await submit(ALICE);
+    assert.equal(opened.headers.get("location"), "/c?tag=plans");
+    assert.equal(opened.cookies.get("marker_creator")?.value, ALICE);
+    // A legacy active-only browser is re-remembered without needing the id again.
+    const legacy = await switchFolder.GET(new NextRequest(`http://localhost/c/folder/${aliceRef}`, {
+      headers: { cookie: `marker_creator=${ALICE}` },
+    }), { params: Promise.resolve({ ref: aliceRef }) });
+    assert.equal(legacy.headers.get("location"), "/c");
+    assert.ok(legacy.cookies.get(folders.FOLDERS_COOKIE)?.value);
     const afterForget = await (await foldersApi.GET(req("/api/creator/folders"))).json();
     assert.equal(afterForget.folders.length, 1);
 
