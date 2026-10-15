@@ -83,14 +83,9 @@ export function findFolderByRef(folders: RememberedFolder[], ref: string): Remem
   return folders.find(f => folderRef(creatorHash(f.id)) === ref) ?? null;
 }
 
-/** A note key alone grants no folder access. Only link credentials this browser already holds. */
-export function noteFolderHref(cid: string | null, cookies: CookieSource): string | null {
-  if (!cid) return null;
-  // Bind remembered links to this folder even if another tab switches the active cookie later.
-  const remembered = readRememberedFolders(cookies).find(folder => creatorHash(folder.id) === cid);
-  if (remembered) return `/c/folder/${folderRef(cid)}`;
-  const active = normalizeCreatorId(cookies.get(CREATOR_COOKIE)?.value);
-  return active && creatorHash(active) === cid ? "/c" : null;
+/** Navigation is always available; the opaque ref grants no folder access. */
+export function noteFolderHref(cid: string | null): string | null {
+  return cid ? `/c/folder/${folderRef(cid)}` : null;
 }
 
 /** Make `id` the active folder and the most recent remembered one. */

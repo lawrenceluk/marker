@@ -5,6 +5,8 @@ import { CREATOR_COOKIE, normalizeCreatorId } from "../lib/creatorId";
 import {
   CREATOR_SORTS,
   clientFingerprint,
+  creatorHash,
+  folderRef,
   listCreatorNotes,
   parseTagFilter,
   type CreatorListing,
@@ -17,7 +19,7 @@ import { primaryButtonClass, secondaryButtonClass, textInputClass } from "../com
 
 export const metadata: Metadata = { title: "Marker folder" };
 
-type SearchParams = { tag?: string | string[]; sort?: string; cursor?: string; error?: string };
+type SearchParams = { tag?: string | string[]; sort?: string; cursor?: string; error?: string; folder?: string };
 
 const SORT_LABELS: Record<CreatorSort, string> = { updated: "Updated", created: "Created", title: "Title" };
 
@@ -26,6 +28,7 @@ const ERRORS: Record<string, string> = {
   not_found: "No folder exists for that creator id.",
   limited: "Too many failed lookups. Try again in a few minutes.",
   missing_note: "That note is no longer in this folder.",
+  wrong_folder: "That id belongs to a different folder.",
 };
 
 function formatDate(ms: number | null) {
@@ -44,7 +47,7 @@ export default async function CreatorFolder({ searchParams }: { searchParams: Pr
 
   let error = params.error ? ERRORS[params.error] ?? null : "error" in filter ? filter.error : null;
   let listing: CreatorListing | null = null;
-  if (id) {
+  if (id && (!params.folder || folderRef(creatorHash(id)) === params.folder)) {
     const result = await listCreatorNotes(id, { tags, sort, cursor, client: clientFingerprint(await headers()) });
     if (result.status === "ok") listing = result.listing;
     else error = ERRORS[result.status];
@@ -61,16 +64,18 @@ export default async function CreatorFolder({ searchParams }: { searchParams: Pr
           </div>
         )}
 
-        {listing ? <Folder listing={listing} tags={tags} sort={sort} cursor={cursor} /> : <PasteId />}
+        {listing ? <Folder listing={listing} tags={tags} sort={sort} cursor={cursor} /> : <PasteId folder={params.folder} tags={tags} />}
       </main>
     </div>
   );
 }
 
-function PasteId() {
+function PasteId({ folder, tags }: { folder?: string; tags: string[] }) {
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6">
       <form method="post" action="/api/creator/session" className="flex items-center gap-3">
+        {folder && <input type="hidden" name="folder" value={folder} />}
+        {tags.map(tag => <input key={tag} type="hidden" name="tag" value={tag} />)}
         <input
           name="creator_id"
           type="password"

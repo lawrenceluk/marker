@@ -67,19 +67,49 @@ test("note byline opens active and remembered folders, with deep-linked tags and
   await expect(page.getByRole("link", { name: "Other synthetic note" })).toHaveCount(0);
   await page.screenshot({ path: `test-results/note-folder-filter-after-${info.project.name}.png`, fullPage: true });
 
-  // Without the matching active or remembered credential, only plain text is rendered.
-  const stranger = await browser.newContext({ ignoreHTTPSErrors: true });
+  // A fresh note-only browser gets links, but no listing or edit authority.
+  const stranger = await browser.newContext({ ...info.project.use, ignoreHTTPSErrors: true });
   try {
     const other = await stranger.newPage();
-    await other.goto(`/?key=${key}&persist=1`);
-    await expect(other.getByLabel("Folder", { exact: true }).getByText("Synthetic notes", { exact: true })).toBeVisible();
-    await expect(other.getByLabel("Folder", { exact: true }).getByRole("link")).toHaveCount(0);
+    const openNote = () => other.goto(`/?key=${key}&persist=1`);
+    const isolatedByline = other.getByLabel("Folder", { exact: true });
+    await openNote();
+    await expect(isolatedByline.getByRole("link")).toHaveCount(3);
     const isolatedHtml = await other.content();
     expect(isolatedHtml).not.toContain(id);
-    expect(isolatedHtml).not.toContain(meta.creator_folder_href);
+    expect(isolatedHtml).not.toContain(second.creator_id);
+    const noteOnlyMeta = await (await other.request.get("/api/content")).json();
+    expect(noteOnlyMeta.creator_linked).toBe(false);
+    expect(noteOnlyMeta.creator_folder_href).toBe(meta.creator_folder_href);
+    await other.getByRole("button", { name: "More" }).click();
+    await expect(other.getByRole("button", { name: "Edit tags" })).toHaveCount(0);
+    await other.getByRole("button", { name: "More" }).click();
+    await other.screenshot({ path: `test-results/note-fresh-header-${info.project.name}.png`, fullPage: true });
+    await isolatedByline.getByRole("link", { name: "Synthetic notes", exact: true }).click();
+    await expect(other.getByLabel("Creator id")).toBeVisible();
+    await expect(other.getByRole("heading", { name: "Synthetic notes", exact: true })).toHaveCount(0);
+    // Even a different active folder cannot hijack this note's destination.
     await other.goto(`/c?token=${second.creator_id}`);
-    await other.goto(`/?key=${key}`);
-    await expect(other.getByLabel("Folder", { exact: true }).getByRole("link")).toHaveCount(0);
+    await openNote();
+    await isolatedByline.getByRole("link", { name: "proposals", exact: true }).click();
+    await expect(other).toHaveURL(/\/c\?folder=[A-Za-z0-9_-]+&tag=proposals$/);
+    await expect(other.getByLabel("Creator id")).toBeVisible();
+    await expect(other.getByRole("heading", { name: "Separate folder", exact: true })).toHaveCount(0);
+    await other.getByLabel("Creator id").fill(second.creator_id);
+    await other.getByRole("button", { name: "Open", exact: true }).click();
+    await expect(other.getByRole("alert").filter({ hasText: "That id belongs to a different folder." })).toBeVisible();
+    await expect(other).toHaveURL(/tag=proposals&error=wrong_folder$/);
+    await other.getByLabel("Creator id").fill(id);
+    await other.getByRole("button", { name: "Open", exact: true }).click();
+    await expect(other).toHaveURL(/\/c\?tag=proposals$/);
+    await expect(other.getByRole("heading", { name: "Synthetic notes", exact: true })).toBeVisible();
+    await expect(other.getByRole("button", { name: "proposals 1", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(other.getByRole("link", { name: "Other synthetic note" })).toHaveCount(0);
+    await other.reload();
+    await expect(other.getByRole("button", { name: "proposals 1", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await openNote();
+    await isolatedByline.getByRole("link", { name: "Synthetic notes", exact: true }).click();
+    await expect(other.getByRole("link", { name: "Other synthetic note" })).toBeVisible();
   } finally {
     await stranger.close();
   }

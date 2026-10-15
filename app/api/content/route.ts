@@ -118,7 +118,7 @@ function creatorFields(request: NextRequest, note: Note) {
     has_creator: note.cid !== null,
     creator_name: note.creatorName,
     creator_linked: Boolean(note.cid && id && creatorHash(id) === note.cid),
-    creator_folder_href: noteFolderHref(note.cid, request.cookies),
+    creator_folder_href: noteFolderHref(note.cid),
     tags: note.tags,
   };
 }

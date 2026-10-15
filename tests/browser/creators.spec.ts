@@ -41,12 +41,12 @@ test("creator folder: token link, AND tag filter, open a row, edit tags in the n
   expect(stored.tags).toEqual(["done", "plans"]);
   expect(stored.rev).toBe(1);
 
-  // A browser without the folder cookie sees the note's pills but no folder link or tag editing.
+  // A browser without the folder cookie gets folder navigation but no tag editing.
   const stranger = await browser.newContext({ ignoreHTTPSErrors: true });
   const other = await stranger.newPage();
   await other.goto(`/?key=${keys.plan}`);
   await expect(other.getByLabel("Folder").getByText("Lawrence's plans")).toBeVisible();
-  await expect(other.getByLabel("Folder").getByRole("link")).toHaveCount(0);
+  await expect(other.getByLabel("Folder").getByRole("link")).toHaveCount(3);
   await other.getByRole("button", { name: "More" }).click();
   await expect(other.getByRole("button", { name: "Edit tags" })).toHaveCount(0);
 

@@ -245,3 +245,7 @@ is whoever uses a browser: any device that opens the note marks it seen.
   when Home counts it, so notes that were seen, moved, expired or deleted drop out.
 
 The folder page marks new notes with an accent dot; Home shows "N new" on each remembered folder.
+
+## Note-header navigation
+
+A note's folder name and tags always link to `/c/folder/<ref>` (tags add `?tag=…`). The opaque, HMAC-derived ref is a destination, not a credential: it exposes neither the raw creator id nor the stored creator hash. The route activates a matching remembered or active folder. Otherwise `/c?folder=<ref>` asks for the creator id, even if a different folder is active. The form checks that the supplied id matches the requested ref before opening it and preserves the tag through errors and successful submission. Opening the folder once remembers access in that browser; a note key alone still grants no listing or tag-edit access. Existing `byline-folder` and `tag tag-small` styles apply unchanged.

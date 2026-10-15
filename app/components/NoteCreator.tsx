@@ -12,7 +12,7 @@ export type NoteCreatorInfo = {
   tags: string[];
   /** The viewer's folder cookie matches this note's creator. */
   linked: boolean;
-  /** Credential-free destination for an active or remembered folder; null without access. */
+  /** Credential-free, access-aware destination; null only without a folder. */
   folderHref: string | null;
 };
 
