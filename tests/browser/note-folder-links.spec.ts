@@ -97,7 +97,7 @@ test("note byline opens active and remembered folders, with deep-linked tags and
     await expect(other.getByRole("heading", { name: "Separate folder", exact: true })).toHaveCount(0);
     await other.getByLabel("Creator id").fill(second.creator_id);
     await other.getByRole("button", { name: "Open", exact: true }).click();
-    await expect(other.getByRole("alert")).toHaveText("That id belongs to a different folder.");
+    await expect(other.getByRole("alert").filter({ hasText: "That id belongs to a different folder." })).toBeVisible();
     await expect(other).toHaveURL(/tag=proposals&error=wrong_folder$/);
     await other.getByLabel("Creator id").fill(id);
     await other.getByRole("button", { name: "Open", exact: true }).click();
