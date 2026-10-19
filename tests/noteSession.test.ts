@@ -4,10 +4,62 @@ import { NextRequest } from "next/server";
 import { startRedisRest } from "./helpers/redis-rest";
 import { browserNoteSession } from "./helpers/noteSession";
 import {
+  MAX_SESSION_HANDLES,
   NOTE_BINDING_HEADER,
+  applyHandleSessionCookie,
+  countSessionHandles,
+  findHandleForKey,
   sessionKeyCookieName,
+  sessionSecret,
   signNoteBinding,
 } from "../app/lib/noteSession";
+
+function cookieJar() {
+  const jar: Record<string, string> = {};
+  const requestCookies = {
+    get(name: string) {
+      const value = jar[name];
+      return value === undefined ? undefined : { value };
+    },
+    getAll() {
+      return Object.entries(jar).map(([name, value]) => ({ name, value }));
+    },
+  };
+  const responseCookies = {
+    set(name: string, value: string) {
+      if (!value) delete jar[name];
+      else jar[name] = value;
+    },
+  };
+  return { requestCookies, responseCookies };
+}
+
+test("reuses handle for the same key and caps session handles", () => {
+  const { requestCookies, responseCookies } = cookieJar();
+  applyHandleSessionCookie(responseCookies, requestCookies, "aaaaaaaaaaaa", "shared-key", false);
+  applyHandleSessionCookie(responseCookies, requestCookies, "bbbbbbbbbbbb", "other-key", false);
+  assert.equal(findHandleForKey(requestCookies, "shared-key"), "aaaaaaaaaaaa");
+
+  for (let i = 0; i < MAX_SESSION_HANDLES + 5; i++) {
+    const handle = `h${String(i).padStart(2, "0")}abcdefghij`;
+    applyHandleSessionCookie(responseCookies, requestCookies, handle, `note-${i}`, false);
+  }
+  assert.equal(countSessionHandles(requestCookies), MAX_SESSION_HANDLES);
+});
+
+test("sessionSecret requires MARKER_REF_SECRET on Vercel production", () => {
+  const prev = process.env.MARKER_REF_SECRET;
+  const prevVercel = process.env.VERCEL_ENV;
+  process.env.VERCEL_ENV = "production";
+  delete process.env.MARKER_REF_SECRET;
+  try {
+    assert.throws(() => sessionSecret(), /MARKER_REF_SECRET/);
+  } finally {
+    process.env.VERCEL_ENV = prevVercel;
+    if (prev !== undefined) process.env.MARKER_REF_SECRET = prev;
+    else delete process.env.MARKER_REF_SECRET;
+  }
+});
 
 test("browser API routes reject missing or mismatched bindings", async () => {
   const fixture = await startRedisRest();
@@ -24,14 +76,14 @@ test("browser API routes reject missing or mismatched bindings", async () => {
     const noBinding = await content.GET(
       new NextRequest("http://localhost/api/content")
     );
-    assert.equal(noBinding.status, 400);
+    assert.equal(noBinding.status, 409);
+    assert.equal((await noBinding.json()).code, "note_session_expired");
 
     const session = browserNoteSession("bind-a");
-    const other = browserNoteSession("bind-b");
     const swapped = await content.GET(
       new NextRequest("http://localhost/api/content", {
         headers: {
-          cookie: `${sessionKeyCookieName(other.handle)}=bind-a`,
+          cookie: `${sessionKeyCookieName(session.handle)}=bind-b`,
           [NOTE_BINDING_HEADER]: session.binding,
         },
       })

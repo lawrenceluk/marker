@@ -593,6 +593,7 @@ a.byline-folder:hover { text-decoration-thickness: 2px; }
 .note-toolbar > .preview-tag + :last-child { margin-left: 0; }
 
 /* Minimal toast when another tab overwrote the session cookie. */
-.note-toast { position: fixed; z-index: 60; left: 50%; bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: min(24rem, calc(100vw - 2rem)); padding: 10px 12px 10px 16px; border-radius: 999px; border: 1px solid var(--hairline); background: color-mix(in srgb, var(--background) 94%, transparent); box-shadow: 0 8px 24px rgb(42 37 32 / 0.12); font-size: var(--text-sm); }
+.note-toast { position: fixed; z-index: 60; left: 50%; bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: min(24rem, calc(100vw - 2rem)); padding: 10px 12px 10px 14px; border-radius: 0; border: 1px solid var(--ink); background: var(--background); box-shadow: none; font-size: var(--text-sm); }
+.note-toast-message { margin: 0; flex: 1; }
 .note-toast-pill { flex: none; display: inline-flex; align-items: center; justify-content: center; height: 2rem; padding: 0 14px; border: 1px solid var(--hairline); border-radius: 999px; background: var(--slab); color: var(--on-slab); font-size: var(--text-sm); cursor: pointer; }
 .note-toast-pill:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }

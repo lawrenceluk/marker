@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 import {
-  PERSIST_COOKIE,
+  PERSIST_MAX_AGE,
   SESSION_COOKIE,
   normalizeKey,
   sessionCookieOptions,
@@ -10,26 +10,50 @@ import {
 /** Client and server send this on browser note API calls to bind the tab to one note. */
 export const NOTE_BINDING_HEADER = "X-Marker-Note";
 
+/** Proxy passes the active page handle to the App Router (not stored in a global cookie). */
+export const PAGE_HANDLE_HEADER = "x-marker-page-handle";
+
 export const NOTE_SWITCHED_CODE = "note_switched";
+export const NOTE_SESSION_EXPIRED_CODE = "note_session_expired";
+
+export const MAX_SESSION_HANDLES = 20;
+export const ONE_OFF_MAX_AGE = 60 * 60 * 24 * 7;
+
+export const SESSION_ORDER_COOKIE = "marker_sho";
 
 const HANDLE_ALPHABET =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
+const KEY_PREFIX = "marker_sk_";
+const PERSIST_PREFIX = "marker_sp_";
+
+let secretChecked = false;
+
 export function sessionSecret(): string {
-  return (
-    process.env.MARKER_REF_SECRET ||
-    process.env.KV_REST_API_TOKEN ||
-    "marker-ref"
-  );
+  const configured = process.env.MARKER_REF_SECRET;
+  const vercelProd = process.env.VERCEL_ENV === "production";
+  if (vercelProd) {
+    if (!configured) {
+      throw new Error(
+        "MARKER_REF_SECRET is required in production deployments"
+      );
+    }
+    return configured;
+  }
+  if (!secretChecked) {
+    secretChecked = true;
+  }
+  return configured || process.env.KV_REST_API_TOKEN || "marker-ref";
 }
 
 /** httpOnly cookie holding the note key for one browser tab session. */
 export function sessionKeyCookieName(handle: string): string {
-  return `marker_sk_${handle}`;
+  return `${KEY_PREFIX}${handle}`;
 }
 
-/** Points at the active per-tab handle for this navigation. */
-export const SESSION_HANDLE_COOKIE = "marker_sid";
+export function persistCookieName(handle: string): string {
+  return `${PERSIST_PREFIX}${handle}`;
+}
 
 /** Cryptographically random per-tab handle (cookie-safe). */
 export function generateSessionHandle(): string {
@@ -44,6 +68,139 @@ export function generateSessionHandle(): string {
 
 export function isSessionHandle(raw: string): boolean {
   return /^[A-Za-z0-9_-]{12,32}$/.test(raw);
+}
+
+export type CookieReader = {
+  get(name: string): { value: string } | undefined;
+  getAll?(): { name: string; value: string }[];
+};
+
+type CookieSetter = {
+  set: (
+    name: string,
+    value: string,
+    options: ReturnType<typeof sessionCookieOptions> & { maxAge?: number }
+  ) => void;
+};
+
+export function parseSessionOrder(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw.split(",").filter((part) => isSessionHandle(part));
+}
+
+export function findHandleForKey(
+  cookies: CookieReader,
+  key: string
+): string | null {
+  const all = cookies.getAll?.() ?? [];
+  for (const { name, value } of all) {
+    if (!name.startsWith(KEY_PREFIX)) continue;
+    const handle = name.slice(KEY_PREFIX.length);
+    if (!isSessionHandle(handle)) continue;
+    if (normalizeKey(value) === key) return handle;
+  }
+  return null;
+}
+
+function handleCookieOptions(persist: boolean) {
+  return {
+    ...sessionCookieOptions(false),
+    maxAge: persist ? PERSIST_MAX_AGE : ONE_OFF_MAX_AGE,
+  };
+}
+
+function touchOrder(order: string[], handle: string): {
+  order: string[];
+  evicted: string[];
+} {
+  const next = order.filter((h) => h !== handle);
+  next.push(handle);
+  const evicted: string[] = [];
+  while (next.length > MAX_SESSION_HANDLES) {
+    evicted.push(next.shift()!);
+  }
+  return { order: next, evicted };
+}
+
+export function removeHandleFromOrder(
+  cookies: CookieSetter,
+  requestCookies: CookieReader,
+  handle: string
+) {
+  const order = parseSessionOrder(
+    requestCookies.get(SESSION_ORDER_COOKIE)?.value
+  ).filter((h) => h !== handle);
+  cookies.set(SESSION_ORDER_COOKIE, order.join(","), handleCookieOptions(true));
+}
+
+function clearLegacyGlobals(cookies: CookieSetter) {
+  const cleared = { ...sessionCookieOptions(false), maxAge: 0 };
+  cookies.set(SESSION_COOKIE, "", cleared);
+  cookies.set("marker_persist", "", cleared);
+}
+
+export function clearHandleSessionCookie(
+  cookies: CookieSetter,
+  handle: string | null,
+  order?: string[]
+) {
+  const cleared = { ...sessionCookieOptions(false), maxAge: 0 };
+  if (handle) {
+    cookies.set(sessionKeyCookieName(handle), "", cleared);
+    cookies.set(persistCookieName(handle), "", cleared);
+  }
+  if (order) {
+    cookies.set(SESSION_ORDER_COOKIE, order.join(","), handleCookieOptions(true));
+  }
+  clearLegacyGlobals(cookies);
+}
+
+/** Write per-handle session cookies and maintain the bounded handle order list. */
+export function applyHandleSessionCookie(
+  cookies: CookieSetter,
+  requestCookies: CookieReader,
+  handle: string,
+  key: string,
+  persist: boolean
+) {
+  const order = parseSessionOrder(requestCookies.get(SESSION_ORDER_COOKIE)?.value);
+  const { order: nextOrder, evicted } = touchOrder(order, handle);
+  for (const old of evicted) {
+    if (old === handle) continue;
+    cookies.set(sessionKeyCookieName(old), "", {
+      ...sessionCookieOptions(false),
+      maxAge: 0,
+    });
+    cookies.set(persistCookieName(old), "", {
+      ...sessionCookieOptions(false),
+      maxAge: 0,
+    });
+  }
+
+  const opts = handleCookieOptions(persist);
+  cookies.set(sessionKeyCookieName(handle), key, opts);
+  if (persist) {
+    cookies.set(persistCookieName(handle), "1", opts);
+  } else {
+    cookies.set(persistCookieName(handle), "", {
+      ...sessionCookieOptions(false),
+      maxAge: 0,
+    });
+  }
+  cookies.set(SESSION_ORDER_COOKIE, nextOrder.join(","), handleCookieOptions(true));
+  clearLegacyGlobals(cookies);
+}
+
+export function ensureHandleSession(
+  cookies: CookieSetter,
+  requestCookies: CookieReader,
+  key: string,
+  persist: boolean
+): string {
+  const handle =
+    findHandleForKey(requestCookies, key) ?? generateSessionHandle();
+  applyHandleSessionCookie(cookies, requestCookies, handle, key, persist);
+  return handle;
 }
 
 /** Opaque binding the page hands to client JS; never contains the raw key. */
@@ -90,9 +247,27 @@ export type ResolvedNoteKey =
   | {
       ok: false;
       status: 400 | 409;
-      code?: typeof NOTE_SWITCHED_CODE;
+      code?: typeof NOTE_SWITCHED_CODE | typeof NOTE_SESSION_EXPIRED_CODE;
       error: string;
     };
+
+function sessionExpired(): ResolvedNoteKey {
+  return {
+    ok: false,
+    status: 409,
+    code: NOTE_SESSION_EXPIRED_CODE,
+    error: "This note was closed",
+  };
+}
+
+function noteSwitched(): ResolvedNoteKey {
+  return {
+    ok: false,
+    status: 409,
+    code: NOTE_SWITCHED_CODE,
+    error: "Note changed in another tab",
+  };
+}
 
 /**
  * Resolve the note key for an API request. Agents pass an explicit key; browser
@@ -107,21 +282,27 @@ export function resolveNoteKey(
     return { ok: true, key: explicitKey, handle: null, browser: false };
   }
 
-  const parsed = parseNoteBinding(request.headers.get(NOTE_BINDING_HEADER));
+  const legacyKey = normalizeKey(request.cookies.get(SESSION_COOKIE)?.value);
+  const bindingRaw = request.headers.get(NOTE_BINDING_HEADER);
+  if (!bindingRaw) {
+    if (legacyKey) return sessionExpired();
+    return sessionExpired();
+  }
+
+  const parsed = parseNoteBinding(bindingRaw);
   if (!parsed) {
-    return { ok: false, status: 400, error: "Key is required" };
+    if (legacyKey) return sessionExpired();
+    return sessionExpired();
   }
 
   const cookieKey = normalizeKey(
     request.cookies.get(sessionKeyCookieName(parsed.handle))?.value
   );
-  if (!cookieKey || !verifyNoteBinding(parsed.handle, cookieKey, parsed.mac)) {
-    return {
-      ok: false,
-      status: 409,
-      code: NOTE_SWITCHED_CODE,
-      error: "Note changed in another tab",
-    };
+  if (!cookieKey) {
+    return sessionExpired();
+  }
+  if (!verifyNoteBinding(parsed.handle, cookieKey, parsed.mac)) {
+    return noteSwitched();
   }
 
   return {
@@ -136,51 +317,17 @@ export function noteSwitchedBody() {
   return { code: NOTE_SWITCHED_CODE, error: "Note changed in another tab" };
 }
 
-type CookieSetter = {
-  set: (
-    name: string,
-    value: string,
-    options: ReturnType<typeof sessionCookieOptions> & { maxAge?: number }
-  ) => void;
-};
-
-export function applyHandleSessionCookie(
-  cookies: CookieSetter,
-  handle: string,
-  key: string,
-  persist: boolean
-) {
-  cookies.set(sessionKeyCookieName(handle), key, sessionCookieOptions(persist));
-  cookies.set(SESSION_HANDLE_COOKIE, handle, sessionCookieOptions(persist));
-  if (persist) {
-    cookies.set(PERSIST_COOKIE, "1", sessionCookieOptions(true));
-  } else {
-    cookies.set(PERSIST_COOKIE, "", {
-      ...sessionCookieOptions(false),
-      maxAge: 0,
-    });
-  }
-  cookies.set(SESSION_COOKIE, "", { ...sessionCookieOptions(false), maxAge: 0 });
+export function noteSessionExpiredBody() {
+  return { code: NOTE_SESSION_EXPIRED_CODE, error: "This note was closed" };
 }
 
-export function clearHandleSessionCookie(
-  cookies: CookieSetter,
-  handle: string | null
-) {
-  const cleared = { ...sessionCookieOptions(false), maxAge: 0 };
-  if (handle) {
-    cookies.set(sessionKeyCookieName(handle), "", cleared);
-  }
-  cookies.set(SESSION_HANDLE_COOKIE, "", cleared);
-  cookies.set(SESSION_COOKIE, "", cleared);
-  cookies.set(PERSIST_COOKIE, "", cleared);
+export function persistFromCookie(
+  request: NextRequest,
+  handle: string
+): boolean {
+  return request.cookies.get(persistCookieName(handle))?.value === "1";
 }
 
-export function persistFromCookie(request: NextRequest): boolean {
-  return request.cookies.get(PERSIST_COOKIE)?.value === "1";
-}
-
-/** JSON helper for routes: map resolve failures to responses. */
 export function resolvedKeyOrNull(
   request: NextRequest,
   explicit: unknown
@@ -195,4 +342,9 @@ export function isNoteSwitchedFailure(
   failure: ResolveFailure
 ): failure is ResolveFailure & { code: typeof NOTE_SWITCHED_CODE } {
   return failure.code === NOTE_SWITCHED_CODE;
+}
+
+export function countSessionHandles(cookies: CookieReader): number {
+  const all = cookies.getAll?.() ?? [];
+  return all.filter((c) => c.name.startsWith(KEY_PREFIX)).length;
 }

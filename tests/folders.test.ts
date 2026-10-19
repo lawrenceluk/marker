@@ -24,7 +24,9 @@ test("one-off links land on /n, and remembered folders cost at most one EVAL on 
     const session = await import("../app/api/creator/session/route");
 
     // `/?key=` moves the key into the session cookie and lands on `/n`, never `/`.
-    const { sessionKeyCookieName } = await import("../app/lib/noteSession");
+    const { sessionKeyCookieName, persistCookieName } = await import(
+      "../app/lib/noteSession"
+    );
     const oneOff = proxy(new NextRequest("http://localhost/?key=some-note"));
     const oneOffPath = new URL(oneOff.headers.get("location")!).pathname;
     assert.match(oneOffPath, /^\/n\/[A-Za-z0-9_-]+$/);
@@ -33,7 +35,13 @@ test("one-off links land on /n, and remembered folders cost at most one EVAL on 
     // Persistent links are untouched and keep the key in the URL.
     const persist = proxy(new NextRequest("http://localhost/?key=some-note&persist=1"));
     assert.equal(persist.headers.get("location"), null);
-    assert.equal(persist.cookies.get("marker_persist")?.value, "1");
+    const persistKeyCookie = persist.cookies
+      .getAll()
+      .find((c) => c.name.startsWith("marker_sk_"));
+    assert.ok(persistKeyCookie);
+    const persistHandle = persistKeyCookie!.name.slice("marker_sk_".length);
+    assert.equal(persistKeyCookie!.value, "some-note");
+    assert.equal(persist.cookies.get(persistCookieName(persistHandle))?.value, "1");
     assert.equal(proxy(new NextRequest("http://localhost/n")).headers.get("Cache-Control"), "no-store, private");
 
     await notes.writeNote("a1", "# One", { creator: { op: "set", target: creatorHash(ALICE), proofs: [creatorHash(ALICE)], name: "Alice" } });

@@ -4,7 +4,9 @@ import { requireNoteKey } from "@/app/lib/noteApi";
 import {
   applyHandleSessionCookie,
   clearHandleSessionCookie,
+  parseSessionOrder,
   persistFromCookie,
+  SESSION_ORDER_COOKIE,
 } from "@/app/lib/noteSession";
 import {
   MAX_CONTENT_BYTES,
@@ -259,10 +261,16 @@ export async function PATCH(request: NextRequest) {
     return json({ error: "Failed to rename key" }, 500);
   }
 
-  const persist = persistFromCookie(request);
+  const persist = handle ? persistFromCookie(request, handle) : false;
   const response = json({ success: true, key: newKey, renamed: true });
   if (handle) {
-    applyHandleSessionCookie(response.cookies, handle, newKey, persist);
+    applyHandleSessionCookie(
+      response.cookies,
+      request.cookies,
+      handle,
+      newKey,
+      persist
+    );
   }
   return response;
 }
@@ -290,6 +298,13 @@ export async function DELETE(request: NextRequest) {
   if (config && assetNs && assetIds.length) runAfter(() => deleteAssetObjects(config, assetNs, assetIds));
 
   const response = json({ success: true });
-  clearHandleSessionCookie(response.cookies, handle);
+  if (handle) {
+    const order = parseSessionOrder(
+      request.cookies.get(SESSION_ORDER_COOKIE)?.value
+    ).filter((h) => h !== handle);
+    clearHandleSessionCookie(response.cookies, handle, order);
+  } else {
+    clearHandleSessionCookie(response.cookies, null);
+  }
   return response;
 }

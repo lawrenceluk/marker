@@ -6,7 +6,9 @@ import {
   SESSION_COOKIE,
 } from "@/app/lib/key";
 import {
+  PAGE_HANDLE_HEADER,
   applyHandleSessionCookie,
+  findHandleForKey,
   generateSessionHandle,
   isSessionHandle,
 } from "@/app/lib/noteSession";
@@ -40,26 +42,26 @@ export function proxy(request: NextRequest) {
   const persist = isPersistParam(request.nextUrl.searchParams.get(PERSIST_QUERY));
 
   if (persist) {
-    // Document link: leave `/?key=&persist=1` in the address bar so it can
-    // be bookmarked, and make the session cookie survive a browser restart.
-    // Chat unfurlers fetch this URL; the page emits OG tags from the note prefix.
-    const handle = generateSessionHandle();
-    const response = NextResponse.next();
-    applyHandleSessionCookie(response.cookies, handle, key, true);
+    const handle =
+      findHandleForKey(request.cookies, key) ?? generateSessionHandle();
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set(PAGE_HANDLE_HEADER, handle);
+    const response = NextResponse.next({
+      request: { headers: requestHeaders },
+    });
+    applyHandleSessionCookie(response.cookies, request.cookies, handle, key, true);
     return withPrivateCaching(response);
   }
 
-  // One-off share: move the key out of the URL and into a per-tab session
-  // cookie, then redirect to `/n/<handle>`. After this the secret is never in
-  // the address bar, browser history, a Referer header, or client-side JS.
-  const handle = generateSessionHandle();
+  const handle =
+    findHandleForKey(request.cookies, key) ?? generateSessionHandle();
   const url = request.nextUrl.clone();
   url.pathname = `/n/${handle}`;
   url.searchParams.delete("key");
   url.searchParams.delete(PERSIST_QUERY);
 
   const response = NextResponse.redirect(url);
-  applyHandleSessionCookie(response.cookies, handle, key, false);
+  applyHandleSessionCookie(response.cookies, request.cookies, handle, key, false);
   return withPrivateCaching(response);
 }
 
@@ -69,12 +71,19 @@ function legacySessionNote(request: NextRequest) {
   if (!legacyKey) {
     return withPrivateCaching(NextResponse.redirect(new URL("/", request.url)));
   }
-  const handle = generateSessionHandle();
+  const persist = request.cookies.get("marker_persist")?.value === "1";
+  const handle =
+    findHandleForKey(request.cookies, legacyKey) ?? generateSessionHandle();
   const url = request.nextUrl.clone();
   url.pathname = `/n/${handle}`;
   const response = NextResponse.redirect(url);
-  const persist = request.cookies.get("marker_persist")?.value === "1";
-  applyHandleSessionCookie(response.cookies, handle, legacyKey, persist);
+  applyHandleSessionCookie(
+    response.cookies,
+    request.cookies,
+    handle,
+    legacyKey,
+    persist
+  );
   return withPrivateCaching(response);
 }
 

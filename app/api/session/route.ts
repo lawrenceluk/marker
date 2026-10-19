@@ -4,11 +4,14 @@ import {
   NOTE_BINDING_HEADER,
   applyHandleSessionCookie,
   clearHandleSessionCookie,
+  findHandleForKey,
   generateSessionHandle,
   parseNoteBinding,
+  parseSessionOrder,
   persistFromCookie,
   sessionKeyCookieName,
   signNoteBinding,
+  SESSION_ORDER_COOKIE,
 } from "@/app/lib/noteSession";
 import { applyNoIndexHeaders } from "@/app/lib/robots";
 
@@ -42,7 +45,7 @@ export async function GET(request: NextRequest) {
   if (!key) {
     return json({ persist: false });
   }
-  const persist = persistFromCookie(request);
+  const persist = persistFromCookie(request, handle);
   return json(sessionBody(key, persist, handle));
 }
 
@@ -65,14 +68,18 @@ export async function POST(request: NextRequest) {
     return json({ error: "Key is required" }, 400);
   }
 
-  let persist = persistFromCookie(request);
+  let persist = existingHandle
+    ? persistFromCookie(request, existingHandle)
+    : false;
   if (body.persist === true) persist = true;
   if (body.persist === false) persist = false;
   if (bodyKey && body.persist === undefined) persist = false;
 
-  const handle = bodyKey || !existingHandle ? generateSessionHandle() : existingHandle;
+  const handle = bodyKey
+    ? (findHandleForKey(request.cookies, key) ?? generateSessionHandle())
+    : existingHandle ?? generateSessionHandle();
   const response = json(sessionBody(key, persist, handle));
-  applyHandleSessionCookie(response.cookies, handle, key, persist);
+  applyHandleSessionCookie(response.cookies, request.cookies, handle, key, persist);
   return response;
 }
 
@@ -80,6 +87,13 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const handle = handleFromRequest(request);
   const response = json({ success: true });
-  clearHandleSessionCookie(response.cookies, handle);
+  if (handle) {
+    const order = parseSessionOrder(
+      request.cookies.get(SESSION_ORDER_COOKIE)?.value
+    ).filter((h) => h !== handle);
+    clearHandleSessionCookie(response.cookies, handle, order);
+  } else {
+    clearHandleSessionCookie(response.cookies, null);
+  }
   return response;
 }

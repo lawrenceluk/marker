@@ -51,6 +51,7 @@ export async function NoteView({
       <NoteApp
         initialKeyLabel={noteKey ? maskKey(noteKey) : null}
         noteBinding={noteBinding}
+        persistNoteKey={persist && noteKey ? noteKey : null}
         initialNote={note ? { content: note.content, rev: note.rev, responses: note.responses } : null}
         initialPersist={persist}
         initialCreator={creator}

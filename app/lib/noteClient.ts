@@ -2,16 +2,32 @@
 
 export const NOTE_BINDING_HEADER = "X-Marker-Note";
 export const NOTE_SWITCHED_CODE = "note_switched";
+export const NOTE_SESSION_EXPIRED_CODE = "note_session_expired";
 
 export type NoteBinding = string;
 
 export function noteApiHeaders(
   binding: NoteBinding | null,
-  extra?: HeadersInit
+  extra?: HeadersInit,
+  persistKey?: string | null
 ): HeadersInit {
   const headers = new Headers(extra);
   if (binding) headers.set(NOTE_BINDING_HEADER, binding);
+  if (persistKey) headers.set("X-Marker-Persist-Key", persistKey);
   return headers;
+}
+
+export function withPersistKeyUrl(
+  input: string,
+  persistKey: string | null | undefined
+): string {
+  if (!persistKey) return input;
+  if (!input.startsWith("/api/")) return input;
+  const url = new URL(input, "http://marker.local");
+  if (!url.searchParams.has("key")) {
+    url.searchParams.set("key", persistKey);
+  }
+  return `${url.pathname}${url.search}`;
 }
 
 export async function readJsonSafe(response: Response): Promise<Record<string, unknown>> {
@@ -27,6 +43,13 @@ export function isNoteSwitchedResponse(
   data: Record<string, unknown>
 ): boolean {
   return status === 409 && data.code === NOTE_SWITCHED_CODE;
+}
+
+export function isNoteExpiredResponse(
+  status: number,
+  data: Record<string, unknown>
+): boolean {
+  return status === 409 && data.code === NOTE_SESSION_EXPIRED_CODE;
 }
 
 export function apiErrorMessage(

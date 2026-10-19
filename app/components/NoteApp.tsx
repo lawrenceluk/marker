@@ -35,6 +35,8 @@ interface NoteAppProps {
   initialKeyLabel: string | null;
   /** Per-tab binding for browser API calls; null on Home idle. */
   noteBinding?: string | null;
+  /** Key from a persist URL; sent on API calls when the session cookie is gone. */
+  persistNoteKey?: string | null;
   /** The note that key names, or null if it doesn't exist yet. */
   initialNote: { content: string; rev: number; responses: ResponseEntry[] } | null;
   /** Whether this session is a persistent document link. */
@@ -56,7 +58,10 @@ const NO_URLS: Record<string, string> = {};
 
 export function NoteApp(props: NoteAppProps) {
   return (
-    <NoteSessionProvider binding={props.noteBinding ?? null}>
+    <NoteSessionProvider
+      binding={props.noteBinding ?? null}
+      persistKey={props.persistNoteKey ?? null}
+    >
       <NoteAppBody {...props} />
     </NoteSessionProvider>
   );

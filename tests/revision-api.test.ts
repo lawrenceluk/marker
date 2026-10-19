@@ -23,7 +23,7 @@ test("revision endpoint reads one isolated field and never returns document or c
     assert.deepEqual(fixture.commands.map(command => command.map((part, index) => index === 0 ? part.toUpperCase() : part)), [["HGET", "marker-commenting-preview-v1:note:fixture", "rev"]]);
     assert.deepEqual(await (await GET(new NextRequest("http://localhost/api/revision?key=absent"))).json(), { rev: 0 });
     const missing = await GET(new NextRequest("http://localhost/api/revision"));
-    assert.equal(missing.status, 400);
+    assert.equal(missing.status, 409);
     assert.equal(await fixture.client.hGet("note:fixture", "rev"), "99");
   } finally { await fixture.close(); }
 });
