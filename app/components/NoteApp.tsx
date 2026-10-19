@@ -78,6 +78,7 @@ function sessionNotePath(binding: string | null) {
 function NoteAppBody({
   initialKeyLabel,
   noteBinding = null,
+  persistNoteKey = null,
   initialNote,
   initialPersist,
   initialCreator = null,
@@ -118,8 +119,9 @@ function NoteAppBody({
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [isSavingTags, setIsSavingTags] = useState(false);
   const { updated, noticeRevision } = useNoteRevision(
-    rev, (appState === "viewing" || appState === "editing") && !isNew,
-    rawKey ?? initialKeyLabel,
+    rev,
+    (appState === "viewing" || appState === "editing") && !isNew,
+    persistNoteKey ?? rawKey ?? initialKeyLabel,
     noteFetch,
   );
 

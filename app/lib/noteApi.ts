@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { normalizeKey } from "@/app/lib/key";
 import {
   resolveNoteKey,
   noteSwitchedBody,
@@ -13,7 +14,10 @@ export function requireNoteKey(
   request: NextRequest,
   explicit: unknown
 ): NoteRouteResult {
-  const resolved = resolveNoteKey(request, explicit);
+  const key =
+    normalizeKey(explicit) ||
+    normalizeKey(request.nextUrl.searchParams.get("key"));
+  const resolved = resolveNoteKey(request, key || undefined);
   if (!resolved.ok) {
     const body =
       resolved.code === "note_switched"

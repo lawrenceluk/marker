@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { isNoteSwitchedResponse, readJsonSafe } from "./noteClient";
+import {
+  isNoteExpiredResponse,
+  isNoteSwitchedResponse,
+  readJsonSafe,
+} from "./noteClient";
 
 /** Revision checks never fetch or replace document content. */
 type NoteFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -40,7 +44,12 @@ export function useNoteRevision(
         const response = await noteFetch("/api/revision", { cache: "no-store", signal: request.signal });
         if (!response.ok) {
           const body = await readJsonSafe(response);
-          if (isNoteSwitchedResponse(response.status, body)) return;
+          if (
+            isNoteSwitchedResponse(response.status, body) ||
+            isNoteExpiredResponse(response.status, body)
+          ) {
+            return;
+          }
           throw new Error("Revision unavailable");
         }
         const data = await response.json();

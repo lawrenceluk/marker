@@ -71,7 +71,7 @@ test("browser API routes reject missing or mismatched bindings", async () => {
     const meta = await import("../app/api/meta/route");
     const notes = await import("../app/lib/notes");
 
-    await notes.writeNote("bind-a", "# A");
+    await notes.writeNote("bind-a", "# A\n\n- [ ] Draft item");
 
     const noBinding = await content.GET(
       new NextRequest("http://localhost/api/content")
@@ -123,6 +123,28 @@ test("browser API routes reject missing or mismatched bindings", async () => {
       })
     );
     assert.equal(seen.status, 200);
+
+    const drafts = await import("../app/api/drafts/route");
+    const { reactionBlocks } = await import("../app/lib/responses");
+    const note = await notes.readNote("bind-a");
+    const blockId = reactionBlocks(note!.content)[0]!.id;
+    const queryKey = await drafts.POST(
+      new NextRequest("http://localhost/api/drafts?key=bind-a", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          if_rev: note!.rev,
+          changes: [
+            {
+              block_id: blockId,
+              selections: ["Draft item"],
+              free_text: "",
+            },
+          ],
+        }),
+      })
+    );
+    assert.equal(queryKey.status, 200);
   } finally {
     await fixture.close();
   }

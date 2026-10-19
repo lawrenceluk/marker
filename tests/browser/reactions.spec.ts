@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { apiPath } from "../helpers/api-url";
 
 test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
@@ -165,10 +166,13 @@ test("toggling one checkbox leaves its siblings mounted and visually unchanged",
   await expect(first).toBeEnabled();
   const colors = await first.evaluate(input => ({ appearance: getComputedStyle(input).appearance, border: getComputedStyle(input).borderTopColor, foreground: getComputedStyle(document.body).color }));
   expect(colors).toEqual({ appearance: "none", border: colors.foreground, foreground: colors.foreground });
-  await page.route("**/api/drafts", async route => {
-    if (route.request().method() === "POST") await new Promise(resolve => setTimeout(resolve, 450));
-    await route.continue();
-  });
+  await page.route(
+    (url) => new URL(url).pathname === "/api/drafts",
+    async route => {
+      if (route.request().method() === "POST") await new Promise(resolve => setTimeout(resolve, 450));
+      await route.continue();
+    }
+  );
   const monitor = await page.evaluateHandle(() => {
     const input = document.querySelectorAll<HTMLInputElement>(".reaction-task input")[1];
     const item = input.closest("li")!;
@@ -193,7 +197,11 @@ test("toggling one checkbox leaves its siblings mounted and visually unchanged",
       return { samples, mutations, sameNode: input === document.querySelectorAll<HTMLInputElement>(".reaction-task input")[1] };
     } };
   });
-  const saved = page.waitForResponse(response => response.url().endsWith("/api/drafts") && response.request().method() === "POST");
+  const saved = page.waitForResponse(
+    response =>
+      apiPath(response.url(), "/api/drafts") &&
+      response.request().method() === "POST"
+  );
   await first.tap();
   await saved;
   const outcome = await monitor.evaluate(value => value.finish());
@@ -214,14 +222,22 @@ test("toggling one checkbox leaves its siblings mounted and visually unchanged",
 test("failed autosave retains the choice and explicit refresh resumes saving", async ({ page, request }, info) => {
   const key = `choice-retry-${info.project.name}`;
   await request.post("/api/content", { data: { key, content: "# Draft recovery\n- [ ] Keep this choice" } });
-  await page.goto(`/?key=${key}&persist=1`);
-  let fail = true;
-  await page.route("**/api/drafts", async route => {
-    if (route.request().method() === "POST" && fail) {
-      fail = false;
-      await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "Synthetic save failure" }) });
-    } else await route.continue();
+  let postAttempts = 0;
+  await page.route(/\/api\/drafts/, async route => {
+    if (route.request().method() === "POST") {
+      postAttempts++;
+      if (postAttempts === 1) {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Synthetic save failure" }),
+        });
+        return;
+      }
+    }
+    await route.continue();
   });
+  await page.goto(`/?key=${key}&persist=1`);
   const checkbox = page.getByRole("checkbox", { name: "Keep this choice" });
   await expect(checkbox).toBeEnabled();
   await checkbox.tap();
