@@ -502,6 +502,12 @@ body:has(.selection-group, .selection-bar) .scroll-actions { visibility: hidden;
 .update-nudge:disabled, .update-nudge[aria-busy="true"] { color: var(--foreground); background: var(--accent-soft); }
 .update-nudge:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
+.toast-host { pointer-events: none; position: fixed; z-index: 30; inset: auto 0 max(16px, env(safe-area-inset-bottom)) 0; display: flex; justify-content: center; padding: 0 16px; }
+.toast { pointer-events: auto; display: flex; align-items: center; gap: 12px; max-width: min(100%, 28rem); padding: 12px 0; border-top: 1px solid var(--hairline); background: var(--background); color: var(--foreground); font-size: var(--text-sm); line-height: var(--text-sm--line-height); }
+.toast-action { flex: none; height: 32px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--hairline); background: transparent; color: var(--foreground); font-size: var(--text-sm); line-height: var(--text-sm--line-height); font-weight: 500; touch-action: manipulation; }
+.toast-action:hover, .toast-action:focus-visible { border-color: var(--rule-ink); outline: none; }
+.toast-action:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
 .tap-select { touch-action: manipulation; }
 
 .tap-pending { position: fixed; z-index: 21; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; color: var(--foreground); background: var(--background); outline: 1px solid var(--hairline); pointer-events: none; }

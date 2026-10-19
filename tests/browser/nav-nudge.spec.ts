@@ -56,8 +56,8 @@ test("five actions fit one row; share and more preserve note actions", async ({ 
   await activate(nav.getByRole("button", { name: "More", exact: true }), touch);
   const more = page.getByRole("dialog", { name: "More options" });
   await expect(more.getByRole("button", { name: "Open another note", exact: true })).toBeFocused();
-  await expect(more.getByRole("button")).toHaveText(["Open another note", "Copy text", "Change key", "Delete note"]);
-  for (const name of ["Open another note", "Copy text", "Change key", "Delete note"])
+  await expect(more.getByRole("button")).toHaveText(["Open another note", "Copy text", "Duplicate note", "Change key", "Delete note"]);
+  for (const name of ["Open another note", "Copy text", "Duplicate note", "Change key", "Delete note"])
     await expect(more.getByRole("button", { name, exact: true }).locator("svg")).toHaveCount(1);
   await page.keyboard.press("ArrowDown");
   await expect(more.getByRole("button", { name: "Copy text" })).toBeFocused();
