@@ -12,10 +12,20 @@ export const R2_TEST_ENV = {
 
 type Stored = { body: Buffer; contentType: string };
 
-export async function startR2Mock(options: { port?: number; basePath?: string; cors?: boolean } = {}) {
+export async function startR2Mock(
+  options: {
+    port?: number;
+    basePath?: string;
+    cors?: boolean;
+    failPutOnAttempt?: number;
+  } = {},
+) {
   const basePath = options.basePath ?? "";
   const objects = new Map<string, Stored>();
   const log: string[] = [];
+  let putAttempts = 0;
+  let duplicatePutFailThreshold = 0;
+  let duplicatePutCount = 0;
   const config = { accessKeyId: R2_TEST_ENV.R2_ACCESS_KEY_ID, secretAccessKey: R2_TEST_ENV.R2_SECRET_ACCESS_KEY, region: "auto" };
 
   function verify(req: IncomingMessage, url: URL, body: Buffer): string | null {
@@ -62,6 +72,16 @@ export async function startR2Mock(options: { port?: number; basePath?: string; c
     if (error) return void res.writeHead(403, { "content-type": "application/xml" }).end(`<Error><Code>${error}</Code></Error>`);
 
     if (req.method === "PUT" && key) {
+      putAttempts += 1;
+      if (duplicatePutFailThreshold > 0) {
+        duplicatePutCount += 1;
+        if (duplicatePutCount >= duplicatePutFailThreshold) {
+          return void res.writeHead(503, { "content-type": "application/xml" }).end("<Error><Code>ServiceUnavailable</Code></Error>");
+        }
+      }
+      if (options.failPutOnAttempt && putAttempts === options.failPutOnAttempt) {
+        return void res.writeHead(503, { "content-type": "application/xml" }).end("<Error><Code>ServiceUnavailable</Code></Error>");
+      }
       if (Number(req.headers["content-length"]) !== body.length) return void res.writeHead(400).end();
       objects.set(key, { body, contentType: String(req.headers["content-type"] ?? "") });
       return void res.writeHead(200, { etag: '"mock"' }).end();
@@ -100,5 +120,9 @@ export async function startR2Mock(options: { port?: number; basePath?: string; c
     objects,
     log,
     close: () => new Promise<void>(resolve => server.close(() => resolve())),
+    failDuplicatePutAfter(count: number) {
+      duplicatePutFailThreshold = count;
+      duplicatePutCount = 0;
+    },
   };
 }

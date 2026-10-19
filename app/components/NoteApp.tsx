@@ -8,7 +8,13 @@ import {
   normalizeKey,
   persistPath,
 } from "../lib/key";
-import { apiErrorMessage, isNoteSwitchedResponse, noteApiHeaders, readJsonSafe } from "../lib/noteClient";
+import {
+  apiErrorMessage,
+  isNoteExpiredResponse,
+  isNoteSwitchedResponse,
+  noteApiHeaders,
+  readJsonSafe,
+} from "../lib/noteClient";
 import { useNoteRevision } from "../lib/useNoteRevision";
 import { NoteSessionProvider, useNoteSession } from "./NoteSession";
 import { HomeIdle } from "./HomeIdle";
@@ -19,6 +25,10 @@ import { AssetUrlsProvider, urlsFromAssets } from "./NoteImage";
 import { NoteToolbar } from "./NoteToolbar";
 import { RenameKey } from "./RenameKey";
 import { ScrollActions } from "./ScrollActions";
+import { NoteToast } from "./NoteToast";
+
+const DUPLICATE_ARRIVAL_FLAG = "marker:duplicate-arrival";
+const DUPLICATE_ARRIVAL_DISMISS_MS = 6000;
 import { NoteCreator, creatorFromResponse, type NoteCreatorInfo } from "./NoteCreator";
 import type { ResponseEntry } from "../lib/responses";
 import type { FolderSummary } from "../lib/folders";
@@ -111,6 +121,13 @@ function NoteAppBody({
   const [isSavingRename, setIsSavingRename] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
+  const [toast, setToast] = useState<{
+    message: string;
+    action?: { label: string; onClick: () => void };
+    error?: boolean;
+    autoDismissMs?: number;
+  } | null>(null);
   const [isReloading, setIsReloading] = useState(false);
   const [deleteResetKey, setDeleteResetKey] = useState(0);
   const [isComposing, setIsComposing] = useState(false);
@@ -139,17 +156,36 @@ function NoteAppBody({
     if (!initialPersist) return;
 
     void noteFetch("/api/session")
-      .then((res) => res.json())
-      .then((data: { persist?: boolean; key?: string }) => {
+      .then(async (res) => {
+        const data = await readJsonSafe(res);
+        if (isNoteExpiredResponse(res.status, data) && persistNoteKey) {
+          setRawKey(persistNoteKey);
+          setPersist(true);
+          window.history.replaceState(null, "", persistPath(persistNoteKey));
+          return;
+        }
+        if (!res.ok) return;
         const key = normalizeKey(data.key);
         if (data.persist && key) {
           setRawKey(key);
           setPersist(true);
           window.history.replaceState(null, "", persistPath(key));
+          return;
+        }
+        if (persistNoteKey) {
+          setRawKey(persistNoteKey);
+          setPersist(true);
+          window.history.replaceState(null, "", persistPath(persistNoteKey));
         }
       })
-      .catch(() => {});
-  }, [initialPersist, noteFetch]);
+      .catch(() => {
+        if (persistNoteKey) {
+          setRawKey(persistNoteKey);
+          setPersist(true);
+          window.history.replaceState(null, "", persistPath(persistNoteKey));
+        }
+      });
+  }, [initialPersist, noteFetch, persistNoteKey]);
 
   // Seeing the page is what marks a note seen. It runs after hydration (link unfurlers and
   // other bots that only fetch HTML never count) and waits until the tab is visible. It names
@@ -168,6 +204,30 @@ function NoteAppBody({
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [initialNote, noteFetch]);
+
+  useEffect(() => {
+    if (appState !== "viewing") return;
+    if (sessionStorage.getItem(DUPLICATE_ARRIVAL_FLAG) !== "1") return;
+    sessionStorage.removeItem(DUPLICATE_ARRIVAL_FLAG);
+    setToast({
+      message: "Viewing duplicate",
+      action: {
+        label: "Change key",
+        onClick: () => {
+          setIsRenaming(true);
+          setError(null);
+          setToast(null);
+        },
+      },
+      autoDismissMs: DUPLICATE_ARRIVAL_DISMISS_MS,
+    });
+  }, [appState, rawKey, initialKeyLabel]);
+
+  useEffect(() => {
+    if (!toast?.autoDismissMs) return;
+    const id = window.setTimeout(() => setToast(null), toast.autoDismissMs);
+    return () => window.clearTimeout(id);
+  }, [toast]);
 
   // Opening a note from Home pushes `/n`; going Back to `/` should show Home,
   // which the server decides.
@@ -392,6 +452,38 @@ function NoteAppBody({
     setError(null);
   }
 
+  async function handleDuplicate() {
+    setIsDuplicating(true);
+    setToast({ message: "Duplicating…" });
+
+    try {
+      const res = await noteFetch("/api/content/duplicate", { method: "POST" });
+      const data = await readJsonSafe(res);
+      if (isNoteSwitchedResponse(res.status, data) || isNoteExpiredResponse(res.status, data)) {
+        setToast(null);
+        return;
+      }
+      if (!res.ok) {
+        setToast({
+          message: apiErrorMessage(data, "Couldn't duplicate note. Try again."),
+          error: true,
+        });
+        return;
+      }
+      sessionStorage.setItem(DUPLICATE_ARRIVAL_FLAG, "1");
+      const handle = typeof data.handle === "string" ? data.handle : "";
+      const destKey = typeof data.key === "string" ? normalizeKey(data.key) : null;
+      const url =
+        persist && destKey ? persistPath(destKey) : handle ? `/n/${handle}` : sessionNotePath(tabBinding);
+      window.location.assign(url);
+      return;
+    } catch {
+      setToast({ message: "Couldn't duplicate note. Try again.", error: true });
+    } finally {
+      setIsDuplicating(false);
+    }
+  }
+
   async function handleDelete() {
     setIsDeleting(true);
     setError(null);
@@ -579,10 +671,12 @@ function NoteAppBody({
                 setError(null);
               }}
               onChangeKey={() => void handleReset()}
+              onDuplicate={() => void handleDuplicate()}
+              duplicateDisabled={isDuplicating || isDeleting || isReloading}
               content={content}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              deleteDisabled={isDeleting || isReloading}
+              deleteDisabled={isDeleting || isReloading || isDuplicating}
               onEditTags={creator?.hasCreator && creator.linked ? () => {
                 setIsEditingTags(true);
                 setError(null);
@@ -631,6 +725,13 @@ function NoteAppBody({
         )}
       </main>
       {appState !== "idle" && <ScrollActions />}
+      {toast && (
+        <NoteToast
+          message={toast.message}
+          action={toast.action}
+          error={toast.error}
+        />
+      )}
     </div>
     </AssetUrlsProvider>
   );

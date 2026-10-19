@@ -111,7 +111,7 @@ const legacyKey = (key: string) => `${storagePrefix()}content:${key}`;
  * Each script declares `local PREFIX` before this chunk. Index keys are
  * derived from note fields, so they cannot all be passed in KEYS.
  */
-const CREATOR_LIB = `
+export const CREATOR_LIB = `
 local function cidx(c) return PREFIX .. 'cidx:' .. c end
 local function note_hash(m) return PREFIX .. 'note:' .. m end
 local function decode_tags(s)

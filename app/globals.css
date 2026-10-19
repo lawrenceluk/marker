@@ -597,3 +597,5 @@ a.byline-folder:hover { text-decoration-thickness: 2px; }
 .note-toast-message { margin: 0; flex: 1; }
 .note-toast-pill { flex: none; display: inline-flex; align-items: center; justify-content: center; height: 2rem; padding: 0 14px; border: 1px solid var(--hairline); border-radius: 999px; background: var(--slab); color: var(--on-slab); font-size: var(--text-sm); cursor: pointer; }
 .note-toast-pill:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.note-toast[data-tone="error"] { border-color: var(--danger); border-top-width: 2px; color: var(--danger); }
+.note-toast[data-tone="error"] .note-toast-message { color: var(--danger); }

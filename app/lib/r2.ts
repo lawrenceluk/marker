@@ -153,6 +153,13 @@ export async function putObject(config: R2Config, objectKey: string, body: Uint8
   if (!res.ok) throw new Error(`R2 PUT failed: ${res.status}`);
 }
 
+export async function getObject(config: R2Config, objectKey: string): Promise<Uint8Array> {
+  const res = await signedFetch(config, "GET", objectUrl(config, objectKey));
+  if (res.status === 404) throw new Error("R2 object not found");
+  if (!res.ok) throw new Error(`R2 GET failed: ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
 export async function objectExists(config: R2Config, objectKey: string): Promise<boolean> {
   const res = await signedFetch(config, "HEAD", objectUrl(config, objectKey));
   if (res.status === 404) return false;
