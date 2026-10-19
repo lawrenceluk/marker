@@ -20,6 +20,8 @@ import { adjacentSizeCandidate, heuristicRanking, tapCandidates, tapContext, typ
 import type { CommentOperation, LocatedThread } from "../lib/comments";
 import { reactionBlocks, type ResponseEntry } from "../lib/responses";
 import { DEFAULT_EMOJI } from "../lib/emoji-suggestions";
+import { apiErrorMessage, isNoteSwitchedResponse, readJsonSafe } from "../lib/noteClient";
+import { useNoteSession } from "./NoteSession";
 
 type Snapshot = { rev: number; content: string; comments: LocatedThread[]; responses: ResponseEntry[] };
 type RankAnswer = { ranking: number[]; emojis?: string[]; suggested?: boolean };
@@ -52,6 +54,7 @@ export function CommentedViewer({
   onComposingChange: (composing: boolean) => void;
   toolbar: (commentsButton: ReactNode) => ReactNode;
 }) {
+  const { noteFetch } = useNoteSession();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const selectionStart = selection?.start;
@@ -92,18 +95,19 @@ export function CommentedViewer({
     async (signal?: AbortSignal) => {
       const version = ++readVersion.current;
       try {
-        const response = await fetch("/api/comments?status=all", {
+        const response = await noteFetch("/api/comments?status=all", {
           cache: "no-store",
           signal,
         });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error);
+        const data = await readJsonSafe(response);
+        if (isNoteSwitchedResponse(response.status, data)) return;
+        if (!response.ok) throw new Error(apiErrorMessage(data, "Couldn't load comments."));
         if (signal?.aborted || version !== readVersion.current) return;
-        if (data.rev !== rev) {
+        if (typeof data.rev === "number" && data.rev !== rev) {
           onRevision(data.rev); // Keep the viewed document until an explicit refresh.
           return;
         }
-        setSnapshot(data);
+        setSnapshot(data as Snapshot);
         setError("");
         setReactionError("");
       } catch (e) {
@@ -111,7 +115,7 @@ export function CommentedViewer({
           setError((e as Error).message);
       }
     },
-    [rev, onRevision],
+    [rev, onRevision, noteFetch],
   );
   useEffect(() => {
     onComposingChange(active !== null || reactionTextFocused);
@@ -517,7 +521,7 @@ export function CommentedViewer({
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/comments", {
+      const response = await noteFetch("/api/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -525,10 +529,12 @@ export function CommentedViewer({
           operations: [operation],
         }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      setSnapshot(data);
-      onChange(data.content, data.rev, data.responses);
+      const data = await readJsonSafe(response);
+      if (isNoteSwitchedResponse(response.status, data)) return;
+      if (!response.ok) throw new Error(apiErrorMessage(data, "Couldn't save comment."));
+      const next = data as Snapshot;
+      setSnapshot(next);
+      onChange(next.content, next.rev, next.responses);
       setDraft("");
       setSelection(null);
       emojiOpenRef.current = false;
@@ -561,18 +567,21 @@ export function CommentedViewer({
     setReactionBusy(true);
     setReactionError("");
     try {
-      const response = await fetch("/api/drafts", {
+      const response = await noteFetch("/api/drafts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ if_rev: snapshot.rev, changes }),
       });
-      const data = await response.json();
+      const data = await readJsonSafe(response);
+      if (isNoteSwitchedResponse(response.status, data)) return;
       if (!response.ok) {
-        if (response.status === 409 && Number.isSafeInteger(data.rev)) onRevision(data.rev);
-        throw new Error(data.error);
+        if (response.status === 409 && typeof data.rev === "number") onRevision(data.rev);
+        throw new Error(apiErrorMessage(data, "Couldn't save reaction."));
       }
-      setSnapshot({ ...snapshot, rev: data.rev, responses: data.responses });
-      onChange(content, data.rev, data.responses);
+      const nextRev = data.rev as number;
+      const nextResponses = data.responses as ResponseEntry[];
+      setSnapshot({ ...snapshot, rev: nextRev, responses: nextResponses });
+      onChange(content, nextRev, nextResponses);
       for (const change of changes) setReactionDrafts(previous => {
         const next = { ...previous };
         if (next[change.block_id] === change) delete next[change.block_id];
@@ -583,7 +592,7 @@ export function CommentedViewer({
     } finally {
       setReactionBusy(false);
     }
-  }, [reactionBusy, snapshot, rev, onRevision, onChange, content]);
+  }, [reactionBusy, snapshot, rev, onRevision, onChange, content, noteFetch]);
   function changeReaction(change: ResponseChange, persist: boolean) {
     setReactionDrafts(previous => ({ ...previous, [change.block_id]: change }));
     reactionSaveDelay.current = persist ? 0 : 350;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { normalizeKey, SESSION_COOKIE } from "@/app/lib/key";
+import { normalizeKey } from "@/app/lib/key";
+import { requireNoteKey } from "@/app/lib/noteApi";
 import { applyNoIndexHeaders } from "@/app/lib/robots";
 import { commitResponses, readAccessedNote, readNote } from "@/app/lib/notes";
 import { applyResponseChanges, reactionBlocks } from "@/app/lib/responses";
@@ -10,13 +11,10 @@ function json(value: unknown, status = 200) {
   response.headers.set("Cache-Control", "no-store, private");
   return response;
 }
-function keyFor(request: NextRequest, explicit: unknown) {
-  return normalizeKey(explicit) ?? normalizeKey(request.cookies.get(SESSION_COOKIE)?.value);
-}
-
 export async function GET(request: NextRequest) {
-  const key = keyFor(request, request.nextUrl.searchParams.get("key"));
-  if (!key) return json({ error: "Key is required" }, 400);
+  const resolved = requireNoteKey(request, request.nextUrl.searchParams.get("key"));
+  if (!resolved.ok) return json(resolved.body, resolved.status);
+  const { key } = resolved;
   const note = await readAccessedNote(key, true);
   if (!note) return json({ error: "Note not found" }, 404);
   const blocks = reactionBlocks(note.content);
@@ -39,8 +37,9 @@ export async function POST(request: NextRequest) {
     return json({ error: "Invalid JSON body" }, 400);
   }
   if ("submit" in body) return json({ error: "Choices are drafts; respond in chat" }, 400);
-  const key = keyFor(request, body.key);
-  if (!key) return json({ error: "Key is required" }, 400);
+  const resolved = requireNoteKey(request, body.key);
+  if (!resolved.ok) return json(resolved.body, resolved.status);
+  const { key } = resolved;
   if (!Number.isSafeInteger(body.if_rev) || (body.if_rev as number) < 0) return json({ error: "if_rev is required" }, 400);
   const before = await readNote(key, true);
   if (!before) return json({ error: "Note not found" }, 404);

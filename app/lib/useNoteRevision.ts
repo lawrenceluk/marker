@@ -1,9 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isNoteSwitchedResponse, readJsonSafe } from "./noteClient";
 
 /** Revision checks never fetch or replace document content. */
-export function useNoteRevision(rev: number | null, enabled: boolean, identity: string | null) {
+type NoteFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+export function useNoteRevision(
+  rev: number | null,
+  enabled: boolean,
+  identity: string | null,
+  noteFetch: NoteFetch = fetch,
+) {
   const current = useRef(rev);
   current.current = rev;
   const [remote, setRemote] = useState<{ identity: string | null; rev: number } | null>(null);
@@ -29,8 +37,12 @@ export function useNoteRevision(rev: number | null, enabled: boolean, identity: 
       const request = new AbortController();
       controller = request;
       try {
-        const response = await fetch("/api/revision", { cache: "no-store", signal: request.signal });
-        if (!response.ok) throw new Error("Revision unavailable");
+        const response = await noteFetch("/api/revision", { cache: "no-store", signal: request.signal });
+        if (!response.ok) {
+          const body = await readJsonSafe(response);
+          if (isNoteSwitchedResponse(response.status, body)) return;
+          throw new Error("Revision unavailable");
+        }
         const data = await response.json();
         if (request.signal.aborted || !Number.isSafeInteger(data.rev)) return;
         unchanged = data.rev === last ? unchanged + 1 : 0;
@@ -59,7 +71,7 @@ export function useNoteRevision(rev: number | null, enabled: boolean, identity: 
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("focus", resume);
     };
-  }, [enabled, identity, noticeRevision]);
+  }, [enabled, identity, noticeRevision, noteFetch]);
 
   return { updated: remote?.identity === identity && rev !== null && remote.rev > rev, noticeRevision };
 }

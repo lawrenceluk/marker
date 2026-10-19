@@ -14,7 +14,9 @@ test("revision endpoint reads one isolated field and never returns document or c
     await fixture.client.hSet("marker-commenting-preview-v1:note:fixture", {
       rev: "7", content: "Private document", comments: "Private comment",
     });
-    const response = await GET(new NextRequest("http://localhost/api/revision", { headers: { cookie: "marker_key=fixture" } }));
+    const { browserNoteSession } = await import("./helpers/noteSession");
+    const session = browserNoteSession("fixture");
+    const response = await GET(new NextRequest("http://localhost/api/revision", { headers: session.headers }));
     assert.deepEqual(await response.json(), { rev: 7 });
     assert.equal(response.headers.get("Cache-Control"), "no-store, private");
     assert.match(response.headers.get("X-Robots-Tag")!, /noindex/);

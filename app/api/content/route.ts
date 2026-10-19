@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeKey } from "@/app/lib/key";
+import { requireNoteKey } from "@/app/lib/noteApi";
 import {
-  PERSIST_COOKIE,
-  SESSION_COOKIE,
-  applySessionCookies,
-  clearSessionCookies,
-  normalizeKey,
-} from "@/app/lib/key";
+  applyHandleSessionCookie,
+  clearHandleSessionCookie,
+  persistFromCookie,
+} from "@/app/lib/noteSession";
 import {
   MAX_CONTENT_BYTES,
   MAX_TTL_SECONDS,
@@ -39,30 +39,17 @@ function json(data: unknown, status = 200) {
   return response;
 }
 
-/**
- * An explicit key wins — that's how agents call this. The browser sends none
- * and falls back to the session cookie, so the key never has to be handed to
- * client-side JS. SameSite=lax keeps the cookie off cross-site POSTs, so the
- * fallback isn't a CSRF write path.
- */
-function resolveKey(request: NextRequest, explicit: unknown): string | null {
-  return (
-    normalizeKey(explicit) ??
-    normalizeKey(request.cookies.get(SESSION_COOKIE)?.value)
-  );
-}
-
 export async function GET(request: NextRequest) {
-  const key = resolveKey(request, request.nextUrl.searchParams.get("key"));
-
-  if (!key) {
-    return json({ error: "Key is required" }, 400);
+  const resolved = requireNoteKey(request, request.nextUrl.searchParams.get("key"));
+  if (!resolved.ok) {
+    return json(resolved.body, resolved.status);
   }
+  const { key, browser } = resolved;
 
   const note = await readAccessedNote(key, true);
   // A browser read (session cookie, no explicit key) is a person looking: the note is seen.
   // Agent reads never advance it; they can mark it seen explicitly with PATCH /api/meta.
-  if (note && !normalizeKey(request.nextUrl.searchParams.get("key"))) {
+  if (note && browser) {
     const seen = await markSeen(key);
     if (seen) Object.assign(note, { seenRev: seen.rev, seenAt: seen.seenAt });
   }
@@ -131,10 +118,11 @@ export async function POST(request: NextRequest) {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const key = resolveKey(request, body.key);
-  if (!key) {
-    return json({ error: "Key is required" }, 400);
+  const resolved = requireNoteKey(request, body.key);
+  if (!resolved.ok) {
+    return json(resolved.body, resolved.status);
   }
+  const { key } = resolved;
 
   const { content } = body;
   if (typeof content !== "string") {
@@ -241,12 +229,12 @@ export async function PATCH(request: NextRequest) {
   }
 
   const explicitKey = normalizeKey(body.key);
-  const currentKey = resolveKey(request, body.key);
-  const newKey = normalizeKey(body.new_key);
-
-  if (!currentKey) {
-    return json({ error: "Key is required" }, 400);
+  const resolved = requireNoteKey(request, body.key);
+  if (!resolved.ok) {
+    return json(resolved.body, resolved.status);
   }
+  const { key: currentKey, handle } = resolved;
+  const newKey = normalizeKey(body.new_key);
   if (!newKey) {
     return json({ error: "new_key is required" }, 400);
   }
@@ -271,9 +259,11 @@ export async function PATCH(request: NextRequest) {
     return json({ error: "Failed to rename key" }, 500);
   }
 
-  const persist = request.cookies.get(PERSIST_COOKIE)?.value === "1";
+  const persist = persistFromCookie(request);
   const response = json({ success: true, key: newKey, renamed: true });
-  applySessionCookies(response.cookies, newKey, persist);
+  if (handle) {
+    applyHandleSessionCookie(response.cookies, handle, newKey, persist);
+  }
   return response;
 }
 
@@ -289,16 +279,17 @@ export async function DELETE(request: NextRequest) {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const key = resolveKey(request, body.key);
-  if (!key) {
-    return json({ error: "Key is required" }, 400);
+  const resolved = requireNoteKey(request, body.key);
+  if (!resolved.ok) {
+    return json(resolved.body, resolved.status);
   }
+  const { key, handle } = resolved;
 
   const { assetNs, assetIds } = await deleteNote(key);
   const config = r2Config();
   if (config && assetNs && assetIds.length) runAfter(() => deleteAssetObjects(config, assetNs, assetIds));
 
   const response = json({ success: true });
-  clearSessionCookies(response.cookies);
+  clearHandleSessionCookie(response.cookies, handle);
   return response;
 }

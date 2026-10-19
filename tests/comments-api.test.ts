@@ -11,14 +11,15 @@ test("real Lua: API races, combined edit/resolve, lifecycle, isolation and valid
   try {
     const notes = await import("../app/lib/notes");
     const api = await import("../app/api/comments/route");
-    const { SESSION_COOKIE } = await import("../app/lib/key");
+    const { browserNoteSession } = await import("./helpers/noteSession");
+    const browser = browserNoteSession("fixture");
     const post = (body: unknown, cookie = false) =>
       api.POST(
         new NextRequest("http://localhost/api/comments", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(cookie ? { cookie: `${SESSION_COOKIE}=fixture` } : {}),
+            ...(cookie ? browser.headers : {}),
           },
           body: JSON.stringify(body),
         }),

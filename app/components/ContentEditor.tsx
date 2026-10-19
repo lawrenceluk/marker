@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { CopyButton } from "./CopyButton";
 import { primaryButtonClass, secondaryButtonClass } from "./controlStyles";
 import { useAssetUrls } from "./NoteImage";
+import { useNoteSession } from "./NoteSession";
 import { ToolbarTooltip } from "./ToolbarButton";
 
 const noSubscribe = () => () => {};
@@ -51,6 +52,7 @@ export function ContentEditor({
   isNew,
   imagesEnabled = false,
 }: ContentEditorProps) {
+  const { noteFetch } = useNoteSession();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef(content);
@@ -104,7 +106,7 @@ export function ContentEditor({
     setUploads(count => count + 1);
     let snippet: string | null = null;
     try {
-      const res = await fetch("/api/assets", {
+      const res = await noteFetch("/api/assets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content_type: file.type, size: file.size }),

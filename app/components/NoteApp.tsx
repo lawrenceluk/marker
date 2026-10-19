@@ -8,7 +8,9 @@ import {
   normalizeKey,
   persistPath,
 } from "../lib/key";
+import { apiErrorMessage, isNoteSwitchedResponse, noteApiHeaders, readJsonSafe } from "../lib/noteClient";
 import { useNoteRevision } from "../lib/useNoteRevision";
+import { NoteSessionProvider, useNoteSession } from "./NoteSession";
 import { HomeIdle } from "./HomeIdle";
 import { CommentedViewer } from "./CommentedViewer";
 import { frontMatter } from "../lib/frontmatter";
@@ -31,6 +33,8 @@ interface NoteAppProps {
    * meant to avoid. Requests authenticate with the cookie instead.
    */
   initialKeyLabel: string | null;
+  /** Per-tab binding for browser API calls; null on Home idle. */
+  noteBinding?: string | null;
   /** The note that key names, or null if it doesn't exist yet. */
   initialNote: { content: string; rev: number; responses: ResponseEntry[] } | null;
   /** Whether this session is a persistent document link. */
@@ -50,8 +54,25 @@ interface NoteAppProps {
 const RANDOMIZE_ATTEMPTS = 16;
 const NO_URLS: Record<string, string> = {};
 
-export function NoteApp({
+export function NoteApp(props: NoteAppProps) {
+  return (
+    <NoteSessionProvider binding={props.noteBinding ?? null}>
+      <NoteAppBody {...props} />
+    </NoteSessionProvider>
+  );
+}
+
+function sessionNotePath(binding: string | null) {
+  const match = /^\/n\/[A-Za-z0-9_-]+$/.exec(window.location.pathname);
+  if (match) return match[0];
+  const dot = binding?.indexOf(".");
+  if (binding && dot && dot > 0) return `/n/${binding.slice(0, dot)}`;
+  return "/n";
+}
+
+function NoteAppBody({
   initialKeyLabel,
+  noteBinding = null,
   initialNote,
   initialPersist,
   initialCreator = null,
@@ -60,6 +81,8 @@ export function NoteApp({
   initialAssetUrls = NO_URLS,
   initialEmbedShellUrl = null,
 }: NoteAppProps) {
+  const { binding: activeBinding, noteFetch } = useNoteSession();
+  const tabBinding = activeBinding ?? noteBinding;
   const [appState, setAppState] = useState<AppState>(
     initialKeyLabel ? (initialNote ? "viewing" : "editing") : "idle"
   );
@@ -92,6 +115,7 @@ export function NoteApp({
   const { updated, noticeRevision } = useNoteRevision(
     rev, (appState === "viewing" || appState === "editing") && !isNew,
     rawKey ?? initialKeyLabel,
+    noteFetch,
   );
 
   useEffect(() => {
@@ -107,7 +131,7 @@ export function NoteApp({
 
     if (!initialPersist) return;
 
-    void fetch("/api/session")
+    void noteFetch("/api/session")
       .then((res) => res.json())
       .then((data: { persist?: boolean; key?: string }) => {
         const key = normalizeKey(data.key);
@@ -118,7 +142,7 @@ export function NoteApp({
         }
       })
       .catch(() => {});
-  }, [initialPersist]);
+  }, [initialPersist, noteFetch]);
 
   // Seeing the page is what marks a note seen. It runs after hydration (link unfurlers and
   // other bots that only fetch HTML never count) and waits until the tab is visible. It names
@@ -129,14 +153,14 @@ export function NoteApp({
     const body = JSON.stringify({ ...(urlKey ? { key: urlKey } : {}), seen: true, rev: initialNote.rev });
     const mark = () => {
       if (document.visibilityState !== "visible") return false;
-      void fetch("/api/meta", { method: "PATCH", headers: { "Content-Type": "application/json" }, body }).catch(() => {});
+      void noteFetch("/api/meta", { method: "PATCH", headers: { "Content-Type": "application/json" }, body }).catch(() => {});
       return true;
     };
     if (mark()) return;
     const onVisible = () => { if (mark()) document.removeEventListener("visibilitychange", onVisible); };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [initialNote]);
+  }, [initialNote, noteFetch]);
 
   // Opening a note from Home pushes `/n`; going Back to `/` should show Home,
   // which the server decides.
@@ -159,16 +183,11 @@ export function NoteApp({
 
   /** Back to the session note's URL; `/` would reopen on Home. */
   function hidePersistUrl() {
-    window.history.replaceState(null, "", "/n");
+    window.history.replaceState(null, "", sessionNotePath(tabBinding));
   }
 
   function showHomeUrl() {
     window.history.replaceState(null, "", "/");
-  }
-
-  /** Reloading a note opened from Home keeps it open. */
-  function showSessionUrl() {
-    if (window.location.pathname !== "/n") window.history.pushState(null, "", "/n");
   }
 
   async function handleKeySubmit(key: string) {
@@ -181,15 +200,17 @@ export function NoteApp({
     try {
       const session = await fetch("/api/session", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key }),
       });
-      if (!session.ok) {
+      const sessionData = await session.json();
+      if (!session.ok || typeof sessionData.handle !== "string") {
         throw new Error("Couldn't open note. Try again.");
       }
 
-      // Land on `/n` so the note is seen once (after-load PATCH /api/meta), not again via GET /api/content.
-      window.location.assign("/n");
+      // Land on `/n/<handle>` so the note is seen once (after-load PATCH /api/meta), not again via GET /api/content.
+      window.location.assign(`/n/${sessionData.handle}`);
       return;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't open note. Try again.");
@@ -208,32 +229,25 @@ export function NoteApp({
 
         const session = await fetch("/api/session", {
           method: "POST",
+          credentials: "same-origin",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ key }),
         });
-        if (!session.ok) {
+        const sessionData = await session.json();
+        if (!session.ok || typeof sessionData.binding !== "string") {
           throw new Error("Couldn't create note. Try again.");
         }
 
-        const res = await fetch("/api/content");
+        const res = await fetch("/api/content", {
+          headers: noteApiHeaders(sessionData.binding),
+        });
         const data = await res.json();
         if (!res.ok) {
           throw new Error(data.error || "Couldn't create note. Try again.");
         }
 
         if (!data.exists) {
-          showSessionUrl();
-          setCreator(null);
-          setRawKey(key);
-          setPersist(false);
-          setContent("");
-          setOriginalContent("");
-          setResponses([]);
-          setRev(0);
-          setForceOverwrite(false);
-          setIsNew(true);
-          setIsRenaming(false);
-          setAppState("editing");
+          window.location.assign(`/n/${sessionData.handle}`);
           return;
         }
       }
@@ -253,7 +267,7 @@ export function NoteApp({
     setError(null);
 
     try {
-      const res = await fetch("/api/content", {
+      const res = await noteFetch("/api/content", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -262,10 +276,12 @@ export function NoteApp({
         }),
       });
 
-      const data = await res.json();
+      const data = await readJsonSafe(res);
+
+      if (isNoteSwitchedResponse(res.status, data)) return;
 
       if (res.status === 409) {
-        if (Number.isSafeInteger(data.rev)) noticeRevision(data.rev);
+        if (Number.isSafeInteger(data.rev)) noticeRevision(data.rev as number);
         setForceOverwrite(true);
         setError(
           "This note changed elsewhere since you opened it. Saving again will overwrite that version."
@@ -274,11 +290,11 @@ export function NoteApp({
       }
 
       if (!res.ok) {
-        throw new Error(data.error || "Couldn't save note. Try again.");
+        throw new Error(apiErrorMessage(data, "Couldn't save note. Try again."));
       }
 
       setOriginalContent(content);
-      setRev(data.rev ?? null);
+      setRev(typeof data.rev === "number" ? data.rev : null);
       setForceOverwrite(false);
       setIsNew(false);
       setAppState("viewing");
@@ -298,11 +314,13 @@ export function NoteApp({
     setError(null);
 
     try {
-      const res = await fetch("/api/content");
-      const data = await res.json();
+      const res = await noteFetch("/api/content");
+      const data = await readJsonSafe(res);
+
+      if (isNoteSwitchedResponse(res.status, data)) return;
 
       if (!res.ok) {
-        throw new Error(data.error || "Couldn't refresh note. Try again.");
+        throw new Error((data.error as string) || "Couldn't refresh note. Try again.");
       }
 
       setIsRenaming(false);
@@ -312,11 +330,12 @@ export function NoteApp({
       setIsEditingTags(false);
 
       if (data.exists) {
-        setContent(data.content || "");
-        setOriginalContent(data.content || "");
-        setResponses(data.responses ?? []);
+        const nextContent = typeof data.content === "string" ? data.content : "";
+        setContent(nextContent);
+        setOriginalContent(nextContent);
+        setResponses(Array.isArray(data.responses) ? data.responses : []);
         setAssetUrls(urlsFromAssets(data.assets));
-        setRev(data.rev ?? null);
+        setRev(typeof data.rev === "number" ? data.rev : null);
         setIsNew(false);
         setAppState("viewing");
       } else {
@@ -346,7 +365,7 @@ export function NoteApp({
   /** Clear session cookies, strip persist URL, return to idle home. */
   async function handleReset() {
     try {
-      await fetch("/api/session", { method: "DELETE" });
+      await noteFetch("/api/session", { method: "DELETE" });
     } catch {
       // Still reset the UI even if the cookie clear fails.
     }
@@ -371,10 +390,11 @@ export function NoteApp({
     setError(null);
 
     try {
-      const res = await fetch("/api/content", { method: "DELETE" });
-      const data: { error?: string } = await res.json().catch(() => ({}));
+      const res = await noteFetch("/api/content", { method: "DELETE" });
+      const data = await readJsonSafe(res);
+      if (isNoteSwitchedResponse(res.status, data)) return;
       if (!res.ok) {
-        throw new Error(data.error || "Couldn't delete note. Try again.");
+        throw new Error(apiErrorMessage(data, "Couldn't delete note. Try again."));
       }
 
       showHomeUrl();
@@ -408,22 +428,24 @@ export function NoteApp({
     setError(null);
 
     try {
-      const res = await fetch("/api/content", {
+      const res = await noteFetch("/api/content", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ new_key: next }),
       });
-      const data: { error?: string; key?: string } = await res.json();
+      const data = await readJsonSafe(res);
+
+      if (isNoteSwitchedResponse(res.status, data)) return;
 
       if (res.status === 409) {
-        setError(data.error || "That key is taken. Choose another.");
+        setError(apiErrorMessage(data, "That key is taken. Choose another."));
         return;
       }
       if (!res.ok) {
-        throw new Error(data.error || "Couldn't change key. Try again.");
+        throw new Error(apiErrorMessage(data, "Couldn't change key. Try again."));
       }
 
-      const key = normalizeKey(data.key) ?? next;
+      const key = normalizeKey(typeof data.key === "string" ? data.key : null) ?? next;
       setRawKey(key);
       setIsRenaming(false);
       if (persist) {
@@ -441,20 +463,21 @@ export function NoteApp({
     setIsSavingTags(true);
     setError(null);
     try {
-      const res = await fetch("/api/meta", {
+      const res = await noteFetch("/api/meta", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tags }),
       });
-      const data: { error?: string; tags?: string[]; has_creator?: boolean; creator_name?: string | null } = await res.json();
+      const data = await readJsonSafe(res);
+      if (isNoteSwitchedResponse(res.status, data)) return;
       if (!res.ok) {
-        throw new Error(data.error || "Couldn't save tags. Try again.");
+        throw new Error(apiErrorMessage(data, "Couldn't save tags. Try again."));
       }
       setCreator(current => current && {
         ...current,
         hasCreator: Boolean(data.has_creator),
-        name: data.creator_name ?? current.name,
-        tags: data.tags ?? [],
+        name: typeof data.creator_name === "string" ? data.creator_name : current.name,
+        tags: Array.isArray(data.tags) ? data.tags : [],
       });
       setIsEditingTags(false);
     } catch (err) {
@@ -470,7 +493,7 @@ export function NoteApp({
     setError(null);
 
     try {
-      const res = await fetch("/api/session", {
+      const res = await noteFetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ persist: next }),

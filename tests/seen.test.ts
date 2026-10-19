@@ -21,7 +21,8 @@ test("agent changes make notes new; a person's read, write or explicit mark make
     const commentsApi = await import("../app/api/comments/route");
     const metaApi = await import("../app/api/meta/route");
 
-    const browser = (key: string) => ({ cookie: `marker_key=${key}` });
+    const { browserNoteSession } = await import("./helpers/noteSession");
+    const browser = (key: string) => browserNoteSession(key).headers;
     const post = (url: string, body: unknown, headers: Record<string, string> = {}) =>
       new NextRequest(`http://localhost${url}`, { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json", ...headers } });
     const agentGet = async (key: string) => (await contentApi.GET(new NextRequest(`http://localhost/api/content?key=${key}`))).json();

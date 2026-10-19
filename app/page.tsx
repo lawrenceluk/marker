@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { NoteView, readPageNote as readNote } from "./components/NoteView";
 import { PERSIST_QUERY, isPersistParam, normalizeKey, persistPath } from "./lib/key";
+import { readPageNoteSession } from "./lib/notePageSession";
 import { clientFingerprint } from "./lib/creators";
 import { readRememberedFolders, summarizeFolders, type FolderSummary } from "./lib/folders";
 import { requestOrigin } from "./lib/origin";
@@ -85,7 +86,16 @@ export default async function Home({
 }) {
   const params = await searchParams;
   const key = isPersistParam(params[PERSIST_QUERY]) ? normalizeKey(params.key) : null;
-  if (key) return <NoteView noteKey={key} persist />;
+  if (key) {
+    const session = await readPageNoteSession(key);
+    return (
+      <NoteView
+        noteKey={key}
+        persist
+        noteBinding={session?.binding ?? null}
+      />
+    );
+  }
 
   let folders: FolderSummary[] = [];
   try {

@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   PERSIST_QUERY,
-  applySessionCookies,
   isPersistParam,
   normalizeKey,
+  SESSION_COOKIE,
 } from "@/app/lib/key";
+import {
+  applyHandleSessionCookie,
+  generateSessionHandle,
+  isSessionHandle,
+} from "@/app/lib/noteSession";
 import { ROBOTS_TAG } from "@/app/lib/robots";
 import {
   CREATOR_COOKIE,
@@ -13,11 +18,18 @@ import {
   normalizeCreatorId,
 } from "@/app/lib/creatorId";
 
-export const config = { matcher: ["/", "/n", "/c"] };
+export const config = { matcher: ["/", "/n", "/n/:handle", "/c"] };
 
 export function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === "/c") return creatorFolder(request);
-  if (request.nextUrl.pathname === "/n") return withPrivateCaching(NextResponse.next());
+  if (request.nextUrl.pathname === "/n") return legacySessionNote(request);
+  if (request.nextUrl.pathname.startsWith("/n/")) {
+    const handle = request.nextUrl.pathname.slice(3);
+    if (!isSessionHandle(handle)) {
+      return withPrivateCaching(NextResponse.redirect(new URL("/", request.url)));
+    }
+    return withPrivateCaching(NextResponse.next());
+  }
 
   const key = normalizeKey(request.nextUrl.searchParams.get("key"));
 
@@ -31,24 +43,38 @@ export function proxy(request: NextRequest) {
     // Document link: leave `/?key=&persist=1` in the address bar so it can
     // be bookmarked, and make the session cookie survive a browser restart.
     // Chat unfurlers fetch this URL; the page emits OG tags from the note prefix.
+    const handle = generateSessionHandle();
     const response = NextResponse.next();
-    applySessionCookies(response.cookies, key, true);
+    applyHandleSessionCookie(response.cookies, handle, key, true);
     return withPrivateCaching(response);
   }
 
-  // One-off share: move the key out of the URL and into an httpOnly session
-  // cookie, then redirect to the clean `/n` note view. After this the secret
-  // is never in the address bar, browser history, a Referer header, or the
-  // client-side JS — and the page can render the note server-side instead of
-  // showing a key prompt to anything that fetches the URL directly. `/`
-  // itself never reads the session cookie, so it always opens on Home.
+  // One-off share: move the key out of the URL and into a per-tab session
+  // cookie, then redirect to `/n/<handle>`. After this the secret is never in
+  // the address bar, browser history, a Referer header, or client-side JS.
+  const handle = generateSessionHandle();
   const url = request.nextUrl.clone();
-  url.pathname = "/n";
+  url.pathname = `/n/${handle}`;
   url.searchParams.delete("key");
   url.searchParams.delete(PERSIST_QUERY);
 
   const response = NextResponse.redirect(url);
-  applySessionCookies(response.cookies, key, false);
+  applyHandleSessionCookie(response.cookies, handle, key, false);
+  return withPrivateCaching(response);
+}
+
+/** Legacy `/n` with the old single `marker_key` cookie → per-handle session. */
+function legacySessionNote(request: NextRequest) {
+  const legacyKey = normalizeKey(request.cookies.get(SESSION_COOKIE)?.value);
+  if (!legacyKey) {
+    return withPrivateCaching(NextResponse.redirect(new URL("/", request.url)));
+  }
+  const handle = generateSessionHandle();
+  const url = request.nextUrl.clone();
+  url.pathname = `/n/${handle}`;
+  const response = NextResponse.redirect(url);
+  const persist = request.cookies.get("marker_persist")?.value === "1";
+  applyHandleSessionCookie(response.cookies, handle, legacyKey, persist);
   return withPrivateCaching(response);
 }
 

@@ -22,10 +22,13 @@ export const readPageNote = cache(async (key: string, recordAccess: boolean) => 
 export async function NoteView({
   noteKey,
   persist,
+  noteBinding = null,
   folders,
 }: {
   noteKey: string | null;
   persist: boolean;
+  /** Per-tab API binding; omitted on Home idle. */
+  noteBinding?: string | null;
   /** Remembered folders for Home; omitted on note pages, where Home loads them on demand. */
   folders?: FolderSummary[];
 }) {
@@ -47,6 +50,7 @@ export async function NoteView({
     <>
       <NoteApp
         initialKeyLabel={noteKey ? maskKey(noteKey) : null}
+        noteBinding={noteBinding}
         initialNote={note ? { content: note.content, rev: note.rev, responses: note.responses } : null}
         initialPersist={persist}
         initialCreator={creator}
