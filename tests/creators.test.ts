@@ -297,8 +297,12 @@ test("creator index: create, retag, move, rename, delete, expiry, cap, gate and 
       { params: Promise.resolve({ ref }) },
     );
     assert.equal(open.status, 303);
-    assert.equal(open.headers.get("location"), "/n");
-    assert.equal(open.cookies.get("marker_key")?.value, "n5");
+    const openLoc = open.headers.get("location")!;
+    assert.match(openLoc, /^\/n\/[A-Za-z0-9_-]+$/);
+    const { browserNoteSession } = await import("./helpers/noteSession");
+    const { sessionKeyCookieName } = await import("../app/lib/noteSession");
+    const openHandle = openLoc.slice("/n/".length);
+    assert.equal(open.cookies.get(sessionKeyCookieName(openHandle))?.value, "n5");
     const wrongCreator = await openRoute.GET(
       new NextRequest(`http://localhost/c/open/${ref}`, { headers: { cookie: `marker_creator=${genId}` } }),
       { params: Promise.resolve({ ref }) },
@@ -307,7 +311,11 @@ test("creator index: create, retag, move, rename, delete, expiry, cap, gate and 
     assert.equal(wrongCreator.cookies.get("marker_key"), undefined);
 
     // Browser tag edit: note key from the session cookie, proof from the folder cookie.
-    const browserTags = await meta({ tags: ["plans"] }, { cookie: `marker_key=n5; marker_creator=${ALICE}` });
+    const n5Session = browserNoteSession("n5");
+    const browserTags = await meta(
+      { tags: ["plans"] },
+      { ...n5Session.headers, cookie: `${n5Session.headers.cookie}; marker_creator=${ALICE}` },
+    );
     assert.equal(browserTags.status, 200);
     assert.deepEqual(browserTags.body.tags, ["plans"]);
 

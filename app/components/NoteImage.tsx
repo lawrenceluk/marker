@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { EMBED_SCHEME } from "../lib/embedPolicy";
+import { useNoteSession } from "./NoteSession";
 
 export const ASSET_SCHEME = "marker-asset:";
 const ASSET_ID = /^[A-Za-z0-9_-]{22}$/;
@@ -22,6 +23,7 @@ type AssetUrlsValue = {
 const AssetUrlsContext = createContext<AssetUrlsValue | null>(null);
 
 export function AssetUrlsProvider({ enabled, urls: seeded, embedShellUrl: seededShell = null, children }: { enabled: boolean; urls: Record<string, string>; embedShellUrl?: string | null; children: React.ReactNode }) {
+  const { noteFetch } = useNoteSession();
   const [urls, setUrls] = useState(seeded);
   const [embedShellUrl, setEmbedShellUrl] = useState(seededShell);
   const [checked, setChecked] = useState<ReadonlyMap<string, number>>(() => new Map());
@@ -42,7 +44,7 @@ export function AssetUrlsProvider({ enabled, urls: seeded, embedShellUrl: seeded
     setTimeout(async () => {
       lastRefresh.current = Date.now();
       try {
-        const res = await fetch("/api/assets/urls", { cache: "no-store" });
+        const res = await noteFetch("/api/assets/urls", { cache: "no-store" });
         const data = res.ok ? await res.json() as { urls?: Record<string, string>; embed_shell?: string | null } : null;
         if (data?.urls) setUrls(current => ({ ...current, ...data.urls }));
         if (data?.embed_shell) setEmbedShellUrl(data.embed_shell);
@@ -57,7 +59,7 @@ export function AssetUrlsProvider({ enabled, urls: seeded, embedShellUrl: seeded
         setChecked(current => new Map([...current, ...ids.map(id => [id, at] as const)]));
       }
     }, wait);
-  }, [enabled]);
+  }, [enabled, noteFetch]);
 
   const recentlyChecked = useCallback((id: string) => {
     const at = checked.get(id);

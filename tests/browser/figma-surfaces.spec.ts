@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { checkRevision } from "../helpers/api-url";
 
 /**
  * Grades Marker's live surfaces against tests/fixtures/figma-surfaces.json (exported from Figma
@@ -166,10 +167,18 @@ async function suite(page: Page, scheme: "light" | "dark", rows: Row[], fixtures
   color("fill", figma.Menu.fill, m.background);
   for (const [i, s] of ["top", "right", "bottom", "left"].entries()) stroke(`${s} edge`, i, figma.Menu.border, m);
   noShadow(m);
-  const rule = await read(menu.locator(".toolbar-menu-rule"));
+  const ruleEl = menu.locator(".toolbar-menu-rule");
+  await expect(ruleEl).toBeVisible();
+  const rule = await read(ruleEl);
   num("rule height", figma.Menu.rule.height, rule.height);
   color("rule colour", figma.Menu.rule.token, rule.background);
-  num("rule inset", figma.Menu.rule.marginX, rule.left - m.left - m.border[3].width);
+  const ruleInset = await menu.evaluate(element => {
+    const box = element.getBoundingClientRect();
+    const borderLeft = parseFloat(getComputedStyle(element).borderLeftWidth);
+    const rule = element.querySelector(".toolbar-menu-rule")!.getBoundingClientRect();
+    return rule.left - box.left - borderLeft;
+  });
+  num("rule inset", figma.Menu.rule.marginX, ruleInset);
   surface = "MenuRow";
   const item = menu.locator(".toolbar-menu-item").first();
   const it = await read(item);
@@ -254,12 +263,12 @@ async function suite(page: Page, scheme: "light" | "dark", rows: Row[], fixtures
 
   // ---- Update pill.
   surface = "UpdateNudge";
-  const revision = page.waitForResponse(response => response.url().includes("/api/revision"));
-  await page.request.post("/api/content", { data: { key: fixtures.commentKey, content: "\n\nAn agent edit.", mode: "append" } });
-  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await revision;
+  await page.request.post("/api/content", { data: { key: fixtures.commentKey, content: `\n\nAn agent edit (${scheme}).`, mode: "append" } });
   const nudge = page.getByRole("button", { name: "Note updated · Refresh", exact: true });
-  await expect(nudge).toBeVisible();
+  await expect(async () => {
+    await checkRevision(page);
+    await expect(nudge).toBeVisible();
+  }).toPass({ timeout: 15_000 });
   const n = await read(nudge), un = figma.UpdateNudge;
   num("height", un.height, n.height);
   pad(un.padding, n);

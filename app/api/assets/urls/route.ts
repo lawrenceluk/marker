@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, normalizeKey } from "@/app/lib/key";
+import { requireNoteKey } from "@/app/lib/noteApi";
 import { applyNoIndexHeaders } from "@/app/lib/robots";
 import { r2Config } from "@/app/lib/r2";
 import { assetUrls } from "@/app/lib/assets";
@@ -17,8 +17,9 @@ function json(data: unknown, status = 200) {
 export async function GET(request: NextRequest) {
   const config = r2Config();
   if (!config) return json({ error: "Images are not configured on this deployment", urls: {} }, 503);
-  const key = normalizeKey(request.nextUrl.searchParams.get("key")) ?? normalizeKey(request.cookies.get(SESSION_COOKIE)?.value);
-  if (!key) return json({ error: "Key is required" }, 400);
+  const resolved = requireNoteKey(request, request.nextUrl.searchParams.get("key"));
+  if (!resolved.ok) return json(resolved.body, resolved.status);
+  const { key } = resolved;
   const note = await readNote(key);
   const urls = note ? assetUrls(config, note) : {};
   const shell = await shellForNote(config, note);

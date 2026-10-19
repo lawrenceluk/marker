@@ -1,14 +1,8 @@
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
+import { checkRevision } from "../helpers/api-url";
 
 async function activate(locator: Locator, touch: boolean) {
   if (touch) await locator.tap(); else await locator.click();
-}
-async function checkRevision(page: Page) {
-  await page.waitForTimeout(50); // Let any preceding request finish before the focus check.
-  await Promise.all([
-    page.waitForResponse(response => response.url().endsWith("/api/revision")),
-    page.evaluate(() => window.dispatchEvent(new Event("focus"))),
-  ]);
 }
 
 test("five actions fit one row; share and more preserve note actions", async ({ page, request }, info) => {
@@ -46,7 +40,7 @@ test("five actions fit one row; share and more preserve note actions", async ({ 
   await activate(toggle, touch);
   await expect(toggle).not.toBeChecked();
   await expect(share.locator("[data-copy-status]")).toBeDisabled();
-  await expect(page).toHaveURL(/\/n$/);
+  await expect(page).toHaveURL(/\/n\/[A-Za-z0-9_-]+$/);
   await activate(toggle, touch);
   await expect(toggle).toBeChecked();
   await expect(page).toHaveURL(new RegExp(`key=${key}&persist=1`));
@@ -86,21 +80,31 @@ test("revision polling pauses hidden, checks focus/visible and backs off after t
   const key = `poll-${info.project.name}`;
   await request.post("/api/content", { data: { key, content: "Polling fixture" } });
   let checks = 0;
-  await page.route("**/api/revision", async route => { checks++; await route.fulfill({ json: { rev: 1 } }); });
+  await page.route(
+    (url) => new URL(url).pathname === "/api/revision",
+    async (route) => {
+      checks++;
+      await route.fulfill({ json: { rev: 1 } });
+    }
+  );
   await page.clock.install();
   await page.goto(`/?key=${key}&persist=1`);
   await expect(page.getByRole("button", { name: "Comments (0 open)", exact: true })).toBeVisible();
-  await checkRevision(page); // Reset the unchanged counter with a completed focus check.
+  await checkRevision(page); // Focus resume clears unchanged before the timed poll loop.
   let baseline = checks;
   for (let i = 0; i < 2; i++) {
     await page.clock.runFor(20_000);
-    await expect.poll(() => checks).toBe(++baseline);
+    const want = baseline + 1;
+    await expect.poll(() => checks).toBe(want);
+    baseline = want;
     await page.waitForTimeout(30);
   }
   await page.clock.runFor(59_000);
   expect(checks).toBe(baseline);
   await page.clock.runFor(1_000);
-  await expect.poll(() => checks).toBe(++baseline);
+  const afterBackoff = baseline + 1;
+  await expect.poll(() => checks).toBe(afterBackoff);
+  baseline = afterBackoff;
   await page.waitForTimeout(30);
   await page.evaluate(() => {
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
@@ -113,9 +117,11 @@ test("revision polling pauses hidden, checks focus/visible and backs off after t
     Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
     document.dispatchEvent(new Event("visibilitychange"));
   });
-  await expect.poll(() => checks).toBe(++baseline);
+  const afterVisible = baseline + 1;
+  await expect.poll(() => checks).toBe(afterVisible);
+  baseline = afterVisible;
   await checkRevision(page);
-  expect(checks).toBe(++baseline);
+  expect(checks).toBe(baseline + 1);
 });
 
 test("external revisions nudge without replacing text; drafts defer it and own writes do not nudge", async ({ page, request }, info) => {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, normalizeKey } from "@/app/lib/key";
+import { requireNoteKey } from "@/app/lib/noteApi";
 import { applyNoIndexHeaders } from "@/app/lib/robots";
 import { r2Config, putObject } from "@/app/lib/r2";
 import {
@@ -47,8 +47,9 @@ export async function POST(request: NextRequest) {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const key = normalizeKey(body.key) ?? normalizeKey(request.cookies.get(SESSION_COOKIE)?.value);
-  if (!key) return json({ error: "Key is required" }, 400);
+  const resolved = requireNoteKey(request, body.key);
+  if (!resolved.ok) return json(resolved.body, resolved.status);
+  const { key } = resolved;
 
   const type = assetTypeFor(body.content_type);
   if (!type) return json({ error: `content_type must be one of: ${ASSET_TYPE_LIST.join(", ")}` }, 415);

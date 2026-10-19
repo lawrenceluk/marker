@@ -41,7 +41,7 @@ test("note byline opens active and remembered folders, with deep-linked tags and
   const html = await page.content();
   expect(html).not.toContain(id);
   expect(html).not.toContain(second.creator_id);
-  const meta = await (await page.request.get("/api/content")).json();
+  const meta = await (await page.request.get(`/api/content?key=${encodeURIComponent(key)}`)).json();
   expect(meta.creator_linked).toBe(false);
   expect(meta.creator_folder_href).toBe(await folder.getAttribute("href"));
   await expect(page.locator("body")).toHaveJSProperty("scrollWidth", await page.locator("body").evaluate(el => el.clientWidth));
@@ -78,7 +78,7 @@ test("note byline opens active and remembered folders, with deep-linked tags and
     const isolatedHtml = await other.content();
     expect(isolatedHtml).not.toContain(id);
     expect(isolatedHtml).not.toContain(second.creator_id);
-    const noteOnlyMeta = await (await other.request.get("/api/content")).json();
+    const noteOnlyMeta = await (await other.request.get(`/api/content?key=${encodeURIComponent(key)}`)).json();
     expect(noteOnlyMeta.creator_linked).toBe(false);
     expect(noteOnlyMeta.creator_folder_href).toBe(meta.creator_folder_href);
     await other.getByRole("button", { name: "More" }).click();

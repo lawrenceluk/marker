@@ -7,7 +7,7 @@ test("/ always opens on Home; one-off links, reloads and new notes live at /n", 
   await request.post("/api/content", { data: { key, content: "# Session note\nHello." } });
 
   await page.goto(`/?key=${key}`);
-  await expect(page).toHaveURL(/\/n$/);
+  await expect(page).toHaveURL(/\/n\/[A-Za-z0-9_-]+$/);
   await expect(page.getByRole("heading", { name: "Session note" })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Session note" })).toBeVisible();
@@ -26,7 +26,7 @@ test("/ always opens on Home; one-off links, reloads and new notes live at /n", 
   // New random note: unused key, editor, saved, survives reload, and `/` is Home again.
   await page.getByRole("button", { name: "New random note" }).click();
   await expect(page.getByPlaceholder("Write markdown…")).toBeVisible();
-  await expect(page).toHaveURL(/\/n$/);
+  await expect(page).toHaveURL(/\/n\/[A-Za-z0-9_-]+$/);
   await page.getByPlaceholder("Write markdown…").fill("# Fresh note");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByRole("heading", { name: "Fresh note" })).toBeVisible();
@@ -39,7 +39,7 @@ test("/ always opens on Home; one-off links, reloads and new notes live at /n", 
   await page.getByLabel("Secret key").fill(key);
   await page.getByRole("button", { name: "Open note" }).click();
   await expect(page.getByRole("heading", { name: "Session note" })).toBeVisible();
-  await expect(page).toHaveURL(/\/n$/);
+  await expect(page).toHaveURL(/\/n\/[A-Za-z0-9_-]+$/);
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await expect(home(page)).toBeVisible();
   await expect(page).toHaveURL(/\/$/);

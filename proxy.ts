@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   PERSIST_QUERY,
-  applySessionCookies,
   isPersistParam,
   normalizeKey,
+  SESSION_COOKIE,
 } from "@/app/lib/key";
+import {
+  PAGE_HANDLE_HEADER,
+  applyHandleSessionCookie,
+  findHandleForKey,
+  generateSessionHandle,
+  isSessionHandle,
+} from "@/app/lib/noteSession";
 import { ROBOTS_TAG } from "@/app/lib/robots";
 import {
   CREATOR_COOKIE,
@@ -13,42 +20,80 @@ import {
   normalizeCreatorId,
 } from "@/app/lib/creatorId";
 
-export const config = { matcher: ["/", "/n", "/c"] };
+export const config = { matcher: ["/", "/n", "/n/:handle", "/c"] };
+
+function stripClientPageHandle(request: NextRequest): Headers {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete(PAGE_HANDLE_HEADER);
+  return requestHeaders;
+}
+
+function forward(request: NextRequest, mutate?: (headers: Headers) => void) {
+  const requestHeaders = stripClientPageHandle(request);
+  mutate?.(requestHeaders);
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
 
 export function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === "/c") return creatorFolder(request);
-  if (request.nextUrl.pathname === "/n") return withPrivateCaching(NextResponse.next());
+  if (request.nextUrl.pathname === "/n") return legacySessionNote(request);
+  if (request.nextUrl.pathname.startsWith("/n/")) {
+    const handle = request.nextUrl.pathname.slice(3);
+    if (!isSessionHandle(handle)) {
+      return withPrivateCaching(NextResponse.redirect(new URL("/", request.url)));
+    }
+    return withPrivateCaching(forward(request));
+  }
 
   const key = normalizeKey(request.nextUrl.searchParams.get("key"));
 
   if (!key) {
-    return withPrivateCaching(NextResponse.next());
+    return withPrivateCaching(forward(request));
   }
 
   const persist = isPersistParam(request.nextUrl.searchParams.get(PERSIST_QUERY));
 
   if (persist) {
-    // Document link: leave `/?key=&persist=1` in the address bar so it can
-    // be bookmarked, and make the session cookie survive a browser restart.
-    // Chat unfurlers fetch this URL; the page emits OG tags from the note prefix.
-    const response = NextResponse.next();
-    applySessionCookies(response.cookies, key, true);
+    const handle =
+      findHandleForKey(request.cookies, key) ?? generateSessionHandle();
+    const response = forward(request, (headers) => {
+      headers.set(PAGE_HANDLE_HEADER, handle);
+    });
+    applyHandleSessionCookie(response.cookies, request.cookies, handle, key, true);
     return withPrivateCaching(response);
   }
 
-  // One-off share: move the key out of the URL and into an httpOnly session
-  // cookie, then redirect to the clean `/n` note view. After this the secret
-  // is never in the address bar, browser history, a Referer header, or the
-  // client-side JS — and the page can render the note server-side instead of
-  // showing a key prompt to anything that fetches the URL directly. `/`
-  // itself never reads the session cookie, so it always opens on Home.
+  const handle =
+    findHandleForKey(request.cookies, key) ?? generateSessionHandle();
   const url = request.nextUrl.clone();
-  url.pathname = "/n";
+  url.pathname = `/n/${handle}`;
   url.searchParams.delete("key");
   url.searchParams.delete(PERSIST_QUERY);
 
   const response = NextResponse.redirect(url);
-  applySessionCookies(response.cookies, key, false);
+  applyHandleSessionCookie(response.cookies, request.cookies, handle, key, false);
+  return withPrivateCaching(response);
+}
+
+/** Legacy `/n` with the old single `marker_key` cookie → per-handle session. */
+function legacySessionNote(request: NextRequest) {
+  const legacyKey = normalizeKey(request.cookies.get(SESSION_COOKIE)?.value);
+  if (!legacyKey) {
+    return withPrivateCaching(NextResponse.redirect(new URL("/", request.url)));
+  }
+  const persist = request.cookies.get("marker_persist")?.value === "1";
+  const handle =
+    findHandleForKey(request.cookies, legacyKey) ?? generateSessionHandle();
+  const url = request.nextUrl.clone();
+  url.pathname = `/n/${handle}`;
+  const response = NextResponse.redirect(url);
+  applyHandleSessionCookie(
+    response.cookies,
+    request.cookies,
+    handle,
+    legacyKey,
+    persist
+  );
   return withPrivateCaching(response);
 }
 
@@ -60,7 +105,7 @@ export function proxy(request: NextRequest) {
  */
 function creatorFolder(request: NextRequest) {
   if (!request.nextUrl.searchParams.has(CREATOR_QUERY)) {
-    return withPrivateCaching(NextResponse.next());
+    return withPrivateCaching(forward(request));
   }
   const id = normalizeCreatorId(request.nextUrl.searchParams.get(CREATOR_QUERY));
   const url = request.nextUrl.clone();
