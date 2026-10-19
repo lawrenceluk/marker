@@ -8,12 +8,10 @@ export type NoteBinding = string;
 
 export function noteApiHeaders(
   binding: NoteBinding | null,
-  extra?: HeadersInit,
-  persistKey?: string | null
+  extra?: HeadersInit
 ): HeadersInit {
   const headers = new Headers(extra);
   if (binding) headers.set(NOTE_BINDING_HEADER, binding);
-  if (persistKey) headers.set("X-Marker-Persist-Key", persistKey);
   return headers;
 }
 

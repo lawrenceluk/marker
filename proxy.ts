@@ -22,6 +22,18 @@ import {
 
 export const config = { matcher: ["/", "/n", "/n/:handle", "/c"] };
 
+function stripClientPageHandle(request: NextRequest): Headers {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete(PAGE_HANDLE_HEADER);
+  return requestHeaders;
+}
+
+function forward(request: NextRequest, mutate?: (headers: Headers) => void) {
+  const requestHeaders = stripClientPageHandle(request);
+  mutate?.(requestHeaders);
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
 export function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === "/c") return creatorFolder(request);
   if (request.nextUrl.pathname === "/n") return legacySessionNote(request);
@@ -30,13 +42,13 @@ export function proxy(request: NextRequest) {
     if (!isSessionHandle(handle)) {
       return withPrivateCaching(NextResponse.redirect(new URL("/", request.url)));
     }
-    return withPrivateCaching(NextResponse.next());
+    return withPrivateCaching(forward(request));
   }
 
   const key = normalizeKey(request.nextUrl.searchParams.get("key"));
 
   if (!key) {
-    return withPrivateCaching(NextResponse.next());
+    return withPrivateCaching(forward(request));
   }
 
   const persist = isPersistParam(request.nextUrl.searchParams.get(PERSIST_QUERY));
@@ -44,10 +56,8 @@ export function proxy(request: NextRequest) {
   if (persist) {
     const handle =
       findHandleForKey(request.cookies, key) ?? generateSessionHandle();
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set(PAGE_HANDLE_HEADER, handle);
-    const response = NextResponse.next({
-      request: { headers: requestHeaders },
+    const response = forward(request, (headers) => {
+      headers.set(PAGE_HANDLE_HEADER, handle);
     });
     applyHandleSessionCookie(response.cookies, request.cookies, handle, key, true);
     return withPrivateCaching(response);
@@ -95,7 +105,7 @@ function legacySessionNote(request: NextRequest) {
  */
 function creatorFolder(request: NextRequest) {
   if (!request.nextUrl.searchParams.has(CREATOR_QUERY)) {
-    return withPrivateCaching(NextResponse.next());
+    return withPrivateCaching(forward(request));
   }
   const id = normalizeCreatorId(request.nextUrl.searchParams.get(CREATOR_QUERY));
   const url = request.nextUrl.clone();

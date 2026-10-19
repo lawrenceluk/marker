@@ -27,8 +27,6 @@ const HANDLE_ALPHABET =
 const KEY_PREFIX = "marker_sk_";
 const PERSIST_PREFIX = "marker_sp_";
 
-let secretChecked = false;
-
 export function sessionSecret(): string {
   const configured = process.env.MARKER_REF_SECRET;
   const vercelProd = process.env.VERCEL_ENV === "production";
@@ -39,9 +37,6 @@ export function sessionSecret(): string {
       );
     }
     return configured;
-  }
-  if (!secretChecked) {
-    secretChecked = true;
   }
   return configured || process.env.KV_REST_API_TOKEN || "marker-ref";
 }
@@ -273,6 +268,56 @@ function noteSwitched(): ResolvedNoteKey {
  * Resolve the note key for an API request. Agents pass an explicit key; browser
  * tabs pass X-Marker-Note plus the matching per-handle session cookie.
  */
+export type ResolvedBrowserSession =
+  | { ok: true; handle: string; key: string; persist: boolean }
+  | {
+      ok: false;
+      status: 409;
+      code: typeof NOTE_SWITCHED_CODE | typeof NOTE_SESSION_EXPIRED_CODE;
+      body: Record<string, unknown>;
+    };
+
+/** Verify the tab binding header against the per-handle session cookie. */
+export function resolveBrowserSession(
+  request: NextRequest
+): ResolvedBrowserSession {
+  const bindingRaw = request.headers.get(NOTE_BINDING_HEADER);
+  const parsed = parseNoteBinding(bindingRaw);
+  if (!parsed) {
+    return {
+      ok: false,
+      status: 409,
+      code: NOTE_SESSION_EXPIRED_CODE,
+      body: noteSessionExpiredBody(),
+    };
+  }
+  const cookieKey = normalizeKey(
+    request.cookies.get(sessionKeyCookieName(parsed.handle))?.value
+  );
+  if (!cookieKey) {
+    return {
+      ok: false,
+      status: 409,
+      code: NOTE_SESSION_EXPIRED_CODE,
+      body: noteSessionExpiredBody(),
+    };
+  }
+  if (!verifyNoteBinding(parsed.handle, cookieKey, parsed.mac)) {
+    return {
+      ok: false,
+      status: 409,
+      code: NOTE_SWITCHED_CODE,
+      body: noteSwitchedBody(),
+    };
+  }
+  return {
+    ok: true,
+    handle: parsed.handle,
+    key: cookieKey,
+    persist: persistFromCookie(request, parsed.handle),
+  };
+}
+
 export function resolveNoteKey(
   request: NextRequest,
   explicit: unknown

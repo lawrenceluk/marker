@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { NOTE_BINDING_HEADER } from "../../app/lib/noteClient";
+import { checkRevision } from "../helpers/api-url";
 
 async function openOneOff(page: import("@playwright/test").Page, key: string) {
   await page.goto(`/?key=${encodeURIComponent(key)}`);
@@ -30,6 +32,52 @@ async function expectSwitchedToast(page: import("@playwright/test").Page) {
   await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
 }
 
+type NoteSnapshot = { content: string; rev: number; exists: boolean };
+
+async function noteSnapshot(
+  request: import("@playwright/test").APIRequestContext,
+  key: string
+): Promise<NoteSnapshot> {
+  const res = await request.get(`/api/content?key=${encodeURIComponent(key)}`);
+  const data = await res.json();
+  return {
+    content: data.content as string,
+    rev: data.rev as number,
+    exists: data.exists as boolean,
+  };
+}
+
+function snapshotsEqual(a: NoteSnapshot, b: NoteSnapshot) {
+  expect(a.content).toBe(b.content);
+  expect(a.rev).toBe(b.rev);
+  expect(a.exists).toBe(b.exists);
+}
+
+async function expectAbsent(
+  request: import("@playwright/test").APIRequestContext,
+  key: string
+) {
+  const snap = await noteSnapshot(request, key);
+  expect(snap.exists).toBe(false);
+}
+
+async function captureTabBinding(page: import("@playwright/test").Page) {
+  let binding: string | null = null;
+  await page.route("**/api/**", async (route) => {
+    const headers = route.request().headers();
+    const value =
+      headers[NOTE_BINDING_HEADER] ??
+      headers[NOTE_BINDING_HEADER.toLowerCase()];
+    if (value) binding = value;
+    await route.continue();
+  });
+  await checkRevision(page);
+  await page.unroute("**/api/**");
+  expect(binding).toBeTruthy();
+  return binding!;
+}
+
+/** Leader opens A; follower shares the session; leader's cookie is repointed at B. */
 async function stalePair(
   browser: import("@playwright/test").Browser,
   request: import("@playwright/test").APIRequestContext,
@@ -37,24 +85,33 @@ async function stalePair(
 ) {
   const keyA = `stale-a-${stamp}`;
   const keyB = `stale-b-${stamp}`;
-  const other = `stale-other-${stamp}`;
   await request.post("/api/content", {
-    data: { key: keyA, content: "# A\nalpha." },
+    data: { key: keyA, content: "# A\n\nNote **alpha** text." },
   });
   await request.post("/api/content", {
     data: { key: keyB, content: "# B\nbeta." },
   });
-  await request.post("/api/content", {
-    data: { key: other, content: "# Other\nuntouched." },
-  });
+  const revA = (await noteSnapshot(request, keyA)).rev;
 
   const context = await browser.newContext();
   const leader = await context.newPage();
   const follower = await context.newPage();
   await openOneOff(leader, keyA);
+  await follower.route(
+    (url) => new URL(url).pathname === "/api/comments",
+    async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({
+          json: { rev: revA, comments: [], responses: [] },
+        });
+        return;
+      }
+      await route.continue();
+    }
+  );
   await follower.goto(leader.url());
   await desyncSessionCookie(leader, keyB);
-  return { context, follower, keyB, other };
+  return { context, follower, keyA, keyB };
 }
 
 test("two tabs keep separate notes for one-off, persist, and folder opens", async ({
@@ -142,43 +199,48 @@ test("legacy /n with marker_key migrates to /n/handle", async ({ browser, reques
 });
 
 test("stale binding shows toast on save", async ({ browser, request }, info) => {
-  const { context, follower, other } = await stalePair(
-    browser,
-    request,
-    `${info.project.name}-${Date.now()}`
-  );
+  const stamp = `${info.project.name}-${Date.now()}`;
+  const { context, follower, keyA, keyB } = await stalePair(browser, request, stamp);
+  const beforeA = await noteSnapshot(request, keyA);
+  const beforeB = await noteSnapshot(request, keyB);
 
   await follower.getByRole("button", { name: "Edit", exact: true }).click();
-  await follower.getByPlaceholder("Write markdown…").fill("# B\nstale edit.");
+  await follower.getByPlaceholder("Write markdown…").fill("# A\nstale edit.");
   await follower.getByRole("button", { name: "Save" }).click();
   await expectSwitchedToast(follower);
 
-  const untouched = await request.get(`/api/content?key=${encodeURIComponent(other)}`);
-  expect((await untouched.json()).content).toContain("untouched.");
+  snapshotsEqual(await noteSnapshot(request, keyA), beforeA);
+  snapshotsEqual(await noteSnapshot(request, keyB), beforeB);
 
   await context.close();
 });
 
 test("stale binding shows toast on rename and delete", async ({ browser, request }, info) => {
   const stamp = `${info.project.name}-${Date.now()}`;
-  const { context, follower, keyB, other } = await stalePair(browser, request, stamp);
+  const { context, follower, keyA, keyB } = await stalePair(browser, request, stamp);
+  const beforeA = await noteSnapshot(request, keyA);
+  const beforeB = await noteSnapshot(request, keyB);
+  const renamed = `${keyB}-renamed`;
 
   await follower.getByRole("button", { name: "More" }).click();
   await follower.getByRole("button", { name: "Change key" }).click();
-  await follower.getByLabel("New secret key").fill(`${keyB}-renamed`);
+  await follower.getByLabel("New secret key").fill(renamed);
   await follower.getByRole("button", { name: "Change key", exact: true }).click();
   await expectSwitchedToast(follower);
 
-  const stillB = await request.get(`/api/content?key=${encodeURIComponent(keyB)}`);
-  expect(stillB.ok()).toBeTruthy();
+  snapshotsEqual(await noteSnapshot(request, keyA), beforeA);
+  snapshotsEqual(await noteSnapshot(request, keyB), beforeB);
+  await expectAbsent(request, renamed);
 
   await follower.getByRole("button", { name: "More" }).click();
   await follower.getByRole("button", { name: "Delete note" }).click();
   await follower.getByRole("button", { name: "Press again to delete note" }).click();
   await expectSwitchedToast(follower);
 
-  const untouched = await request.get(`/api/content?key=${encodeURIComponent(other)}`);
-  expect((await untouched.json()).content).toContain("untouched.");
+  snapshotsEqual(await noteSnapshot(request, keyA), beforeA);
+  snapshotsEqual(await noteSnapshot(request, keyB), beforeB);
+  expect((await noteSnapshot(request, keyA)).exists).toBe(true);
+  expect((await noteSnapshot(request, keyB)).exists).toBe(true);
 
   await context.close();
 });
@@ -187,14 +249,134 @@ test("stale binding shows toast when loading comments", async ({
   browser,
   request,
 }, info) => {
-  const { context, follower } = await stalePair(
-    browser,
-    request,
-    `${info.project.name}-${Date.now()}`
-  );
+  const stamp = `${info.project.name}-${Date.now()}`;
+  const { context, follower, keyA, keyB } = await stalePair(browser, request, stamp);
+  const beforeA = await noteSnapshot(request, keyA);
+  const beforeB = await noteSnapshot(request, keyB);
 
   await follower.getByRole("button", { name: /Comments/ }).click();
   await expectSwitchedToast(follower);
+
+  snapshotsEqual(await noteSnapshot(request, keyA), beforeA);
+  snapshotsEqual(await noteSnapshot(request, keyB), beforeB);
+
+  await context.close();
+});
+
+test("stale binding shows toast on comment POST", async ({ browser, request }, info) => {
+  const touch = info.project.name === "iphone-webkit";
+  const stamp = `${info.project.name}-${Date.now()}`;
+  const { context, follower, keyA, keyB } = await stalePair(browser, request, stamp);
+  const beforeA = await noteSnapshot(request, keyA);
+  const beforeB = await noteSnapshot(request, keyB);
+
+  await follower.locator(".prose").evaluate((root) => {
+    const start = [...root.querySelectorAll("[data-source-start]")].find(
+      (n) => n.textContent === "alpha"
+    )!;
+    const range = document.createRange();
+    range.setStart(start.firstChild!, 0);
+    range.setEnd(start.firstChild!, 5);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    document.dispatchEvent(new Event("selectionchange"));
+  });
+  await follower.waitForTimeout(750);
+  const icon = follower.getByRole("button", { name: "Comment on selection" });
+  await expect(icon).toBeVisible({ timeout: 10_000 });
+  if (touch) await icon.tap();
+  else await icon.click();
+  await follower.getByLabel("Comment as You").fill("Should not land");
+  await follower.getByRole("button", { name: "Send comment", exact: true }).click();
+  await expectSwitchedToast(follower);
+
+  snapshotsEqual(await noteSnapshot(request, keyA), beforeA);
+  snapshotsEqual(await noteSnapshot(request, keyB), beforeB);
+  const comments = await request.get(`/api/comments?key=${encodeURIComponent(keyA)}&status=all`);
+  expect((await comments.json()).comments?.length ?? 0).toBe(0);
+
+  await context.close();
+});
+
+test("stale binding shows toast on overwrite-anyway save", async ({
+  browser,
+  request,
+}, info) => {
+  const stamp = `${info.project.name}-${Date.now()}`;
+  const { context, follower, keyA, keyB } = await stalePair(browser, request, stamp);
+  const beforeB = await noteSnapshot(request, keyB);
+  const bumped = await noteSnapshot(request, keyA);
+  await request.post("/api/content", {
+    data: {
+      key: keyA,
+      content: "# A\nalpha.\n\nChanged elsewhere.",
+      if_rev: bumped.rev,
+    },
+  });
+  const afterBump = await noteSnapshot(request, keyA);
+
+  await follower.getByRole("button", { name: "Edit", exact: true }).click();
+  await follower.getByPlaceholder("Write markdown…").fill("# A\nlocal stale save.");
+  await follower.getByRole("button", { name: "Save" }).click();
+  await expectSwitchedToast(follower);
+
+  snapshotsEqual(await noteSnapshot(request, keyA), afterBump);
+  snapshotsEqual(await noteSnapshot(request, keyB), beforeB);
+
+  await follower.getByRole("button", { name: "Save" }).click();
+  await expectSwitchedToast(follower);
+  snapshotsEqual(await noteSnapshot(request, keyA), afterBump);
+  snapshotsEqual(await noteSnapshot(request, keyB), beforeB);
+
+  await context.close();
+});
+
+test("stale binding blocks revision refresh without applying cookie note", async ({
+  browser,
+  request,
+}, info) => {
+  const stamp = `${info.project.name}-${Date.now()}`;
+  const { context, follower, keyA, keyB } = await stalePair(browser, request, stamp);
+  const binding = await captureTabBinding(follower);
+  const beforeA = await noteSnapshot(request, keyA);
+  const beforeB = await noteSnapshot(request, keyB);
+  const proseBefore = await follower.locator(".prose").innerText();
+
+  await request.post("/api/content", {
+    data: { key: keyB, content: "# B\nhijacked beta.", mode: "overwrite" },
+  });
+
+  const refresh = await follower.evaluate(
+    async ({ tabBinding, header }) => {
+      const response = await fetch("/api/content", {
+        cache: "no-store",
+        credentials: "include",
+        headers: { [header]: tabBinding },
+      });
+      const body = await response.json();
+      return { status: response.status, code: body.code as string | undefined };
+    },
+    { tabBinding: binding, header: NOTE_BINDING_HEADER }
+  );
+  expect(refresh.status).toBe(409);
+  expect(refresh.code).toBe("note_switched");
+
+  await expect(follower.locator(".prose")).toHaveText(proseBefore);
+  expect(await follower.locator(".prose").innerText()).not.toContain("hijacked");
+  snapshotsEqual(await noteSnapshot(request, keyA), beforeA);
+  snapshotsEqual(await noteSnapshot(request, keyB), {
+    ...beforeB,
+    content: "# B\nhijacked beta.",
+    rev: beforeB.rev + 1,
+  });
+
+  const nudge = follower.getByRole("button", { name: "Note updated · Refresh", exact: true });
+  if (await nudge.isVisible().catch(() => false)) {
+    await nudge.click();
+    await expectSwitchedToast(follower);
+    await expect(follower.locator(".prose")).toHaveText(proseBefore);
+    snapshotsEqual(await noteSnapshot(request, keyA), beforeA);
+  }
 
   await context.close();
 });

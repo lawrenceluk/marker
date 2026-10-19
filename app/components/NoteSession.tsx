@@ -48,7 +48,7 @@ export function NoteSessionProvider({
             : input;
       const response = await fetch(url, {
         ...init,
-        headers: noteApiHeaders(binding, init?.headers, persistKey),
+        headers: noteApiHeaders(binding, init?.headers),
       });
       if (response.status === 409) {
         const data = await readJsonSafe(response.clone());

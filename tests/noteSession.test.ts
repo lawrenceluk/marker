@@ -145,6 +145,37 @@ test("browser API routes reject missing or mismatched bindings", async () => {
       })
     );
     assert.equal(queryKey.status, 200);
+
+    const sessionApi = await import("../app/api/session/route");
+    const missing = await sessionApi.GET(new NextRequest("http://localhost/api/session"));
+    assert.equal(missing.status, 409);
+    assert.equal((await missing.json()).code, "note_session_expired");
+
+    const sessionGet = await sessionApi.GET(
+      new NextRequest("http://localhost/api/session", { headers: session.headers })
+    );
+    assert.equal(sessionGet.status, 200);
+    assert.equal((await sessionGet.json()).persist, false);
+
+    const sessionDelete = await sessionApi.DELETE(
+      new NextRequest("http://localhost/api/session", {
+        method: "DELETE",
+        headers: session.headers,
+      })
+    );
+    assert.equal(sessionDelete.status, 200);
+
+    const swappedDelete = await sessionApi.DELETE(
+      new NextRequest("http://localhost/api/session", {
+        method: "DELETE",
+        headers: {
+          cookie: `${sessionKeyCookieName(session.handle)}=bind-b`,
+          [NOTE_BINDING_HEADER]: session.binding,
+        },
+      })
+    );
+    assert.equal(swappedDelete.status, 409);
+    assert.equal((await swappedDelete.json()).code, "note_switched");
   } finally {
     await fixture.close();
   }
