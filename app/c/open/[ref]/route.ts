@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { applySessionCookies } from "@/app/lib/key";
+import {
+  applyHandleSessionCookie,
+  findHandleForKey,
+  generateSessionHandle,
+} from "@/app/lib/noteSession";
 import { applyNoIndexHeaders } from "@/app/lib/robots";
 import { clientFingerprint, requestCreatorId, resolveNoteRef } from "@/app/lib/creators";
 
@@ -15,10 +19,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     ? await resolveNoteRef(id, ref, clientFingerprint(request.headers))
     : { status: "not_found" as const };
 
-  const target = result.status === "ok" ? "/n" : `/c?error=${result.status === "limited" ? "limited" : "missing_note"}`;
-  // Relative, so the redirect stays on the public origin behind any proxy.
-  const response = new NextResponse(null, { status: 303, headers: { Location: target } });
-  if (result.status === "ok") applySessionCookies(response.cookies, result.key, false);
+  if (result.status !== "ok") {
+    const target = `/c?error=${result.status === "limited" ? "limited" : "missing_note"}`;
+    const response = new NextResponse(null, { status: 303, headers: { Location: target } });
+    applyNoIndexHeaders(response.headers);
+    return response;
+  }
+
+  const handle =
+    findHandleForKey(request.cookies, result.key) ?? generateSessionHandle();
+  const response = new NextResponse(null, {
+    status: 303,
+    headers: { Location: `/n/${handle}` },
+  });
+  applyHandleSessionCookie(
+    response.cookies,
+    request.cookies,
+    handle,
+    result.key,
+    false
+  );
   applyNoIndexHeaders(response.headers);
   return response;
 }

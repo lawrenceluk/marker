@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, normalizeKey } from "@/app/lib/key";
+import { requireNoteKey } from "@/app/lib/noteApi";
 import { markSeen, updateNoteMeta } from "@/app/lib/notes";
 import { applyNoIndexHeaders } from "@/app/lib/robots";
 import { CREATOR_FORBIDDEN, CREATOR_REQUIRED, parseCreatorParams } from "@/app/lib/creators";
@@ -24,8 +24,9 @@ export async function PATCH(request: NextRequest) {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const key = normalizeKey(body.key) ?? normalizeKey(request.cookies.get(SESSION_COOKIE)?.value);
-  if (!key) return json({ error: "Key is required" }, 400);
+  const resolved = requireNoteKey(request, body.key);
+  if (!resolved.ok) return json(resolved.body, resolved.status);
+  const { key } = resolved;
 
   if ("seen" in body && body.seen !== true) return json({ error: "seen must be true" }, 400);
   if ("rev" in body && (!Number.isInteger(body.rev) || (body.rev as number) < 0)) return json({ error: "rev must be a non-negative integer" }, 400);

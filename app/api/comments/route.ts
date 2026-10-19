@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { normalizeKey, SESSION_COOKIE } from "@/app/lib/key";
+import { normalizeKey } from "@/app/lib/key";
+import { requireNoteKey } from "@/app/lib/noteApi";
 import { applyNoIndexHeaders } from "@/app/lib/robots";
 import { readNote, readAccessedNote, commitComments, MAX_CONTENT_BYTES } from "@/app/lib/notes";
 import { applyComments, locateThreads } from "@/app/lib/comments";
@@ -10,15 +11,10 @@ function json(value: unknown, status = 200) {
   response.headers.set("Cache-Control", "no-store, private");
   return response;
 }
-function keyFor(request: NextRequest, explicit: unknown) {
-  return (
-    normalizeKey(explicit) ??
-    normalizeKey(request.cookies.get(SESSION_COOKIE)?.value)
-  );
-}
 export async function GET(request: NextRequest) {
-  const key = keyFor(request, request.nextUrl.searchParams.get("key"));
-  if (!key) return json({ error: "Key is required" }, 400);
+  const resolved = requireNoteKey(request, request.nextUrl.searchParams.get("key"));
+  if (!resolved.ok) return json(resolved.body, resolved.status);
+  const { key } = resolved;
   const status = request.nextUrl.searchParams.get("status") ?? "open";
   if (!["open", "resolved", "all"].includes(status))
     return json({ error: "Invalid status" }, 400);
@@ -46,8 +42,9 @@ export async function POST(request: NextRequest) {
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
-  const key = keyFor(request, body.key);
-  if (!key) return json({ error: "Key is required" }, 400);
+  const resolved = requireNoteKey(request, body.key);
+  if (!resolved.ok) return json(resolved.body, resolved.status);
+  const { key } = resolved;
   if (!Number.isSafeInteger(body.if_rev) || body.if_rev < 0)
     return json({ error: "if_rev is required" }, 400);
   if (body.content !== undefined && typeof body.content !== "string")

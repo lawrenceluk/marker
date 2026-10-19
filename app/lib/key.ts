@@ -104,30 +104,3 @@ export function sessionCookieOptions(persist = false) {
   };
 }
 
-type CookieSetter = {
-  set: (
-    name: string,
-    value: string,
-    options: ReturnType<typeof sessionCookieOptions> & { maxAge?: number }
-  ) => void;
-};
-
-/** Write or clear the pair of session cookies that carry the key and persist flag. */
-export function applySessionCookies(
-  cookies: CookieSetter,
-  key: string,
-  persist: boolean
-) {
-  cookies.set(SESSION_COOKIE, key, sessionCookieOptions(persist));
-  if (persist) {
-    cookies.set(PERSIST_COOKIE, "1", sessionCookieOptions(true));
-  } else {
-    cookies.set(PERSIST_COOKIE, "", { ...sessionCookieOptions(false), maxAge: 0 });
-  }
-}
-
-export function clearSessionCookies(cookies: CookieSetter) {
-  const cleared = { ...sessionCookieOptions(false), maxAge: 0 };
-  cookies.set(SESSION_COOKIE, "", cleared);
-  cookies.set(PERSIST_COOKIE, "", cleared);
-}
