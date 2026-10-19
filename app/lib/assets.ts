@@ -226,6 +226,18 @@ export async function dueSweepMembers(now = Date.now(), limit = 500): Promise<st
   return redis.zrange<string[]>(`${storagePrefix()}assets:sweep`, "-inf", now, { byScore: true, offset: 0, count: limit });
 }
 
+/** Register a namespace before objects exist so a failed duplicate can still be purged. */
+export async function scheduleOrphanAssetNamespace(ns: string, now = Date.now()): Promise<void> {
+  await redis.zadd(`${storagePrefix()}assets:sweep`, {
+    score: now + ASSET_GRACE_MS,
+    member: `${ns}|`,
+  });
+}
+
+export async function clearOrphanAssetNamespace(ns: string): Promise<void> {
+  await redis.zrem(`${storagePrefix()}assets:sweep`, `${ns}|`);
+}
+
 export async function visitSweepMember(member: string, now = Date.now()): Promise<SweepVisit> {
   const [kind, ns, ...removed] = await redis.eval<string[], string[]>(SWEEP_NOTE_SCRIPT, [], [storagePrefix(), member, String(now)]);
   if (kind === "purge") return { kind, ns };

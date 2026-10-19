@@ -19,9 +19,10 @@ import { AssetUrlsProvider, urlsFromAssets } from "./NoteImage";
 import { NoteToolbar } from "./NoteToolbar";
 import { RenameKey } from "./RenameKey";
 import { ScrollActions } from "./ScrollActions";
-import { Toast } from "./Toast";
+import { NoteToast } from "./NoteToast";
 
 const DUPLICATE_ARRIVAL_FLAG = "marker:duplicate-arrival";
+const DUPLICATE_ARRIVAL_DISMISS_MS = 6000;
 import { NoteCreator, creatorFromResponse, type NoteCreatorInfo } from "./NoteCreator";
 import type { ResponseEntry } from "../lib/responses";
 import type { FolderSummary } from "../lib/folders";
@@ -115,7 +116,12 @@ function NoteAppBody({
   const [isRandomizing, setIsRandomizing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
-  const [toast, setToast] = useState<{ message: string; action?: { label: string; onClick: () => void } } | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    action?: { label: string; onClick: () => void };
+    error?: boolean;
+    autoDismissMs?: number;
+  } | null>(null);
   const [isReloading, setIsReloading] = useState(false);
   const [deleteResetKey, setDeleteResetKey] = useState(0);
   const [isComposing, setIsComposing] = useState(false);
@@ -188,8 +194,15 @@ function NoteAppBody({
           setToast(null);
         },
       },
+      autoDismissMs: DUPLICATE_ARRIVAL_DISMISS_MS,
     });
   }, [appState, rawKey, initialKeyLabel]);
+
+  useEffect(() => {
+    if (!toast?.autoDismissMs) return;
+    const id = window.setTimeout(() => setToast(null), toast.autoDismissMs);
+    return () => window.clearTimeout(id);
+  }, [toast]);
 
   // Opening a note from Home pushes `/n`; going Back to `/` should show Home,
   // which the server decides.
@@ -416,21 +429,31 @@ function NoteAppBody({
 
   async function handleDuplicate() {
     setIsDuplicating(true);
-    setError(null);
     setToast({ message: "Duplicating…" });
 
     try {
-      const res = await fetch("/api/content/duplicate", { method: "POST" });
-      const data: { error?: string; key?: string } = await res.json().catch(() => ({}));
+      const res = await noteFetch("/api/content/duplicate", { method: "POST" });
+      const data = await readJsonSafe(res);
+      if (isNoteSwitchedResponse(res.status, data)) {
+        setToast(null);
+        return;
+      }
       if (!res.ok) {
-        throw new Error(data.error || "Couldn't duplicate note. Try again.");
+        setToast({
+          message: apiErrorMessage(data, "Couldn't duplicate note. Try again."),
+          error: true,
+        });
+        return;
       }
       sessionStorage.setItem(DUPLICATE_ARRIVAL_FLAG, "1");
-      window.location.assign("/n");
+      const handle = typeof data.handle === "string" ? data.handle : "";
+      const destKey = typeof data.key === "string" ? normalizeKey(data.key) : null;
+      const url =
+        persist && destKey ? persistPath(destKey) : handle ? `/n/${handle}` : sessionNotePath(tabBinding);
+      window.location.assign(url);
       return;
-    } catch (err) {
-      setToast(null);
-      setError(err instanceof Error ? err.message : "Couldn't duplicate note. Try again.");
+    } catch {
+      setToast({ message: "Couldn't duplicate note. Try again.", error: true });
     } finally {
       setIsDuplicating(false);
     }
@@ -677,7 +700,13 @@ function NoteAppBody({
         )}
       </main>
       {appState !== "idle" && <ScrollActions />}
-      {toast && <Toast message={toast.message} action={toast.action} />}
+      {toast && (
+        <NoteToast
+          message={toast.message}
+          action={toast.action}
+          error={toast.error}
+        />
+      )}
     </div>
     </AssetUrlsProvider>
   );
