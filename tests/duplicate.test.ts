@@ -4,10 +4,15 @@ import { NextRequest } from "next/server";
 import { startRedisRest } from "./helpers/redis-rest";
 import { R2_TEST_ENV, startR2Mock } from "./helpers/r2-mock";
 import { browserNoteSession } from "./helpers/noteSession";
-import { sessionKeyCookieName } from "../app/lib/noteSession";
+import { persistCookieName, sessionKeyCookieName } from "../app/lib/noteSession";
 import { NOTE_BINDING_HEADER, NOTE_SWITCHED_CODE } from "../app/lib/noteClient";
 import { duplicateNoteContent, rewriteAssetReferences } from "../app/lib/duplicate-content";
 import { duplicateRoute } from "./helpers/duplicate-route";
+import { storagePrefix } from "../app/lib/namespace";
+
+async function countNoteHashes(redis: { keys: (pattern: string) => Promise<string[]> }) {
+  return (await redis.keys(`${storagePrefix()}note:*`)).length;
+}
 
 test("duplicate title prefixing: front matter line, heading outside fences, or unchanged", () => {
   const fm = `---
@@ -30,6 +35,22 @@ Paragraph.`;
     duplicateNoteContent(fenced),
     "```\n# Not a title\n```\n\n# [COPY] Real title\n",
   );
+
+  const indentedFence = "    ```\n    # Not a title\n    ```\n\n# Real title\n";
+  assert.equal(
+    duplicateNoteContent(indentedFence),
+    "    ```\n    # Not a title\n    ```\n\n# [COPY] Real title\n",
+  );
+
+  const blockTitle = `---
+title: |
+  Multi line
+  title
+status: ok
+---
+Body`;
+  const blockOut = duplicateNoteContent(blockTitle);
+  assert.ok(blockOut.includes("  [COPY] Multi line"));
 
   const plain = "No title here.\n\nJust text.";
   assert.equal(duplicateNoteContent(plain), plain);
@@ -62,11 +83,10 @@ test("duplicate API and storage: rollback, binding, folder, storage cap, rate li
   const { r2Config } = await import("../app/lib/r2");
   const {
     duplicateNote,
-    recordDuplicateSuccess,
+    reserveDuplicateAttempt,
     duplicateRateStatus,
     DUPLICATES_PER_HOUR,
   } = await import("../app/lib/duplicate");
-  const { storagePrefix } = await import("../app/lib/namespace");
   const { STORAGE_STOP_BYTES } = await import("../app/lib/assetIndex");
   const { redis } = await import("../app/lib/redis");
   const { POST: duplicatePost } = await duplicateRoute();
@@ -104,6 +124,7 @@ test("duplicate API and storage: rollback, binding, folder, storage cap, rate li
   const session = browserNoteSession(bindingKey);
   await contentRoute.POST(req("/api/content", { method: "POST", body: { key: "other-key-that-exists", content: "# Two", if_rev: 0 } }));
   const before = await notes.readNote(bindingKey, true);
+  const noteCountBeforeBinding = await countNoteHashes(redis);
   const bindingRes = await duplicatePost(
     req("/api/content/duplicate", {
       method: "POST",
@@ -117,6 +138,7 @@ test("duplicate API and storage: rollback, binding, folder, storage cap, rate li
   assert.equal(bindingRes.status, 409);
   assert.equal(bindingBody.code, NOTE_SWITCHED_CODE);
   assert.equal((await notes.readNote(bindingKey, true))?.rev, before?.rev);
+  assert.equal(await countNoteHashes(redis), noteCountBeforeBinding);
 
   const created = await contentRoute.POST(
     req("/api/content", {
@@ -124,7 +146,7 @@ test("duplicate API and storage: rollback, binding, folder, storage cap, rate li
       body: { key: "folder-src", content: "# Folder", if_rev: 0, creator_id: true, creator_name: "Team", tags: ["plans"] },
     }),
   );
-  await created.json();
+  const { creator_id } = await created.json();
   const folderSource = await notes.readNote("folder-src", true);
   assert.ok(folderSource?.cid);
   const anon = await duplicateNote("folder-src", "folder-copy-anon", r2Config(), folderSource!, { copyCreator: false });
@@ -132,9 +154,24 @@ test("duplicate API and storage: rollback, binding, folder, storage cap, rate li
   const copyAnon = await notes.readNote("folder-copy-anon", true);
   assert.equal(copyAnon?.cid, null);
   assert.deepEqual(copyAnon?.tags, []);
-  const proof = await duplicateNote("folder-src", "folder-copy-proof", r2Config(), folderSource!, { copyCreator: true });
-  assert.ok(proof.ok);
-  const copyProof = await notes.readNote("folder-copy-proof", true);
+
+  const proofSession = browserNoteSession("folder-src");
+  const proofRes = await duplicatePost(
+    req("/api/content/duplicate", {
+      method: "POST",
+      headers: {
+        cookie: `${proofSession.headers.cookie}; ${persistCookieName(proofSession.handle)}=1`,
+        [NOTE_BINDING_HEADER]: proofSession.binding,
+        authorization: `Bearer ${creator_id}`,
+      },
+    }),
+  );
+  assert.equal(proofRes.status, 200);
+  const proofBody = await proofRes.json();
+  assert.ok(proofBody.success);
+  const proofKey = typeof proofBody.key === "string" ? proofBody.key : "";
+  assert.ok(proofKey);
+  const copyProof = await notes.readNote(proofKey, true);
   assert.equal(copyProof?.cid, folderSource?.cid);
   assert.deepEqual(copyProof?.tags, folderSource?.tags);
   assert.equal(copyProof?.seenRev, 1);
@@ -154,12 +191,93 @@ test("duplicate API and storage: rollback, binding, folder, storage cap, rate li
   assert.equal(storageBlock.ok, false);
   assert.equal(storageBlock.reason, "storage_full");
 
+  const rateKey = "dup-rate-route";
+  await contentRoute.POST(req("/api/content", { method: "POST", body: { key: rateKey, content: "# Rate", if_rev: 0 } }));
+  const rateSession = browserNoteSession(rateKey);
   for (let i = 0; i < DUPLICATES_PER_HOUR; i++) {
-    await recordDuplicateSuccess("note-a", "client-a");
+    assert.equal((await reserveDuplicateAttempt(rateKey, "rate-client")).ok, true);
   }
-  assert.equal((await duplicateRateStatus("note-a", "client-a")).ok, false);
+  const limited = await duplicatePost(
+    req("/api/content/duplicate", { method: "POST", headers: rateSession.headers }),
+  );
+  assert.equal(limited.status, 429);
+  assert.ok(limited.headers.get("Retry-After"));
+
   assert.equal((await duplicateRateStatus("note-b", "client-b")).ok, true);
+
+  const r2Fail = await startR2Mock();
+  Object.assign(process.env, R2_TEST_ENV, { R2_ENDPOINT: r2Fail.url });
+  const sweepKey = `${storagePrefix()}assets:sweep`;
+  await redis.set(`${storagePrefix()}assets:bytes`, 0);
+
+  const rollbackKey = "dup-rollback";
+  await contentRoute.POST(req("/api/content", { method: "POST", body: { key: rollbackKey, content: "# Roll", if_rev: 0 } }));
+  const a = await assetsRoute.POST(
+    req("/api/assets", { method: "POST", body: { key: rollbackKey, content_type: "image/png", data_base64: PNG.toString("base64") } }),
+  );
+  const b = await assetsRoute.POST(
+    req("/api/assets", { method: "POST", body: { key: rollbackKey, content_type: "image/png", data_base64: PNG.toString("base64") } }),
+  );
+  assert.equal(a.status, 200);
+  assert.equal(b.status, 200);
+  const { markdown: mdA } = await a.json();
+  const { markdown: mdB } = await b.json();
+  await contentRoute.POST(
+    req("/api/content", { method: "POST", body: { key: rollbackKey, content: `# Roll\n${mdA}\n${mdB}` } }),
+  );
+  const rollbackSource = await notes.readNote(rollbackKey, true);
+  assert.ok(rollbackSource);
+  assert.equal(Object.keys(rollbackSource!.assets).length, 2);
+  assert.ok(r2Fail.objects.size >= 2, "source assets must live on the active R2 mock");
+  const rollbackBeforeObjects = r2Fail.objects.size;
+  const beforeNotes = await countNoteHashes(redis);
+  const sweepBeforeRollback = await redis.zrange<string[]>(sweepKey, 0, -1);
+
+  r2Fail.failDuplicatePutAfter(2);
+  const rollbackResult = await duplicateNote(rollbackKey, "dup-rollback-dest", r2Config()!, rollbackSource!, { copyCreator: false });
+  assert.equal(rollbackResult.ok, false);
+  assert.equal(rollbackResult.reason, "copy_failed");
+  assert.equal(r2Fail.objects.size, rollbackBeforeObjects);
+  assert.equal(await countNoteHashes(redis), beforeNotes);
+  assert.ok(!(await redis.exists(`${storagePrefix()}note:dup-rollback-dest`)));
+
+  const sweepAfterRollback = await redis.zrange<string[]>(sweepKey, 0, -1);
+  assert.deepEqual(sweepAfterRollback, sweepBeforeRollback, "orphan sweep unchanged after rollback");
+
+  const r2Again = await startR2Mock();
+  Object.assign(process.env, R2_TEST_ENV, { R2_ENDPOINT: r2Again.url });
+
+  const missKey = "dup-missing-r2";
+  await contentRoute.POST(req("/api/content", { method: "POST", body: { key: missKey, content: "# Miss", if_rev: 0 } }));
+  const good = await assetsRoute.POST(
+    req("/api/assets", { method: "POST", body: { key: missKey, content_type: "image/png", data_base64: PNG.toString("base64") } }),
+  );
+  const { asset_id: goodId, markdown: goodMd } = await good.json();
+  const ghostId = "ZZZZZZZZZZZZZZZZZZZZZZ";
+  await contentRoute.POST(
+    req("/api/content", {
+      method: "POST",
+      body: {
+        key: missKey,
+        content: `# Miss\n${goodMd}\n![ghost](marker-asset:${ghostId})`,
+        mode: "overwrite",
+      },
+    }),
+  );
+  const missSource = await notes.readNote(missKey, true);
+  assert.ok(missSource);
+  missSource!.assets[ghostId] = { t: "png", s: 10, c: Date.now() };
+
+  const missDest = "dup-missing-r2-copy";
+  const missResult = await duplicateNote(missKey, missDest, r2Config()!, missSource!, { copyCreator: false });
+  assert.ok(missResult.ok);
+  const copy = await notes.readNote(missDest, true);
+  assert.ok(copy?.content.includes(`marker-asset:${ghostId}`));
+  assert.ok(!copy?.content.includes(`marker-asset:${goodId}`));
+  assert.equal(Object.keys(copy!.assets).length, 1);
 
   await fixture.close();
   await r2.close();
+  await r2Fail.close();
+  await r2Again.close();
 });

@@ -30,7 +30,7 @@ interface NoteToolbarProps {
 
 export function NoteToolbar({
   commentsButton, onHome, showNoteTools = true, persist = false, shareUrl = null,
-  onPersistToggle, persistDisabled = false,   onRename, onChangeKey, onDuplicate, duplicateDisabled = false, content = "",
+  onPersistToggle, persistDisabled = false, onRename, onChangeKey, onDuplicate, duplicateDisabled = false, content = "",
   onEdit, onDelete, deleteDisabled = false, onEditTags,
 }: NoteToolbarProps) {
   return <nav aria-label="Note actions" className="note-toolbar">

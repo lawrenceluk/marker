@@ -27,18 +27,36 @@ function prefixTitleLine(line: string): string {
   return `title: ${COPY_TITLE_PREFIX}${inner}`;
 }
 
+/** Prefix the first non-empty indented line after `title: |` or `title: >`. */
+function prefixTitleBlockScalar(lines: string[], titleLineIndex: number): boolean {
+  const header = lines[titleLineIndex]!;
+  if (!/^title:\s*[|>]/.test(header)) return false;
+  for (let i = titleLineIndex + 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (line.trim() === "") continue;
+    if (!/^\s/.test(line)) break;
+    const content = /^(\s+)(\S.*)$/.exec(line);
+    if (content) {
+      lines[i] = `${content[1]}${COPY_TITLE_PREFIX}${content[2]}`;
+      return true;
+    }
+  }
+  return false;
+}
+
 function prefixFirstHeadingOutsideFences(body: string): string {
   const lines = body.split("\n");
   let inFence = false;
   let fenceMarker = "";
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
-    const open = /^(```+|~~~+)(.*)$/.exec(line);
-    if (open) {
+    const fence = /^(\s*)(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      const marker = fence[2]!;
       if (!inFence) {
         inFence = true;
-        fenceMarker = open[1]!;
-      } else if (line.startsWith(fenceMarker)) {
+        fenceMarker = marker;
+      } else if (line.trimStart().startsWith(fenceMarker)) {
         inFence = false;
         fenceMarker = "";
       }
@@ -60,13 +78,18 @@ export function duplicateNoteContent(content: string): string {
   if (meta?.fields && typeof meta.fields.title === "string") {
     const lines = meta.raw.split("\n");
     let changed = false;
-    const next = lines.map((line) => {
-      if (!/^title:/.test(line)) return line;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
+      if (!/^title:/.test(line)) continue;
+      if (/^title:\s*[|>]/.test(line)) {
+        if (prefixTitleBlockScalar(lines, i)) changed = true;
+        continue;
+      }
+      lines[i] = prefixTitleLine(line);
       changed = true;
-      return prefixTitleLine(line);
-    });
+    }
     if (changed) {
-      const newRaw = next.join("\n");
+      const newRaw = lines.join("\n");
       const start = content.indexOf(meta.raw);
       if (start >= 0) {
         return content.slice(0, start) + newRaw + content.slice(start + meta.raw.length);

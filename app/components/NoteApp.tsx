@@ -8,7 +8,13 @@ import {
   normalizeKey,
   persistPath,
 } from "../lib/key";
-import { apiErrorMessage, isNoteSwitchedResponse, noteApiHeaders, readJsonSafe } from "../lib/noteClient";
+import {
+  apiErrorMessage,
+  isNoteExpiredResponse,
+  isNoteSwitchedResponse,
+  noteApiHeaders,
+  readJsonSafe,
+} from "../lib/noteClient";
 import { useNoteRevision } from "../lib/useNoteRevision";
 import { NoteSessionProvider, useNoteSession } from "./NoteSession";
 import { HomeIdle } from "./HomeIdle";
@@ -150,17 +156,36 @@ function NoteAppBody({
     if (!initialPersist) return;
 
     void noteFetch("/api/session")
-      .then((res) => res.json())
-      .then((data: { persist?: boolean; key?: string }) => {
+      .then(async (res) => {
+        const data = await readJsonSafe(res);
+        if (isNoteExpiredResponse(res.status, data) && persistNoteKey) {
+          setRawKey(persistNoteKey);
+          setPersist(true);
+          window.history.replaceState(null, "", persistPath(persistNoteKey));
+          return;
+        }
+        if (!res.ok) return;
         const key = normalizeKey(data.key);
         if (data.persist && key) {
           setRawKey(key);
           setPersist(true);
           window.history.replaceState(null, "", persistPath(key));
+          return;
+        }
+        if (persistNoteKey) {
+          setRawKey(persistNoteKey);
+          setPersist(true);
+          window.history.replaceState(null, "", persistPath(persistNoteKey));
         }
       })
-      .catch(() => {});
-  }, [initialPersist, noteFetch]);
+      .catch(() => {
+        if (persistNoteKey) {
+          setRawKey(persistNoteKey);
+          setPersist(true);
+          window.history.replaceState(null, "", persistPath(persistNoteKey));
+        }
+      });
+  }, [initialPersist, noteFetch, persistNoteKey]);
 
   // Seeing the page is what marks a note seen. It runs after hydration (link unfurlers and
   // other bots that only fetch HTML never count) and waits until the tab is visible. It names
@@ -434,7 +459,7 @@ function NoteAppBody({
     try {
       const res = await noteFetch("/api/content/duplicate", { method: "POST" });
       const data = await readJsonSafe(res);
-      if (isNoteSwitchedResponse(res.status, data)) {
+      if (isNoteSwitchedResponse(res.status, data) || isNoteExpiredResponse(res.status, data)) {
         setToast(null);
         return;
       }

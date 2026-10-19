@@ -5,11 +5,7 @@ import {
   noteSwitchedBody,
   resolveNoteKey,
 } from "@/app/lib/noteSession";
-import {
-  duplicateNote,
-  duplicateRateStatus,
-  recordDuplicateSuccess,
-} from "@/app/lib/duplicate";
+import { duplicateNote, reserveDuplicateAttempt } from "@/app/lib/duplicate";
 import { clientFingerprint, creatorHash, requestCreatorId } from "@/app/lib/creators";
 import { readNote } from "@/app/lib/notes";
 import { applyNoIndexHeaders } from "@/app/lib/robots";
@@ -62,7 +58,7 @@ export async function POST(request: NextRequest) {
   }
 
   const client = clientFingerprint(request.headers);
-  const rate = await duplicateRateStatus(sourceKey, client);
+  const rate = await reserveDuplicateAttempt(sourceKey, client);
   if (!rate.ok) {
     return json(
       { error: "Too many duplicates for this note. Try again later." },
@@ -81,7 +77,6 @@ export async function POST(request: NextRequest) {
       copyCreator,
     });
     if (result.ok) {
-      await recordDuplicateSuccess(sourceKey, client);
       const handle = generateSessionHandle();
       const response = json({
         success: true,

@@ -33,6 +33,35 @@ const newAssetNs = () => randomBytes(12).toString("base64url");
 const duplicateRateKey = (kind: "note" | "client", id: string) =>
   `${storagePrefix()}rl:dup:${kind}:${createHash("sha256").update(id).digest("hex").slice(0, 32)}`;
 
+const DUPLICATE_RATE_TTL_SECONDS = 3600;
+
+/**
+ * Reserve one duplicate attempt (per note and per client) before any copy work.
+ * INCR + EXPIRE-on-first-use in one script. Over-limit attempts still increment
+ * (failed tries count toward the cap). Every counter always gets a TTL.
+ */
+const DUPLICATE_RATE_SCRIPT = `
+local noteRl, clientRl = KEYS[1], KEYS[2]
+local limit = tonumber(ARGV[1])
+local ttl = tonumber(ARGV[2])
+local function bump(key)
+  local used = redis.call('INCR', key)
+  if used == 1 then redis.call('EXPIRE', key, ttl) end
+  return used
+end
+local noteUsed = bump(noteRl)
+local clientUsed = bump(clientRl)
+if noteUsed > limit or clientUsed > limit then
+  local noteTtl = redis.call('TTL', noteRl)
+  local clientTtl = redis.call('TTL', clientRl)
+  local retry = noteTtl
+  if clientTtl > retry then retry = clientTtl end
+  if retry < 1 then retry = ttl end
+  return {'rate_limited', tostring(retry)}
+end
+return {'ok'}
+`;
+
 /**
  * KEYS: dest hash, dest legacy, source hash. ARGV: prefix, source key, dest key,
  * content, now, title, asset_ns, assets json, copy_creator ('1' or '').
@@ -115,6 +144,7 @@ function copyableAssetIds(content: string, source: Note): string[] {
   return referencedAssetIds(content).filter((id) => Boolean(source.assets[id]));
 }
 
+/** Read-only check (tests); live traffic uses reserveDuplicateAttempt. */
 export async function duplicateRateStatus(
   noteKey: string,
   client: string,
@@ -130,11 +160,20 @@ export async function duplicateRateStatus(
   return { ok: true };
 }
 
-export async function recordDuplicateSuccess(noteKey: string, client: string): Promise<void> {
-  for (const key of [duplicateRateKey("note", noteKey), duplicateRateKey("client", client)]) {
-    const used = await redis.incr(key);
-    if (used === 1) await redis.expire(key, 3600);
+/** Atomic per-note and per-client duplicate attempt reservation (counts failures too). */
+export async function reserveDuplicateAttempt(
+  noteKey: string,
+  client: string,
+): Promise<{ ok: true } | { ok: false; retryAfter: number }> {
+  const [kind, retry] = await redis.eval<string[], string[]>(
+    DUPLICATE_RATE_SCRIPT,
+    [duplicateRateKey("note", noteKey), duplicateRateKey("client", client)],
+    [String(DUPLICATES_PER_HOUR), String(DUPLICATE_RATE_TTL_SECONDS)],
+  );
+  if (kind === "rate_limited") {
+    return { ok: false, retryAfter: Math.max(1, Number(retry) || DUPLICATE_RATE_TTL_SECONDS) };
   }
+  return { ok: true };
 }
 
 async function preflightStorage(addBytes: number): Promise<
@@ -158,6 +197,23 @@ async function preflightStorage(addBytes: number): Promise<
   return { ok: true, warn: warnFlag === "1", totalBytes: Number(total) || 0 };
 }
 
+async function deleteCopiedObjects(
+  config: R2Config,
+  objectKeys: string[],
+): Promise<boolean> {
+  const results = await Promise.allSettled(objectKeys.map((key) => deleteObject(config, key)));
+  return results.every((r) => r.status === "fulfilled");
+}
+
+async function rollbackCopiedAssets(
+  config: R2Config,
+  assetNs: string,
+  copiedKeys: string[],
+): Promise<void> {
+  const allDeleted = await deleteCopiedObjects(config, copiedKeys);
+  if (allDeleted) await clearOrphanAssetNamespace(assetNs);
+}
+
 async function copyReferencedAssets(
   config: R2Config,
   source: Note,
@@ -179,11 +235,21 @@ async function copyReferencedAssets(
   try {
     for (const oldId of ids) {
       const asset = source.assets[oldId]!;
+      let body: Uint8Array;
+      try {
+        body = await getObject(config, objectKey(source.assetNs!, oldId));
+      } catch {
+        continue;
+      }
       const newId = newAssetId();
       idMap[oldId] = newId;
-      const body = await getObject(config, objectKey(source.assetNs!, oldId));
       const destKey = objectKey(ns, newId);
-      await putObject(config, destKey, body, storedContentType(asset.t));
+      try {
+        await putObject(config, destKey, body, storedContentType(asset.t));
+      } catch {
+        await rollbackCopiedAssets(config, ns, copiedKeys);
+        return { ok: false };
+      }
       copiedKeys.push(destKey);
       assets[newId] = { t: asset.t, s: asset.s, c: now };
     }
@@ -194,15 +260,9 @@ async function copyReferencedAssets(
       assets,
     };
   } catch {
-    await Promise.allSettled(copiedKeys.map((key) => deleteObject(config, key)));
-    await clearOrphanAssetNamespace(ns);
+    await rollbackCopiedAssets(config, ns, copiedKeys);
     return { ok: false };
   }
-}
-
-async function purgeCopiedAssets(config: R2Config, assetNs: string, assets: Record<string, StoredAsset>) {
-  await Promise.allSettled(Object.keys(assets).map((id) => deleteObject(config, objectKey(assetNs, id))));
-  await clearOrphanAssetNamespace(assetNs);
 }
 
 export async function duplicateNote(
@@ -267,8 +327,14 @@ export async function duplicateNote(
     ],
   );
 
-  if (result[0] === "ok") return { ok: true, key: destKey, warn: false };
-  if (config && assetNs) await purgeCopiedAssets(config, assetNs, assets);
+  if (result[0] === "ok") {
+    if (assetNs) await clearOrphanAssetNamespace(assetNs);
+    return { ok: true, key: destKey, warn: false };
+  }
+  if (config && assetNs) {
+    const keys = Object.keys(assets).map((id) => objectKey(assetNs, id));
+    await rollbackCopiedAssets(config, assetNs, keys);
+  }
   if (result[0] === "storage_full") return { ok: false, reason: "storage_full" };
   if (result[0] === "exists") return { ok: false, reason: "exists" };
   if (result[0] === "not_found") return { ok: false, reason: "not_found" };

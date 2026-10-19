@@ -48,6 +48,16 @@ function handleFromUrl(url: string) {
   return match[1];
 }
 
+async function sessionHandleForKey(
+  context: import("@playwright/test").BrowserContext,
+  key: string,
+) {
+  const prefix = "marker_sk_";
+  const match = (await context.cookies()).find((c) => c.name.startsWith(prefix) && c.value === key);
+  if (!match) throw new Error(`no session handle cookie for key ${key}`);
+  return match.name.slice(prefix.length);
+}
+
 async function desyncSessionCookie(page: Page, key: string) {
   const handle = handleFromUrl(page.url());
   const existing = (await page.context().cookies()).find((c) => c.name === sessionKeyCookieName(handle));
@@ -183,4 +193,18 @@ test("stale tab duplicate returns 409 without creating a copy", async ({ browser
   const listed = await request.get(`/api/content?key=${encodeURIComponent(keyA)}`);
   expect((await listed.json()).content).toContain("alpha.");
   await context.close();
+});
+
+test("persist tab with evicted handle cookie falls back to persist URL", async ({ page, request }, info) => {
+  const key = `dup-persist-fallback-${info.project.name}-${Date.now()}`;
+  await request.post("/api/content", { data: { key, content: "# Persist\n", if_rev: 0 } });
+  await page.goto(`/?key=${encodeURIComponent(key)}&persist=1`);
+  await expect(page.getByRole("heading", { name: "Persist" })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`\\?key=${encodeURIComponent(key).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*persist=1`));
+
+  const handle = await sessionHandleForKey(page.context(), key);
+  await page.context().clearCookies({ name: sessionKeyCookieName(handle) });
+  await page.reload();
+  await expect(page).toHaveURL(new RegExp(`\\?key=${encodeURIComponent(key).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}.*persist=1`));
+  await expect(page.getByRole("heading", { name: "Persist" })).toBeVisible();
 });
