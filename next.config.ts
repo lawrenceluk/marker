@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/og": ["./node_modules/geist/dist/fonts/geist-sans/Geist-Regular.ttf"],
   },
+  async rewrites() {
+    return [{ source: "/.well-known/llms.txt", destination: "/llms.txt" }];
+  },
   async headers() {
     const common = [
       { key: "X-Robots-Tag", value: ROBOTS_TAG },
