@@ -61,6 +61,9 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistItalic.variable} ${geistMono.variable}`}
     >
+      <head>
+        <link rel="alternate" type="text/plain" href="/llms.txt" />
+      </head>
       <body className="antialiased"><PreviewProvider preview={process.env.VERCEL_ENV === "preview"}>{children}</PreviewProvider></body>
     </html>
   );

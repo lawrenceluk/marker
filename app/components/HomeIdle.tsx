@@ -3,8 +3,7 @@
 import { CopyButton } from "./CopyButton";
 import { KeyInput } from "./KeyInput";
 import { secondaryButtonClass } from "./controlStyles";
-import { MARKER_AGENT_PROMPT } from "../lib/agentPrompt";
-import { REACTION_AGENT_PROMPT } from "../lib/reactionAgentPrompt";
+import { HOME_AGENT_PROMPT } from "../lib/agentPrompt";
 import type { FolderSummary } from "../lib/folders";
 import { RememberedFolders } from "./RememberedFolders";
 import { PreviewTag } from "./Preview";
@@ -35,11 +34,12 @@ export function HomeIdle({
           <p className="text-sm leading-relaxed text-muted">
             A private markdown pastebin. Each note lives at a secret key that is
             both its address and its password — no accounts. Use it in the browser,
-            or from AI agents over a small HTTP API.
+            or from AI agents over a small HTTP API; agents can read the instructions at{" "}
+            <a href="/llms.txt" className="underline underline-offset-2">/llms.txt</a>.
           </p>
         </div>
         <CopyButton
-          text={`${MARKER_AGENT_PROMPT}\n\n${REACTION_AGENT_PROMPT}`}
+          text={HOME_AGENT_PROMPT}
           label="Copy agent prompt"
           copiedLabel="Copied agent prompt"
           className={`w-full ${secondaryButtonClass("md")}`}
