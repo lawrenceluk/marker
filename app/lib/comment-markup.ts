@@ -14,52 +14,81 @@ export function commentMarkup(source: string, comments: LocatedThread[]) {
         const start = node.position?.start.offset,
           end = node.position?.end.offset;
         if (start === undefined || end === undefined) return [node];
-        const exact = source.slice(start, end) === node.value;
-        const intersecting = comments.filter(
-          (t) =>
-            !t.resolved &&
-            t.location.state === "attached" &&
-            t.location.start < end &&
-            t.location.end > start,
+        return sourceSegments(source, node.value, start, end).flatMap(
+          (segment) => markSegment(segment),
         );
-        const cuts = new Set([0, node.value.length]);
-        if (exact)
-          for (const t of intersecting)
-            if (t.location.state === "attached") {
-              cuts.add(Math.max(0, t.location.start - start));
-              cuts.add(Math.min(node.value.length, t.location.end - start));
-            }
-        const points = [...cuts].sort((a, b) => a - b);
-        return points.slice(0, -1).map((from, index): HastElement => {
-          const to = points[index + 1];
-          const rawStart = exact ? start + from : start,
-            rawEnd = exact ? start + to : end;
-          const ids = intersecting
-            .filter(
-              (t) =>
-                t.location.state === "attached" &&
-                t.location.start < rawEnd &&
-                t.location.end > rawStart,
-            )
-            .map((t) => t.id);
-          return {
-            type: "element",
-            tagName: ids.length ? "mark" : "span",
-            properties: {
-              "data-source-start": rawStart,
-              "data-source-end": rawEnd,
-              "data-source-exact": String(exact),
-              ...(ids.length ? { "data-comments": ids.join(" ") } : {}),
-            },
-            children: [
-              { type: "text", value: node.value.slice(from, to) } as Text,
-            ],
-          };
-        });
+      });
+    }
+    function markSegment({ value, start, end, exact }: SourceSegment): HastElement[] {
+      const intersecting = comments.filter(
+        (t) =>
+          !t.resolved &&
+          t.location.state === "attached" &&
+          t.location.start < end &&
+          t.location.end > start,
+      );
+      const cuts = new Set([0, value.length]);
+      if (exact)
+        for (const t of intersecting)
+          if (t.location.state === "attached") {
+            cuts.add(Math.max(0, t.location.start - start));
+            cuts.add(Math.min(value.length, t.location.end - start));
+          }
+      const points = [...cuts].sort((a, b) => a - b);
+      return points.slice(0, -1).map((from, index): HastElement => {
+        const to = points[index + 1];
+        const rawStart = exact ? start + from : start,
+          rawEnd = exact ? start + to : end;
+        const ids = intersecting
+          .filter(
+            (t) =>
+              t.location.state === "attached" &&
+              t.location.start < rawEnd &&
+              t.location.end > rawStart,
+          )
+          .map((t) => t.id);
+        return {
+          type: "element",
+          tagName: ids.length ? "mark" : "span",
+          properties: {
+            "data-source-start": rawStart,
+            "data-source-end": rawEnd,
+            "data-source-exact": String(exact),
+            ...(ids.length ? { "data-comments": ids.join(" ") } : {}),
+          },
+          children: [
+            { type: "text", value: value.slice(from, to) } as Text,
+          ],
+        };
       });
     }
     walk(tree);
   };
+}
+
+type SourceSegment = { value: string; start: number; end: number; exact: boolean };
+
+/**
+ * Container syntax inside a multi-line text node (`> ` in block quotes, list continuation indent)
+ * is dropped from the rendered value, so the node as a whole is not a verbatim source slice.
+ * Split it into lines that each are, keeping partial selections mappable.
+ */
+export function sourceSegments(source: string, value: string, start: number, end: number): SourceSegment[] {
+  if (source.slice(start, end) === value) return [{ value, start, end, exact: true }];
+  const whole = [{ value, start, end, exact: false }];
+  const lines = value.split("\n");
+  if (lines.length < 2) return whole;
+  const segments: SourceSegment[] = [];
+  let at = start;
+  for (const [index, line] of lines.entries()) {
+    if (index > 0)
+      while (at < end && !source.startsWith(line, at) && /[ \t>]/.test(source[at])) at++;
+    const piece = index < lines.length - 1 ? line + "\n" : line;
+    if (!source.startsWith(piece, at) || at + piece.length > end) return whole;
+    if (piece) segments.push({ value: piece, start: at, end: at + piece.length, exact: true });
+    at += piece.length;
+  }
+  return at === end ? segments : whole;
 }
 
 export function sourceSelection(
