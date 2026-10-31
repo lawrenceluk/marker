@@ -2,7 +2,7 @@ import { ogBodyText } from "./preview";
 
 /** Display only: selections can cut off a closing Markdown delimiter. */
 export function plainQuote(source: string): string {
-  return ogBodyText(source, 8000)
+  return ogBodyText(source.replace(/^[ \t]*(?:>[ \t]*)+/gm, ""), 8000)
     .replace(/(^|\s)[*_~`\[]+(?=\S)/g, "$1")
     .replace(/[*_~`\]]+$/g, "")
     .replace(/\s+/g, " ")

@@ -243,3 +243,42 @@ test("raw editor remaps the third repeated phrase and retains its thread", async
     state.comments[0].location.start,
   );
 });
+
+test("comment on a partial selection inside a multi-line block quote survives reload", async ({
+  page,
+  request,
+}, info) => {
+  const touch = info.project.name === "iphone-webkit";
+  const key = `blockquote-${info.project.name}`;
+  const content = "Intro paragraph.\n\n> The first quoted line\n> and the **second** line here\n> with a third.";
+  await request.post("/api/content", { data: { key, content } });
+  await page.goto(`/?key=${key}&persist=1`);
+  await expect(page.getByRole("button", { name: "Comments (0 open)", exact: true })).toBeVisible();
+  await page.locator(".prose blockquote").evaluate((quote) => {
+    const walker = document.createTreeWalker(quote, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+    const start = nodes.find((n) => n.data.includes("first quoted"))!;
+    const end = nodes.find((n) => n.data.includes("and the "))!;
+    const range = document.createRange();
+    range.setStart(start, start.data.indexOf("quoted"));
+    range.setEnd(end, end.data.indexOf("and the ") + 7);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+  });
+  const icon = page.getByRole("button", { name: "Comment on selection" });
+  await expect(icon).toBeVisible();
+  await activate(icon, touch);
+  await expect(page.getByLabel("Comment as You")).toBeFocused();
+  await page.keyboard.type("Quote comment");
+  if (touch) await activate(page.getByRole("button", { name: "Send comment", exact: true }), true);
+  else await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Comments (1 open)", exact: true })).toBeVisible();
+  const snapshot = await (await request.get(`/api/comments?key=${key}`)).json();
+  expect(snapshot.comments[0].anchor.exact).toBe("quoted line\n> and the");
+  await page.reload();
+  const marks = page.locator(".prose blockquote mark");
+  await expect(marks).toHaveText(["quoted line", "", "and the"]);
+  await activate(marks.first(), touch);
+  await expect(page.getByText("Quote comment", { exact: true })).toBeVisible();
+});
