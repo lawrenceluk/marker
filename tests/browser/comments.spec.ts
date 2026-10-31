@@ -278,7 +278,7 @@ test("comment on a partial selection inside a multi-line block quote survives re
   expect(snapshot.comments[0].anchor.exact).toBe("quoted line\n> and the");
   await page.reload();
   const marks = page.locator(".prose blockquote mark");
-  await expect(marks).toHaveText(["quoted line\n", "and the"]);
+  await expect(marks).toHaveText(["quoted line", "", "and the"]);
   await activate(marks.first(), touch);
   await expect(page.getByText("Quote comment", { exact: true })).toBeVisible();
 });

@@ -70,8 +70,9 @@ type SourceSegment = { value: string; start: number; end: number; exact: boolean
 
 /**
  * Container syntax inside a multi-line text node (`> ` in block quotes, list continuation indent)
- * is dropped from the rendered value, so the node as a whole is not a verbatim source slice.
- * Split it into lines that each are, keeping partial selections mappable.
+ * and trailing line whitespace are dropped from the rendered value, so the node as a whole is not
+ * a verbatim source slice. Split it into lines that each are, joined by inexact line breaks that
+ * span the dropped syntax, keeping partial selections mappable.
  */
 export function sourceSegments(source: string, value: string, start: number, end: number): SourceSegment[] {
   if (source.slice(start, end) === value) return [{ value, start, end, exact: true }];
@@ -81,12 +82,19 @@ export function sourceSegments(source: string, value: string, start: number, end
   const segments: SourceSegment[] = [];
   let at = start;
   for (const [index, line] of lines.entries()) {
-    if (index > 0)
-      while (at < end && !source.startsWith(line, at) && /[ \t>]/.test(source[at])) at++;
-    const piece = index < lines.length - 1 ? line + "\n" : line;
-    if (!source.startsWith(piece, at) || at + piece.length > end) return whole;
-    if (piece) segments.push({ value: piece, start: at, end: at + piece.length, exact: true });
-    at += piece.length;
+    const text = index < lines.length - 1 ? line.replace(/\r$/, "") : line;
+    if (!source.startsWith(text, at)) return whole;
+    if (text) segments.push({ value: text, start: at, end: at + text.length, exact: true });
+    at += text.length;
+    if (index === lines.length - 1) break;
+    const lineEnd = /^[ \t]*\r?\n/.exec(source.slice(at, end));
+    if (!lineEnd) return whole;
+    const breakStart = at;
+    at += lineEnd[0].length;
+    const next = lines[index + 1].replace(/\r$/, "");
+    while (at < end && !source.startsWith(next, at) && /[ \t>]/.test(source[at])) at++;
+    const rendered = line.slice(text.length) + "\n";
+    segments.push({ value: rendered, start: breakStart, end: at, exact: source.slice(breakStart, at) === rendered });
   }
   return at === end ? segments : whole;
 }

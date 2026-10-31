@@ -7,6 +7,7 @@ import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { quoteAt } from "../app/lib/anchors";
 import { commentMarkup, sourceSegments } from "../app/lib/comment-markup";
+import { plainQuote } from "../app/lib/comment-presentation";
 import { locateThreads, type Thread } from "../app/lib/comments";
 
 type Span = { text: string; start: number; end: number; exact: boolean; comments?: string };
@@ -104,10 +105,35 @@ test("a saved comment inside a quote highlights exactly its words after re-rende
   const source = "> alpha beta\n> gamma delta";
   const start = source.indexOf("beta"), end = source.indexOf("gamma") + 5;
   const marked = spans(source, [thread(source, start, end)]).filter((s) => s.comments);
-  assert.deepEqual(marked.map((s) => s.text), ["beta\n", "gamma"]);
+  assert.deepEqual(marked.map((s) => s.text), ["beta", "\n", "gamma"]);
+  // A comment on just the hidden `> ` marker still gets a highlight to click.
+  const gap = source.indexOf("> gamma");
+  assert.deepEqual(spans(source, [thread(source, gap, gap + 2)]).filter((s) => s.comments).map((s) => s.text), ["\n"]);
+});
+
+test("trailing whitespace, CRLF, lazy lines and links across quoted lines stay anchorable", () => {
+  for (const [source, rendered, raw] of [
+    ["> one \n> two", "two", "two"],
+    ["> one\t\n> two words", "one\ntwo", "one\t\n> two"],
+    ["> one\r\n> two words", "two", "two"],
+    ["> one\r\n> two words", "one\r\ntwo", "one\r\n> two"],
+    ["> one\nlazy continuation", "lazy", "lazy"],
+    ["> see [the\n> docs](https://example.com) here", "docs here", "docs](https://example.com) here"],
+  ]) {
+    const list = spans(source);
+    for (const span of list) if (span.exact) assert.equal(source.slice(span.start, span.end), span.text);
+    const range = select(list, rendered);
+    assert.ok(range, `"${rendered}" in ${JSON.stringify(source)} is commentable`);
+    assert.equal(source.slice(range.start, range.end), raw);
+  }
 });
 
 test("sourceSegments falls back to one inexact segment when lines cannot be aligned", () => {
   assert.deepEqual(sourceSegments("a &amp; b", "a & b", 0, 9), [{ value: "a & b", start: 0, end: 9, exact: false }]);
   assert.deepEqual(sourceSegments("x\n> &amp;", "x\n&", 0, 9), [{ value: "x\n&", start: 0, end: 9, exact: false }]);
+});
+
+test("quote labels drop nested quote markers", () => {
+  assert.equal(plainQuote("a\n> > b"), "a b");
+  assert.equal(plainQuote("quoted line\n> and the"), "quoted line and the");
 });
