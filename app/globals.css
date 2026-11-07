@@ -248,7 +248,8 @@ body {
 .code-block:is(:hover, :focus-within) .code-copy, .code-copy[data-copy-status="copied"], .code-copy[data-copy-status="failed"] { opacity: 1; }
 .code-copy:hover { color: var(--foreground); border-color: var(--rule-ink); }
 .code-copy:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; color: var(--foreground); }
-@media (hover: none) { .code-copy { opacity: 1; } }
+/* Always shown on touch, so give it its own strip above the code instead of covering the first line. */
+@media (hover: none) { .code-copy { opacity: 1; } .prose .code-block > pre { padding-top: 2.5rem; } }
 @media (prefers-reduced-motion: reduce) { .code-copy { transition: none; } }
 @media print { .code-copy { display: none; } }
 

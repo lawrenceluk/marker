@@ -31,7 +31,7 @@ function answer(context: ReactionContextValue, id: string) {
 }
 
 /** A code block's text as written: hast text only (comment marks wrap text, add none), minus the newline the fence ends with. */
-export function codeBlockText(node: Element | undefined): string {
+function codeBlockText(node: Element | undefined): string {
   const collect = (child: ElementContent): string =>
     child.type === "text" ? child.value : child.type === "element" ? child.children.map(collect).join("") : "";
   return (node?.children.map(collect).join("") ?? "").replace(/\n$/, "");
