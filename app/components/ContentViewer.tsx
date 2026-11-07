@@ -3,6 +3,7 @@
 import { Children, createContext, isValidElement, useContext, useMemo } from "react";
 import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Copy } from "lucide-react";
 import { commentMarkup } from "../lib/comment-markup";
 import type { LocatedThread } from "../lib/comments";
 import { reactionBlocks, type ReactionBlock, type ResponseEntry } from "../lib/responses";
@@ -11,6 +12,8 @@ import { NoteImage, markerUrlTransform } from "./NoteImage";
 import { NoteEmbed } from "./NoteEmbed";
 import { EMBED_SCHEME } from "../lib/embedPolicy";
 import { tableShapes } from "../lib/tableShape";
+import { CopyButton } from "./CopyButton";
+import type { Element, ElementContent } from "hast";
 
 export type ResponseChange = { block_id: string; selections: string[]; free_text: string };
 type ReactionContextValue = {
@@ -25,6 +28,13 @@ const ReactionContext = createContext<ReactionContextValue | null>(null);
 
 function answer(context: ReactionContextValue, id: string) {
   return context.drafts[id] ?? context.responses.find(entry => entry.block_id === id);
+}
+
+/** A code block's text as written: hast text only (comment marks wrap text, add none), minus the newline the fence ends with. */
+function codeBlockText(node: Element | undefined): string {
+  const collect = (child: ElementContent): string =>
+    child.type === "text" ? child.value : child.type === "element" ? child.children.map(collect).join("") : "";
+  return (node?.children.map(collect).join("") ?? "").replace(/\n$/, "");
 }
 
 const urlTransform = (url: string) => markerUrlTransform(url, defaultUrlTransform);
@@ -54,7 +64,13 @@ const markdownComponents: Components = {
   pre: function ReactionAsk({ node, children, ...props }) {
     const context = useContext(ReactionContext);
     const block = context?.blocks.get(node?.position?.start.offset ?? -1);
-    if (block?.kind !== "ask" || !context) return <pre {...props}>{children}</pre>;
+    if (block?.kind !== "ask" || !context) {
+      // The button sits outside the scrolling <pre>, so it stays pinned top-right while a wide block scrolls.
+      return <div className="code-block">
+        <pre {...props}>{children}</pre>
+        <CopyButton text={codeBlockText(node)} label="Copy" copiedLabel="Copied" icon="with-label" idleIcon={Copy} className="code-copy" iconSize={14} />
+      </div>;
+    }
     const current = answer(context, block.id);
     const selections = current?.selections ?? [];
     const freeText = current?.free_text ?? "";

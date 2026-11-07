@@ -16,6 +16,7 @@ interface CopyButtonProps {
   icon?: boolean | "with-label";
   idleIcon?: LucideIcon;
   tooltipAlign?: "start" | "center" | "end";
+  iconSize?: number;
 }
 
 const defaultClassName = secondaryButtonClass();
@@ -29,6 +30,7 @@ export function CopyButton({
   icon = false,
   idleIcon: IdleIcon = Copy,
   tooltipAlign,
+  iconSize = 18,
 }: CopyButtonProps) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const timeoutRef = useRef<number | null>(null);
@@ -77,7 +79,7 @@ export function CopyButton({
       data-copy-status={status}
       className={className ?? (icon ? toolbarButtonClass : defaultClassName)}
     >
-      {icon && <StatusIcon size={18} aria-hidden="true" />}
+      {icon && <StatusIcon size={iconSize} aria-hidden="true" />}
       {icon !== true && statusLabel}
       {icon === true ? <ToolbarTooltip label={statusLabel} align={tooltipAlign} /> : null}
     </button>
