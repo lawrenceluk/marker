@@ -237,6 +237,21 @@ body {
   margin-bottom: 1.25rem;
 }
 
+/*
+ * Fenced code blocks carry a Copy button pinned top-right. It lives in a wrapper outside the
+ * scrolling <pre>, so a wide block scrolls under it. Quiet until the block is hovered or focused
+ * on desktop; always shown where there is no hover.
+ */
+.prose .code-block { position: relative; margin-bottom: 1.25rem; }
+.prose .code-block > pre { margin-bottom: 0; }
+.code-copy { position: absolute; top: 0.5rem; right: 0.5rem; display: inline-flex; align-items: center; gap: 0.25rem; height: 1.75rem; padding: 0 0.5rem; border: 1px solid var(--hairline); border-radius: 999px; background: color-mix(in srgb, var(--background) 92%, transparent); color: var(--muted); font-family: var(--font-sans); font-size: var(--text-xs); line-height: 1; cursor: pointer; user-select: none; -webkit-user-select: none; opacity: 0; transition: opacity var(--duration-quick) var(--ease-out), color var(--duration-quick) var(--ease-out); }
+.code-block:is(:hover, :focus-within) .code-copy, .code-copy[data-copy-status="copied"], .code-copy[data-copy-status="failed"] { opacity: 1; }
+.code-copy:hover { color: var(--foreground); border-color: var(--rule-ink); }
+.code-copy:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; color: var(--foreground); }
+@media (hover: none) { .code-copy { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .code-copy { transition: none; } }
+@media print { .code-copy { display: none; } }
+
 .prose pre code {
   background: transparent;
   padding: 0;
