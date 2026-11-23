@@ -18,7 +18,7 @@ import { useNoteRevision } from "../lib/useNoteRevision";
 import { NoteSessionProvider, useNoteSession } from "./NoteSession";
 import { HomeControls } from "./HomeEntry";
 import { CommentedViewer } from "./CommentedViewer";
-import { bodyWithoutFrontMatter, frontMatterOpening, type FrontMatter } from "../lib/frontmatterBody";
+import { bodyWithoutFrontMatter, FRONT_MATTER_HEADER, type FrontMatter } from "../lib/frontmatterBody";
 import { AssetUrlsProvider, urlsFromAssets } from "./NoteImage";
 import { NoteToolbar } from "./NoteToolbar";
 import { RenameKey } from "./RenameKey";
@@ -64,18 +64,6 @@ interface NoteAppProps {
 }
 
 const NO_URLS: Record<string, string> = {};
-
-async function parseEditedFrontMatter(content: string) {
-  if (!frontMatterOpening(content)) return null;
-  try {
-    const { frontMatter } = await import("../lib/frontmatter");
-    return frontMatter(content);
-  } catch {
-    // Recover the server-rendered snapshot if the on-demand chunk cannot load.
-    window.location.reload();
-    return null;
-  }
-}
 
 export function NoteApp(props: NoteAppProps) {
   return (
@@ -248,8 +236,8 @@ function NoteAppBody({
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const handleCommentChange = useCallback(async (next: string, revision: number, nextResponses: ResponseEntry[]) => {
-    if (next !== content) setMetadata(await parseEditedFrontMatter(next));
+  const handleCommentChange = useCallback(async (next: string, revision: number, nextResponses: ResponseEntry[], frontMatter?: FrontMatter | null) => {
+    if (next !== content) setMetadata(frontMatter ?? null);
     setContent(next);
     setOriginalContent(next);
     setRev(revision);
@@ -276,7 +264,7 @@ function NoteAppBody({
     try {
       const res = await noteFetch("/api/content", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", [FRONT_MATTER_HEADER]: "1" },
         body: JSON.stringify({
           content,
           ...(forceOverwrite || rev === null ? {} : { if_rev: rev }),
@@ -300,7 +288,7 @@ function NoteAppBody({
         throw new Error(apiErrorMessage(data, "Couldn't save note. Try again."));
       }
 
-      if (content !== originalContent) setMetadata(await parseEditedFrontMatter(content));
+      if (content !== originalContent) setMetadata((data.front_matter as FrontMatter | null | undefined) ?? null);
       setOriginalContent(content);
       setRev(typeof data.rev === "number" ? data.rev : null);
       setForceOverwrite(false);
@@ -322,7 +310,7 @@ function NoteAppBody({
     setError(null);
 
     try {
-      const res = await noteFetch("/api/content");
+      const res = await noteFetch("/api/content", { headers: { [FRONT_MATTER_HEADER]: "1" } });
       const data = await readJsonSafe(res);
 
       if (isNoteSwitchedResponse(res.status, data)) return;
@@ -339,7 +327,7 @@ function NoteAppBody({
 
       if (data.exists) {
         const nextContent = typeof data.content === "string" ? data.content : "";
-        setMetadata(await parseEditedFrontMatter(nextContent));
+        setMetadata((data.front_matter as FrontMatter | null | undefined) ?? null);
         setContent(nextContent);
         setOriginalContent(nextContent);
         setResponses(Array.isArray(data.responses) ? data.responses : []);

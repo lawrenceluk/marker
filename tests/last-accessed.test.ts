@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { NextRequest } from "next/server";
 import { startRedisRest } from "./helpers/redis-rest";
 
-test("reads throttle access, preserve revisions and expiry, and migrate legacy notes", async () => {
+test("reads throttle access, preserve revisions and expiry, and migrate legacy notes", async (t) => {
   const fixture = await startRedisRest();
   process.env.KV_REST_API_URL = fixture.url;
   process.env.KV_REST_API_TOKEN = "synthetic";
@@ -71,6 +71,26 @@ test("reads throttle access, preserve revisions and expiry, and migrate legacy n
     await notes.writeNote("legacy-view", "Replacement", { ifRev: 0 });
     await notes.recordPageNoteAccess("legacy-view", viewSnapshot!, viewTime + 3);
     assert.equal(await fixture.client.hGet(viewHash, "last_accessed_at"), null);
+
+    const collisionKey = "same-millisecond";
+    const fixedTime = Date.now();
+    const clock = t.mock.method(Date, "now", () => fixedTime);
+    try {
+      assert.equal((await notes.writeNote(collisionKey, "Same content", { ifRev: 0 })).ok, true);
+      const first = (await notes.readNote(collisionKey))!;
+      await notes.deleteNote(collisionKey);
+      assert.equal((await notes.writeNote(collisionKey, "Same content", { ifRev: 0 })).ok, true);
+      const replacement = (await notes.readNote(collisionKey))!;
+      assert.equal(replacement.createdAt, first.createdAt);
+      assert.equal(replacement.rev, first.rev);
+      assert.notEqual(replacement.storageId, first.storageId);
+      await notes.recordPageNoteAccess(collisionKey, first);
+      assert.equal((await notes.readNote(collisionKey))?.lastAccessedAt, null);
+      await notes.recordPageNoteAccess(collisionKey, replacement);
+      assert.equal((await notes.readNote(collisionKey))?.lastAccessedAt, fixedTime);
+    } finally {
+      clock.mock.restore();
+    }
 
     const legacy = "marker-commenting-preview-v1:content:legacy-access";
     const hash = "marker-commenting-preview-v1:note:legacy-access";

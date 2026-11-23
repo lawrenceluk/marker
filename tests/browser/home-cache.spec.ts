@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { request as httpsRequest } from "node:https";
 import { expect, test, request as playwrightRequest } from "@playwright/test";
 
 test("Home and private variants stay isolated across requests", async ({ baseURL }) => {
@@ -10,7 +11,8 @@ test("Home and private variants stay isolated across requests", async ({ baseURL
   async function checkHome() {
     const response = await anonymous.get("/");
     expect(response.ok()).toBe(true);
-    expect(response.headers()["cache-control"]).not.toContain("private");
+    expect(response.headers()["cache-control"]).toContain("private");
+    expect(response.headers()["cache-control"]).toContain("no-store");
     const body = await response.text();
     expect(body).toContain("A private markdown pastebin");
     for (const marker of bodies) expect(body).not.toContain(marker);
@@ -30,6 +32,27 @@ test("Home and private variants stay isolated across requests", async ({ baseURL
     return response;
   }
 
+  async function checkFreshRaw(path: string, headers?: Record<string, string>) {
+    // Send the request-target verbatim and avoid inheriting cookies from other probes.
+    const result = await new Promise<{ status: number; cache: string; hit?: string }>((resolve, reject) => {
+      const req = httpsRequest(new URL(baseURL!), { path, headers, rejectUnauthorized: false }, response => {
+        response.resume();
+        response.on("end", () => resolve({
+          status: response.statusCode ?? 0,
+          cache: response.headers["cache-control"] ?? "",
+          hit: String(response.headers["x-nextjs-cache"] ?? ""),
+        }));
+      });
+      req.on("error", reject);
+      req.setTimeout(10_000, () => req.destroy(new Error("Raw cache probe timed out")));
+      req.end();
+    });
+    expect(result.cache, path).toContain("private");
+    expect(result.cache, path).toContain("no-store");
+    expect(result.hit, path).not.toBe("HIT");
+    return result.status;
+  }
+
   try {
     for (const [index, key] of keys.entries()) {
       expect((await privateBrowser.post("/api/content", { data: { key, content: `# ${bodies[index]}` } })).ok()).toBe(true);
@@ -37,20 +60,24 @@ test("Home and private variants stay isolated across requests", async ({ baseURL
 
     await checkHome();
     await checkHome();
-    await checkPrivate("/", { Cookie: "synthetic=1" });
-    await checkPrivate("/", { Authorization: "Bearer synthetic" });
-    await checkPrivate("/", { RSC: "1" });
-    await checkPrivate("/", { "Next-Router-Prefetch": "1" });
-    await checkPrivate("/", { "Next-Router-Segment-Prefetch": "/_tree" });
-    await checkPrivate("/", { "Sec-Purpose": "prefetch" });
-    await checkPrivate("/", { "Sec-Fetch-Dest": "iframe" });
-    await checkPrivate("/", { "Sec-Fetch-Mode": "cors" });
-    await checkPrivate("/", { Accept: "application/json" });
-    await checkPrivate("/?_rsc=synthetic", { RSC: "1" });
-    await checkPrivate("/", { "Next-Router-State-Tree": encodeURIComponent('["",{}]'), RSC: "1" });
-    await checkPrivate("/", { "x-nextjs-data": "1" });
-    await checkPrivate("/?%00=");
-    await checkPrivate("/?other=1");
+    await checkFreshRaw("/", { Cookie: "synthetic=1" });
+    await checkFreshRaw("/", { Authorization: "Bearer synthetic" });
+    await checkFreshRaw("/", { RSC: "1" });
+    await checkFreshRaw("/", { "Next-Router-Prefetch": "1" });
+    await checkFreshRaw("/", { "Next-Router-Segment-Prefetch": "/_tree" });
+    await checkFreshRaw("/", { "Sec-Purpose": "prefetch" });
+    await checkFreshRaw("/", { "Sec-Fetch-Dest": "iframe" });
+    await checkFreshRaw("/", { "Sec-Fetch-Mode": "cors" });
+    await checkFreshRaw("/", { Accept: "application/json" });
+    await checkFreshRaw("/?_rsc=synthetic", { RSC: "1" });
+    await checkFreshRaw("/", { "Next-Router-State-Tree": encodeURIComponent('["",{}]'), RSC: "1" });
+    await checkFreshRaw("/", { "x-nextjs-data": "1" });
+    await checkFreshRaw("/?%00=");
+    await checkFreshRaw("/?other=1");
+    for (const path of ["/?", "/?_rsc", "/?_rsc=", "/?_rsc=abc", "/?%5frsc=", "/?_rsc=&_rsc=abc"]) {
+      expect(await checkFreshRaw(path)).toBe(200);
+    }
+    expect((await anonymous.get("/anonymous-home")).status()).toBe(404);
     await checkPrivate(`/?key=${keys[0]}&persist=1`, undefined, 0);
     await checkPrivate(`/?%6bey=${keys[1]}&%70ersist=1`, undefined, 1);
     await checkPrivate(`/?key=${keys[0]}&key=${keys[1]}&persist=1`);

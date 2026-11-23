@@ -1,3 +1,5 @@
+export const FRONT_MATTER_HEADER = "x-marker-front-matter";
+
 export type MetadataValue = string | number | boolean | null | MetadataValue[] | { [key: string]: MetadataValue };
 export type FrontMatter = { raw: string; fields: Record<string, MetadataValue> | null; end: number };
 

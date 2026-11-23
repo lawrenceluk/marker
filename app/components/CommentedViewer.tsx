@@ -28,7 +28,15 @@ const NoteEmojiPicker = dynamic(() => import("./NoteEmojiPicker"), {
   ssr: false,
   loading: () => <p role="status" className="text-muted">Loading emoji…</p>,
 });
-type Snapshot = { rev: number; content: string; comments: LocatedThread[]; responses: ResponseEntry[] };
+import type { FrontMatter } from "../lib/frontmatterBody";
+
+type Snapshot = {
+  rev: number;
+  content: string;
+  comments: LocatedThread[];
+  responses: ResponseEntry[];
+  front_matter?: FrontMatter | null;
+};
 type RankAnswer = { ranking: number[]; emojis?: string[]; suggested?: boolean };
 type AutoSelection = { candidates: TapCandidate[]; ranking: number[]; index: number; requestId: number };
 type Selection = {
@@ -56,7 +64,7 @@ export function CommentedViewer({
   markdown: string;
   rev: number;
   initialResponses: ResponseEntry[];
-  onChange: (content: string, rev: number, responses: ResponseEntry[]) => Promise<void>;
+  onChange: (content: string, rev: number, responses: ResponseEntry[], frontMatter?: FrontMatter | null) => Promise<void>;
   onRevision: (rev: number) => void;
   onComposingChange: (composing: boolean) => void;
   toolbar: (commentsButton: ReactNode) => ReactNode;
@@ -541,7 +549,7 @@ export function CommentedViewer({
       if (!response.ok) throw new Error(apiErrorMessage(data, "Couldn't save comment."));
       const next = data as Snapshot;
       setSnapshot(next);
-      await onChange(next.content, next.rev, next.responses);
+      await onChange(next.content, next.rev, next.responses, next.front_matter);
       setDraft("");
       setSelection(null);
       emojiOpenRef.current = false;

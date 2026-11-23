@@ -1,3 +1,4 @@
+import { frontMatter } from "@/app/lib/frontmatter";
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeKey } from "@/app/lib/key";
 import { requireNoteKey } from "@/app/lib/noteApi";
@@ -93,6 +94,7 @@ export async function POST(request: NextRequest) {
   return json({
     rev: before.rev + 1,
     content,
+    front_matter: frontMatter(content),
     comments: locateThreads(content, result.comments),
     responses: before.responses,
   });

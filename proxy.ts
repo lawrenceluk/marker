@@ -12,7 +12,6 @@ import {
   generateSessionHandle,
   isSessionHandle,
 } from "@/app/lib/noteSession";
-import { ANONYMOUS_HOME_HEADER, privateHomeHeaders } from "./app/lib/anonymousHome";
 import { ROBOTS_TAG } from "@/app/lib/robots";
 import {
   CREATOR_COOKIE,
@@ -26,7 +25,6 @@ export const config = { matcher: ["/", "/n", "/n/:handle", "/c"] };
 function stripClientPageHandle(request: NextRequest): Headers {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.delete(PAGE_HANDLE_HEADER);
-  requestHeaders.delete(ANONYMOUS_HOME_HEADER);
   return requestHeaders;
 }
 
@@ -34,23 +32,6 @@ function forward(request: NextRequest, mutate?: (headers: Headers) => void) {
   const requestHeaders = stripClientPageHandle(request);
   mutate?.(requestHeaders);
   return NextResponse.next({ request: { headers: requestHeaders } });
-}
-
-function isAnonymousHome(request: NextRequest): boolean {
-  const destination = request.headers.get("sec-fetch-dest");
-  const mode = request.headers.get("sec-fetch-mode");
-  const accept = request.headers.get("accept");
-  return request.method === "GET"
-    && request.nextUrl.pathname === "/"
-    && !request.url.includes("?")
-    && (destination === null || destination === "document")
-    && (mode === null || mode === "navigate")
-    && (accept === null || accept.split(",").some(part => {
-      const mime = part.split(";")[0].trim();
-      return mime === "text/html" || mime === "*/*";
-    }))
-    && !request.headers.has(PAGE_HANDLE_HEADER)
-    && !privateHomeHeaders.some(name => request.headers.has(name));
 }
 
 export function proxy(request: NextRequest) {
@@ -62,10 +43,6 @@ export function proxy(request: NextRequest) {
       return withPrivateCaching(NextResponse.redirect(new URL("/", request.url)));
     }
     return withPrivateCaching(forward(request));
-  }
-
-  if (isAnonymousHome(request)) {
-    return forward(request, headers => headers.set(ANONYMOUS_HOME_HEADER, "1"));
   }
 
   const key = normalizeKey(request.nextUrl.searchParams.get("key"));
