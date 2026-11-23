@@ -3,13 +3,15 @@ import { test } from "node:test";
 import { NextRequest } from "next/server";
 import { startRedisRest } from "./helpers/redis-rest";
 
-test("reads throttle access, preserve revisions and expiry, and migrate legacy notes", async () => {
+test("reads throttle access, preserve revisions and expiry, and migrate legacy notes", async (t) => {
   const fixture = await startRedisRest();
   process.env.KV_REST_API_URL = fixture.url;
   process.env.KV_REST_API_TOKEN = "synthetic";
   process.env.VERCEL_ENV = "preview";
   try {
     const notes = await import("../app/lib/notes");
+    const { duplicateNote } = await import("../app/lib/duplicate");
+    const { ensurePreviewDemo, METADATA_DEMO_KEY } = await import("../app/lib/demo");
     const contentApi = await import("../app/api/content/route");
     const commentsApi = await import("../app/api/comments/route");
     const key = "marker-commenting-preview-v1:note:accessed";
@@ -50,6 +52,65 @@ test("reads throttle access, preserve revisions and expiry, and migrate legacy n
     assert.equal((await commentsApi.GET(new NextRequest("http://localhost/api/comments?key=comment-access"))).status, 200);
     assert.ok((await notes.readNote("comment-access"))!.lastAccessedAt);
     assert.equal(await notes.readRevision("comment-access"), 1);
+
+    const legacyView = "marker-commenting-preview-v1:content:legacy-view";
+    const viewHash = "marker-commenting-preview-v1:note:legacy-view";
+    await fixture.client.set(legacyView, "Legacy view", { PX: 90_000 });
+    const viewSnapshot = await notes.readNote("legacy-view", true);
+    assert.equal(viewSnapshot?.content, "Legacy view");
+    assert.equal(await fixture.client.exists(viewHash), 0);
+    const viewTime = Date.now();
+    await notes.recordPageNoteAccess("legacy-view", viewSnapshot!, viewTime);
+    assert.equal(await fixture.client.exists(legacyView), 0);
+    assert.equal(await fixture.client.hGet(viewHash, "last_accessed_at"), String(viewTime));
+    assert.equal(await notes.readRevision("legacy-view"), 0);
+    assert.ok((await fixture.client.pTTL(viewHash)) > 0);
+    await notes.recordPageNoteAccess("legacy-view", viewSnapshot!, viewTime + 1);
+    assert.equal(await fixture.client.hGet(viewHash, "last_accessed_at"), String(viewTime));
+    await notes.deleteNote("legacy-view");
+    await notes.recordPageNoteAccess("legacy-view", viewSnapshot!, viewTime + 2);
+    assert.equal(await fixture.client.exists(viewHash), 0);
+    await notes.writeNote("legacy-view", "Replacement", { ifRev: 0 });
+    await notes.recordPageNoteAccess("legacy-view", viewSnapshot!, viewTime + 3);
+    assert.equal(await fixture.client.hGet(viewHash, "last_accessed_at"), null);
+
+    const collisionKey = "same-millisecond";
+    const fixedTime = Date.now();
+    const clock = t.mock.method(Date, "now", () => fixedTime);
+    try {
+      assert.equal((await notes.writeNote(collisionKey, "Same content", { ifRev: 0 })).ok, true);
+      const first = (await notes.readNote(collisionKey))!;
+      await notes.deleteNote(collisionKey);
+      assert.equal((await notes.writeNote(collisionKey, "Same content", { ifRev: 0 })).ok, true);
+      const replacement = (await notes.readNote(collisionKey))!;
+      assert.equal(replacement.createdAt, first.createdAt);
+      assert.equal(replacement.rev, first.rev);
+      assert.notEqual(replacement.storageId, first.storageId);
+      await notes.recordPageNoteAccess(collisionKey, first);
+      assert.equal((await notes.readNote(collisionKey))?.lastAccessedAt, null);
+      await notes.recordPageNoteAccess(collisionKey, replacement);
+      assert.equal((await notes.readNote(collisionKey))?.lastAccessedAt, fixedTime);
+
+      const duplicateKey = "duplicated-in-same-millisecond";
+      const createDuplicate = () => duplicateNote(collisionKey, duplicateKey, null, replacement, { copyCreator: false });
+      const creationPaths = [
+        [duplicateKey, async () => assert.equal((await createDuplicate()).ok, true)],
+        [METADATA_DEMO_KEY, () => ensurePreviewDemo(METADATA_DEMO_KEY)],
+      ] as const;
+      for (const [createdKey, create] of creationPaths) {
+        await create();
+        const beforeDelete = (await notes.readNote(createdKey))!;
+        assert.ok(beforeDelete.storageId);
+        await notes.deleteNote(createdKey);
+        await create();
+        const recreated = (await notes.readNote(createdKey))!;
+        assert.notEqual(recreated.storageId, beforeDelete.storageId);
+        await notes.recordPageNoteAccess(createdKey, beforeDelete);
+        assert.equal((await notes.readNote(createdKey))?.lastAccessedAt, null);
+      }
+    } finally {
+      clock.mock.restore();
+    }
 
     const legacy = "marker-commenting-preview-v1:content:legacy-access";
     const hash = "marker-commenting-preview-v1:note:legacy-access";

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bodyMarkdown, frontMatter } from "../app/lib/frontmatter.ts";
+import { bodyMarkdown, displayFrontMatter, frontMatter } from "../app/lib/frontmatter.ts";
 import { reactionBlocks } from "../app/lib/responses.ts";
 import { ogBodyText, previewFromMarkdown } from "../app/lib/preview.ts";
 
@@ -45,4 +45,19 @@ test("long metadata does not consume the body preview budget", () => {
   const content = `---\nsummary: ${"x".repeat(9000)}\n---\n# Body title\n\nBody description.`;
   assert.deepEqual(previewFromMarkdown(content), { title: "Body title", description: "Body description." });
   assert.equal(ogBodyText(content), "Body title\n\nBody description.");
+});
+
+test("display metadata keeps non-finite YAML numbers through API JSON", () => {
+  const metadata = displayFrontMatter("---\ninfinite: .inf\nunknown: .nan\nnegative: -.inf\nlist: [.nan, .inf]\n---\n# Body");
+  assert.deepEqual(metadata?.summary, {
+    inline: [],
+    entries: [
+      { key: "infinite", value: "Infinity" },
+      { key: "unknown", value: "NaN" },
+      { key: "negative", value: "-Infinity" },
+      { key: "list", value: "NaN, Infinity" },
+    ],
+    more: 4,
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(metadata)), metadata);
 });

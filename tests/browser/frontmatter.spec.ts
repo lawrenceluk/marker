@@ -96,3 +96,30 @@ test("malformed metadata is readable and ordinary Markdown is preserved", async 
   await expect(page.getByRole("heading", { name: "Unclosed body" })).toBeVisible();
   await expect(page.locator(".prose").getByText("status: draft", { exact: true })).toBeVisible();
 });
+
+test("numeric YAML labels stay intact after saving and reloading", async ({ page, request }, info) => {
+  const key = `metadata-numeric-${info.project.name}-${Date.now()}`;
+  const initial = "---\ninfinite: .inf\nunknown: .nan\n---\n# Before";
+  const edited = initial.replace("# Before", "# After");
+  try {
+    expect((await request.post("/api/content", { data: { key, content: initial } })).ok()).toBe(true);
+    await page.goto(`/?key=${key}&persist=1`);
+    const byline = page.locator(".byline-block");
+    async function expectLabels() {
+      const more = byline.getByRole("button", { name: "2 fields" });
+      if (await more.isVisible()) await more.click();
+      await expect(byline.locator("dd")).toHaveText(["Infinity", "NaN"]);
+    }
+    await expectLabels();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    await page.getByPlaceholder("Write markdown…").fill(edited);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "After", exact: true })).toBeVisible();
+    await expectLabels();
+    await page.reload();
+    await expectLabels();
+  } finally {
+    const deleted = await request.delete("/api/content", { data: { key } });
+    expect(deleted.ok()).toBe(true);
+  }
+});

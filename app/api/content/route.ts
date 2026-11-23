@@ -1,3 +1,5 @@
+import { FRONT_MATTER_HEADER } from "@/app/lib/frontmatterBody";
+import { displayFrontMatter } from "@/app/lib/frontmatter";
 import { NextRequest, NextResponse } from "next/server";
 import { normalizeKey } from "@/app/lib/key";
 import { requireNoteKey } from "@/app/lib/noteApi";
@@ -84,6 +86,7 @@ export async function GET(request: NextRequest) {
 
   return json({
     content: note.content,
+    ...(request.headers.has(FRONT_MATTER_HEADER) ? { front_matter: displayFrontMatter(note.content) } : {}),
     responses: note.responses,
     exists: true,
     rev: note.rev,
@@ -212,6 +215,7 @@ export async function POST(request: NextRequest) {
     updated_at: result.updatedAt,
     expires_at: result.expiresAt,
     size: result.size,
+    ...(request.headers.has(FRONT_MATTER_HEADER) ? { front_matter: displayFrontMatter(result.content) } : {}),
     ...(creator.generatedId ? { creator_id: creator.generatedId } : {}),
     has_creator: result.hasCreator,
     tags: result.tags,

@@ -7,7 +7,9 @@ const nextConfig: NextConfig = {
     "/og": ["./node_modules/geist/dist/fonts/geist-sans/Geist-Regular.ttf"],
   },
   async rewrites() {
-    return [{ source: "/.well-known/llms.txt", destination: "/llms.txt" }];
+    return {
+      afterFiles: [{ source: "/.well-known/llms.txt", destination: "/llms.txt" }],
+    };
   },
   async headers() {
     const common = [

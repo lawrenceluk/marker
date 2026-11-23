@@ -2,12 +2,17 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { bodyMarkdown } from "../app/lib/frontmatter";
+import { reactionBlocksFromMarkdown } from "../app/lib/reactionBlocks";
 import { ContentViewer } from "../app/components/ContentViewer";
 import { MARKER_AGENT_PROMPT } from "../app/lib/agentPrompt";
 import { isProseTable, STACK_MIN_CELL_CHARS, STACK_MIN_COLUMNS } from "../app/lib/tableShape";
 
 const sentence = "Most outages in the incident log trace back to retry storms, not raw load.";
-const render = (content: string) => renderToStaticMarkup(createElement(ContentViewer, { content }));
+const render = (content: string) => {
+  const markdown = bodyMarkdown(content);
+  return renderToStaticMarkup(createElement(ContentViewer, { content, markdown, reactionBlocks: reactionBlocksFromMarkdown(markdown) }));
+};
 
 test("a table is prose when it has three or more columns and a cell runs to a sentence", () => {
   assert.equal(STACK_MIN_COLUMNS, 3);

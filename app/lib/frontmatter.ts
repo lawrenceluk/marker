@@ -1,11 +1,12 @@
 import { isMap, parseDocument } from "yaml";
 
-export type MetadataValue = string | number | boolean | null | MetadataValue[] | { [key: string]: MetadataValue };
-export type FrontMatter = { raw: string; fields: Record<string, MetadataValue> | null; end: number };
+import { bodyWithoutFrontMatter, frontMatterOpening, type DisplayFrontMatter, type FrontMatter } from "./frontmatterBody";
+import { summarizeMetadata } from "./metadataSummary";
+export type { FrontMatter, MetadataValue } from "./frontmatterBody";
 
 /** Only a leading, closed YAML block is metadata. Keep body offsets unchanged. */
 export function frontMatter(content: string): FrontMatter | null {
-  const opening = /^\uFEFF?---[ \t]*\r?\n/u.exec(content);
+  const opening = frontMatterOpening(content);
   if (!opening) return null;
   const closing = /^(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/gm;
   closing.lastIndex = opening[0].length;
@@ -27,7 +28,13 @@ export function frontMatter(content: string): FrontMatter | null {
   }
 }
 
+export function displayFrontMatter(content: string): DisplayFrontMatter | null {
+  const metadata = frontMatter(content);
+  if (!metadata) return null;
+  const { fields, raw, end } = metadata;
+  return { raw, end, summary: fields ? summarizeMetadata(fields) : null };
+}
+
 export function bodyMarkdown(content: string, metadata = frontMatter(content)): string {
-  if (!metadata) return content;
-  return content.slice(0, metadata.end).replace(/[^\r\n]/g, " ") + content.slice(metadata.end);
+  return bodyWithoutFrontMatter(content, metadata);
 }

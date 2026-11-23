@@ -2,8 +2,7 @@
 
 import { useId, useState } from "react";
 import { normalizeTags } from "../lib/creatorId";
-import type { FrontMatter } from "../lib/frontmatter";
-import { summarizeMetadata } from "../lib/metadataSummary";
+import type { DisplayFrontMatter } from "../lib/frontmatterBody";
 import { primaryButtonClass, secondaryButtonClass, textInputClass } from "./controlStyles";
 
 export type NoteCreatorInfo = {
@@ -50,7 +49,7 @@ export function NoteCreator({
   onCancel,
 }: {
   info: NoteCreatorInfo | null;
-  metadata?: FrontMatter | null;
+  metadata?: DisplayFrontMatter | null;
   editing: boolean;
   isSaving: boolean;
   onSave: (tags: string[]) => void;
@@ -94,8 +93,8 @@ export function NoteCreator({
   }
 
   const folder = info?.hasCreator && (info.name || info.tags.length) ? info : null;
-  const summary = metadata?.fields ? summarizeMetadata(metadata.fields) : null;
-  const malformed = metadata !== null && metadata.fields === null;
+  const summary = metadata?.summary ?? null;
+  const malformed = metadata !== null && metadata.summary === null;
   const more = malformed || (summary !== null && summary.more > 0);
   if (!folder && !summary?.entries.length && !malformed) return null;
   const toggle = malformed ? "metadata" : !summary ? "" : summary.inline.length ? `${summary.more} more` : `${summary.more} ${summary.more === 1 ? "field" : "fields"}`;

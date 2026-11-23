@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { remapComments } from "./remap-comments";
 import { redis } from "./redis";
 import { storagePrefix } from "./namespace";
@@ -147,11 +148,11 @@ async function seedPreviewNote(key: string, content: string, comments: ReturnTyp
   await redis.eval(
     `
 if redis.call('EXISTS', KEYS[1]) == 1 or redis.call('EXISTS', KEYS[2]) == 1 then return 0 end
-redis.call('HSET', KEYS[1], 'content', ARGV[1], 'comments', ARGV[2], 'rev', '1', 'created_at', ARGV[3], 'updated_at', ARGV[3])
+redis.call('HSET', KEYS[1], 'content', ARGV[1], 'comments', ARGV[2], 'rev', '1', 'created_at', ARGV[3], 'updated_at', ARGV[3], 'storage_id', ARGV[4])
 redis.call('EXPIRE', KEYS[1], 604800)
 return 1
 `,
     [`${prefix}note:${key}`, `${prefix}content:${key}`],
-    [content, JSON.stringify(comments), String(Date.now())],
+    [content, JSON.stringify(comments), String(Date.now()), randomUUID()],
   );
 }

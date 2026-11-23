@@ -10,7 +10,8 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { Check, MessageCircle, MessageSquarePlus, Minus, Plus, RotateCcw, Search, Send, SmilePlus, X } from "lucide-react";
-import EmojiPicker, { Theme } from "emoji-picker-react";
+import dynamic from "next/dynamic";
+
 import { ContentViewer, type ResponseChange } from "./ContentViewer";
 import { ToolbarButton, toolbarButtonClass } from "./ToolbarButton";
 import { SelectionActionButton } from "./SelectionActionButton";
@@ -18,12 +19,24 @@ import { GROUP_HEIGHT, SELECTION_BAR_CLEARANCE, marginSpot, plainQuote, selectio
 import { selectSourceRange, sourceSelection, tapSourceOffset } from "../lib/comment-markup";
 import { adjacentSizeCandidate, heuristicRanking, tapCandidates, tapContext, type TapCandidate } from "../lib/tap-select";
 import type { CommentOperation, LocatedThread } from "../lib/comments";
-import { reactionBlocks, type ResponseEntry } from "../lib/responses";
+import type { DisplayFrontMatter } from "../lib/frontmatterBody";
+import { reactionBlocksFromMarkdown, type ResponseEntry } from "../lib/reactionBlocks";
 import { DEFAULT_EMOJI } from "../lib/emoji-suggestions";
 import { apiErrorMessage, isNoteSwitchedResponse, readJsonSafe } from "../lib/noteClient";
 import { useNoteSession } from "./NoteSession";
 
-type Snapshot = { rev: number; content: string; comments: LocatedThread[]; responses: ResponseEntry[] };
+const NoteEmojiPicker = dynamic(() => import("./NoteEmojiPicker"), {
+  ssr: false,
+  loading: () => <p role="status" className="text-muted">Loading emoji…</p>,
+});
+
+type Snapshot = {
+  rev: number;
+  content: string;
+  comments: LocatedThread[];
+  responses: ResponseEntry[];
+  front_matter?: DisplayFrontMatter | null;
+};
 type RankAnswer = { ranking: number[]; emojis?: string[]; suggested?: boolean };
 type AutoSelection = { candidates: TapCandidate[]; ranking: number[]; index: number; requestId: number };
 type Selection = {
@@ -39,6 +52,7 @@ type Selection = {
 const TAP_IGNORE = ".note-image, .note-image-placeholder, .note-lightbox, .note-embed, .note-embed-dialog";
 export function CommentedViewer({
   content,
+  markdown,
   rev,
   initialResponses,
   onChange,
@@ -47,9 +61,10 @@ export function CommentedViewer({
   toolbar,
 }: {
   content: string;
+  markdown: string;
   rev: number;
   initialResponses: ResponseEntry[];
-  onChange: (content: string, rev: number, responses: ResponseEntry[]) => void;
+  onChange: (content: string, rev: number, responses: ResponseEntry[], frontMatter?: DisplayFrontMatter | null) => Promise<void>;
   onRevision: (rev: number) => void;
   onComposingChange: (composing: boolean) => void;
   toolbar: (commentsButton: ReactNode) => ReactNode;
@@ -89,7 +104,7 @@ export function CommentedViewer({
   const threads = snapshot?.rev === rev ? snapshot.comments : [];
   const thread = threads.find((t) => t.id === active);
   const openCount = threads.filter((t) => !t.resolved).length;
-  const blocks = useMemo(() => reactionBlocks(content), [content]);
+  const blocks = useMemo(() => reactionBlocksFromMarkdown(markdown), [markdown]);
   const visibleResponses = snapshot?.rev === rev ? snapshot.responses : initialResponses;
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -534,7 +549,7 @@ export function CommentedViewer({
       if (!response.ok) throw new Error(apiErrorMessage(data, "Couldn't save comment."));
       const next = data as Snapshot;
       setSnapshot(next);
-      onChange(next.content, next.rev, next.responses);
+      await onChange(next.content, next.rev, next.responses, next.front_matter);
       setDraft("");
       setSelection(null);
       emojiOpenRef.current = false;
@@ -581,7 +596,7 @@ export function CommentedViewer({
       const nextRev = data.rev as number;
       const nextResponses = data.responses as ResponseEntry[];
       setSnapshot({ ...snapshot, rev: nextRev, responses: nextResponses });
-      onChange(content, nextRev, nextResponses);
+      await onChange(content, nextRev, nextResponses);
       for (const change of changes) setReactionDrafts(previous => {
         const next = { ...previous };
         if (next[change.block_id] === change) delete next[change.block_id];
@@ -671,7 +686,7 @@ export function CommentedViewer({
           if (nearby) { e.preventDefault(); void tapWord(e.clientX, e.clientY); }
         }}
       >
-        <ContentViewer content={content} comments={threads} responses={visibleResponses} drafts={reactionDrafts} onReaction={changeReaction} onTextFocus={setReactionTextFocused} busy={!snapshot || snapshot.rev !== rev} />
+        <ContentViewer content={content} markdown={markdown} reactionBlocks={blocks} comments={threads} responses={visibleResponses} drafts={reactionDrafts} onReaction={changeReaction} onTextFocus={setReactionTextFocused} busy={!snapshot || snapshot.rev !== rev} />
       </div>
       {/* Saving is silent on screen (screen readers still hear it); only a failure shows. */}
       {blocks.length > 0 && (reactionError
@@ -729,7 +744,7 @@ export function CommentedViewer({
                   {react}{comment}
                 </div>}
             {emojiOpen && showEmojiPicker && <div className="emoji-picker-panel" style={{ left: 8, bottom: bottom + 72, width: pickerWidth }}>
-              <EmojiPicker theme={Theme.AUTO} width="100%" height={pickerHeight} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />
+              <NoteEmojiPicker height={pickerHeight} onSelect={sendEmoji} />
             </div>}
             {emojiOpen && error && <p className="emoji-reactor-error" role="alert" style={{ left: 16, right: 16, bottom: bottom + 72 }}>{error}</p>}
           </>;
@@ -746,7 +761,7 @@ export function CommentedViewer({
                 {comment}{react}
               </div>}
           {emojiOpen && showEmojiPicker && <div className="emoji-picker-panel" style={{ left, top: pickerTop, width: pickerWidth }}>
-            <EmojiPicker theme={Theme.AUTO} width="100%" height={pickerHeight} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />
+            <NoteEmojiPicker height={pickerHeight} onSelect={sendEmoji} />
           </div>}
           {emojiOpen && error && <p className="emoji-reactor-error" role="alert" style={{ left: selection.x, top: below, maxWidth: 272 }}>{error}</p>}
         </>;

@@ -1,0 +1,101 @@
+export type ReactionBlock =
+  | { id: string; kind: "checkbox"; label: string; checked: boolean; offset: number }
+  | { id: string; kind: "ask"; question: string; mode: "single" | "multi"; options: string[]; other: boolean; offset: number };
+
+export type ResponseEntry = {
+  block_id: string;
+  kind: ReactionBlock["kind"];
+  selections: string[];
+  free_text: string;
+  updated_at: number;
+};
+
+export const MAX_BLOCKS = 100;
+
+function hash(text: string) {
+  let value = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    value ^= text.charCodeAt(i);
+    value = Math.imul(value, 16777619);
+  }
+  return (value >>> 0).toString(36);
+}
+
+/** Small, readable ask syntax. Invalid blocks stay ordinary fenced Markdown. */
+function parseAsk(source: string, offset: number): ReactionBlock | null {
+  const fields = new Map<string, string>();
+  const options: string[] = [];
+  let inOptions = false;
+  for (const raw of source.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (inOptions && /^-\s+\S/.test(line)) {
+      options.push(line.slice(2).trim());
+      continue;
+    }
+    const match = /^(id|question|type|options|other):\s*(.*)$/i.exec(line);
+    if (!match) return null;
+    const name = match[1].toLowerCase();
+    if (fields.has(name)) return null;
+    fields.set(name, match[2].trim());
+    inOptions = name === "options";
+    if (inOptions && match[2].trim()) return null;
+  }
+  const id = fields.get("id") ?? "";
+  const question = fields.get("question") ?? "";
+  const mode = fields.get("type") ?? "single";
+  const other = fields.get("other") ?? "false";
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(id) || !question || question.length > 300 ||
+      !["single", "multi"].includes(mode) || !["true", "false"].includes(other) ||
+      options.length < 2 || options.length > 12 ||
+      options.some(option => !option || option.length > 120 || option === "Other") ||
+      new Set(options).size !== options.length) return null;
+  return { id: `ask:${id}`, kind: "ask", question, mode: mode as "single" | "multi", options, other: other === "true", offset };
+}
+
+export function reactionBlocksFromMarkdown(markdown: string): ReactionBlock[] {
+  const blocks: ReactionBlock[] = [];
+  const seenChecks = new Map<string, number>();
+  const seenAsks = new Set<string>();
+  const lines = markdown.split("\n");
+  let offset = 0;
+  let fence: { mark: string; length: number } | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\r$/, "");
+    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      if (marker && marker[1][0] === fence.mark && marker[1].length >= fence.length && !marker[2].trim()) fence = null;
+      offset += lines[i].length + 1;
+      continue;
+    }
+    if (marker) {
+      if (marker[1][0] === "`" && marker[2].trim() === "ask") {
+        let end = i + 1;
+        while (end < lines.length && !/^ {0,3}`{3,}\s*$/.test(lines[end])) end++;
+        if (end < lines.length) {
+          const block = parseAsk(lines.slice(i + 1, end).join("\n"), offset);
+          if (block && !seenAsks.has(block.id)) {
+            blocks.push(block);
+            seenAsks.add(block.id);
+          }
+          while (i < end) { offset += lines[i].length + 1; i++; }
+          offset += lines[i].length + 1;
+          continue;
+        }
+      }
+      fence = { mark: marker[1][0], length: marker[1].length };
+      offset += lines[i].length + 1;
+      continue;
+    }
+    const task = /^\s*(?:[-*+]|\d+[.)])\s+\[([ xX])\]\s+(.+?)\s*$/.exec(line);
+    if (task) {
+      const label = task[2].trim();
+      const identity = hash(label.toLowerCase());
+      const occurrence = (seenChecks.get(identity) ?? 0) + 1;
+      seenChecks.set(identity, occurrence);
+      blocks.push({ id: `check:${identity}:${occurrence}`, kind: "checkbox", label, checked: task[1].toLowerCase() === "x", offset });
+    }
+    offset += lines[i].length + 1;
+  }
+  return blocks.slice(0, MAX_BLOCKS);
+}

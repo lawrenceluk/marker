@@ -6,8 +6,7 @@ import remarkGfm from "remark-gfm";
 import { Copy } from "lucide-react";
 import { commentMarkup } from "../lib/comment-markup";
 import type { LocatedThread } from "../lib/comments";
-import { reactionBlocks, type ReactionBlock, type ResponseEntry } from "../lib/responses";
-import { bodyMarkdown, frontMatter } from "../lib/frontmatter";
+import type { ReactionBlock, ResponseEntry } from "../lib/reactionBlocks";
 import { NoteImage, markerUrlTransform } from "./NoteImage";
 import { NoteEmbed } from "./NoteEmbed";
 import { EMBED_SCHEME } from "../lib/embedPolicy";
@@ -90,8 +89,10 @@ const markdownComponents: Components = {
   },
 };
 
-export function ContentViewer({ content, comments, responses = [], drafts = {}, onReaction, onTextFocus, busy = false }: {
+export function ContentViewer({ content, markdown, reactionBlocks, comments, responses = [], drafts = {}, onReaction, onTextFocus, busy = false }: {
   content: string;
+  markdown: string;
+  reactionBlocks: ReactionBlock[];
   comments?: LocatedThread[];
   responses?: ResponseEntry[];
   drafts?: Record<string, ResponseChange>;
@@ -99,9 +100,7 @@ export function ContentViewer({ content, comments, responses = [], drafts = {}, 
   onTextFocus?: (focused: boolean) => void;
   busy?: boolean;
 }) {
-  const blocks = useMemo(() => new Map(reactionBlocks(content).map(block => [block.offset, block])), [content]);
-  const metadata = useMemo(() => frontMatter(content), [content]);
-  const markdown = useMemo(() => bodyMarkdown(content, metadata), [content, metadata]);
+  const blocks = useMemo(() => new Map(reactionBlocks.map(block => [block.offset, block])), [reactionBlocks]);
   const context: ReactionContextValue = { blocks, responses, drafts, onReaction, onTextFocus, busy };
   return <ReactionContext.Provider value={context}>
     <div className="w-full">

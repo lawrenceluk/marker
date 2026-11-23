@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { redis } from "./redis";
 import type { Thread } from "./comments";
 import type { ResponseEntry } from "./responses";
@@ -24,6 +25,9 @@ export type Note = {
   updatedAt: number | null;
   createdAt: number | null;
   lastAccessedAt: number | null;
+  /** Internal identity of a stored note across edits and renames. */
+  storageId: string | null;
+  legacy: boolean;
   expiresAt: number | null;
   /** sha256 hex of the creator id, or null. Never send this to a client. */
   cid: string | null;
@@ -72,6 +76,7 @@ export type WriteResult =
       ok: true;
       rev: number;
       updatedAt: number;
+      content: string;
       expiresAt: number | null;
       size: number;
       hasCreator: boolean;
@@ -212,39 +217,85 @@ local function creator_result(h)
 end
 `;
 
+const ACCESS_SCRIPT_HELPERS = `
+local function record_access(h, accessed, now)
+  if accessed == '' or tonumber(now) - (tonumber(accessed) or 0) >= ${ACCESS_THROTTLE_MS} then
+    redis.call('HSET', h, 'last_accessed_at', now)
+    return now
+  end
+  return accessed
+end
+
+local function promote_legacy(h, legacy, old, pttl, now, storage_id)
+  redis.call('HSET', h, 'content', old, 'rev', '0', 'updated_at', '', 'created_at', '', 'last_accessed_at', now, 'storage_id', storage_id)
+  if pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
+  redis.call('DEL', legacy)
+end
+`;
+
 /**
- * KEYS: note hash, legacy string. ARGV: comments?, access?, now, prefix.
+ * KEYS: note hash, legacy string. ARGV: comments?, access?, now, prefix, new storage id.
  * Returns [content, rev, updated_at, created_at, pttl, comments, responses,
- * last_accessed_at, cid, tags, creator_name, asset_ns, assets, seen_rev, seen_at] or nil.
+ * last_accessed_at, cid, tags, creator_name, asset_ns, assets, seen_rev, seen_at, storage_id, legacy?] or nil.
  */
 const READ_SCRIPT = `
+${ACCESS_SCRIPT_HELPERS}
 local h, legacy = KEYS[1], KEYS[2]
 
 if redis.call('EXISTS', h) == 1 then
-  local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at', 'last_accessed_at', 'cid', 'tags', 'asset_ns', 'assets', 'seen_rev', 'seen_at')
+  local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at', 'last_accessed_at', 'cid', 'tags', 'asset_ns', 'assets', 'seen_rev', 'seen_at', 'storage_id')
   local accessed = f[5] or ''
-  if ARGV[2] == '1' and (accessed == '' or tonumber(ARGV[3]) - (tonumber(accessed) or 0) >= ${ACCESS_THROTTLE_MS}) then
-    redis.call('HSET', h, 'last_accessed_at', ARGV[3])
-    accessed = ARGV[3]
-  end
+  if ARGV[2] == '1' then accessed = record_access(h, accessed, ARGV[3]) end
   local name = f[6] and redis.call('HGET', ARGV[4] .. 'cidx:' .. f[6] .. ':meta', 'name') or ''
-  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]', ARGV[1] == '1' and (redis.call('HGET', h, 'responses') or '[]') or '[]', accessed, f[6] or '', f[7] or '', name or '', f[8] or '', f[9] or '', f[10] or '', f[11] or '' }
+  return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]', ARGV[1] == '1' and (redis.call('HGET', h, 'responses') or '[]') or '[]', accessed, f[6] or '', f[7] or '', name or '', f[8] or '', f[9] or '', f[10] or '', f[11] or '', f[12] or '', '0' }
 end
 
 local old = redis.call('GET', legacy)
 if old then
   local pttl = redis.call('PTTL', legacy)
   if ARGV[2] == '1' then
-    redis.call('HSET', h, 'content', old, 'rev', '0', 'updated_at', '', 'created_at', '', 'last_accessed_at', ARGV[3])
-    if pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
-    redis.call('DEL', legacy)
-    return { old, '0', '', '', tostring(pttl), '[]', '[]', ARGV[3], '', '', '', '', '', '', '' }
+    promote_legacy(h, legacy, old, pttl, ARGV[3], ARGV[5])
+    return { old, '0', '', '', tostring(pttl), '[]', '[]', ARGV[3], '', '', '', '', '', '', '', ARGV[5], '0' }
   end
-  return { old, '0', '', '', tostring(pttl), '[]', '[]', '', '', '', '', '', '', '', '' }
+  return { old, '0', '', '', tostring(pttl), '[]', '[]', '', '', '', '', '', '', '', '', '', '1' }
 end
 
 return nil
 `;
+
+/** Page-view access only. No note snapshot is assembled or returned. */
+const PAGE_ACCESS_SCRIPT = `
+${ACCESS_SCRIPT_HELPERS}
+local h, legacy = KEYS[1], KEYS[2]
+if ARGV[2] == '1' then
+  if redis.call('EXISTS', h) == 1 then return 0 end
+  local old = redis.call('GET', legacy)
+  if old and old == ARGV[4] then
+    promote_legacy(h, legacy, old, redis.call('PTTL', legacy), ARGV[1], ARGV[7])
+  end
+elseif redis.call('EXISTS', h) == 1 then
+  local current = redis.call('HMGET', h, 'storage_id', 'content', 'rev', 'created_at')
+  if (current[1] or '') ~= ARGV[3] then return 0 end
+  -- Old hashes have no id. All new hashes get one, so also check the old snapshot.
+  if ARGV[3] == '' and ((current[2] or '') ~= ARGV[4] or (current[3] or '0') ~= ARGV[5] or (current[4] or '') ~= ARGV[6]) then
+    return 0
+  end
+  record_access(h, redis.call('HGET', h, 'last_accessed_at') or '', ARGV[1])
+end
+return 1
+`;
+
+export async function recordPageNoteAccess(
+  key: string,
+  { lastAccessedAt, storageId, legacy, content, rev, createdAt }: Pick<Note, "lastAccessedAt" | "storageId" | "legacy" | "content" | "rev" | "createdAt">,
+  viewedAt = Date.now(),
+) {
+  if (lastAccessedAt !== null && viewedAt - lastAccessedAt < ACCESS_THROTTLE_MS) return;
+  await redis.eval(PAGE_ACCESS_SCRIPT, [noteKey(key), legacyKey(key)], [
+    String(viewedAt), legacy ? "1" : "0", storageId ?? "", storageId ? "" : content,
+    String(rev), createdAt === null ? "" : String(createdAt), legacy ? randomUUID() : "",
+  ]);
+}
 
 /**
  * All writes commit content + anchors under the snapshot revision. TTL stays
@@ -273,6 +324,7 @@ if not plan then return {denied} end
 local pttl = redis.call('PTTL', exists and h or legacy)
 local created = redis.call('HGET', h, 'created_at') or ARGV[8]
 redis.call('HSET', h, 'content', ARGV[5], 'comments', ARGV[6], 'responses', ARGV[7], 'rev', rev + 1, 'updated_at', ARGV[8], 'created_at', created, 'title', ARGV[12])
+redis.call('HSETNX', h, 'storage_id', ARGV[21])
 if ARGV[10] == '0' then redis.call('PERSIST', h)
 elseif ARGV[10] ~= '' then redis.call('EXPIRE', h, tonumber(ARGV[10]))
 elseif not exists and pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
@@ -295,7 +347,7 @@ return {'ok', tostring(rev + 1), tostring(redis.call('PTTL', h)), tostring(#ARGV
 
 /**
  * KEYS: note hash, legacy string. ARGV: prefix, note key, op, target, proofs,
- * name, tags, now. Metadata only: rev, content and updated_at are untouched.
+ * name, tags, now, new storage id. Metadata only: rev, content and updated_at are untouched.
  */
 const META_SCRIPT = `
 local PREFIX = ARGV[1]
@@ -305,7 +357,7 @@ if redis.call('EXISTS', h) == 0 then
   local old = redis.call('GET', legacy)
   if not old then return {'not_found'} end
   local pttl = redis.call('PTTL', legacy)
-  redis.call('HSET', h, 'content', old, 'rev', '0', 'updated_at', '', 'created_at', '')
+  redis.call('HSET', h, 'content', old, 'rev', '0', 'updated_at', '', 'created_at', '', 'storage_id', ARGV[9])
   if pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
   redis.call('DEL', legacy)
 end
@@ -342,7 +394,7 @@ return out
 `;
 
 /**
- * KEYS: old hash, old legacy, new hash, new legacy. ARGV: prefix, old key, new key.
+ * KEYS: old hash, old legacy, new hash, new legacy. ARGV: prefix, old key, new key, new storage id.
  * Moves a note to a new key without rewriting content. RENAME keeps hash
  * fields, rev, and TTL. Destination must be free. Index members follow.
  */
@@ -363,6 +415,7 @@ local moved = false
 
 if redis.call('EXISTS', oldH) == 1 then
   redis.call('RENAME', oldH, newH)
+  redis.call('HSETNX', newH, 'storage_id', ARGV[4])
   moved = true
   local f = redis.call('HMGET', newH, 'cid', 'tags')
   if f[1] then
@@ -397,7 +450,7 @@ if redis.call('EXISTS', oldLegacy) == 1 then
   else
     local content = redis.call('GET', oldLegacy)
     local pttl = redis.call('PTTL', oldLegacy)
-    redis.call('HSET', newH, 'content', content or '', 'rev', '0', 'updated_at', '', 'created_at', '')
+    redis.call('HSET', newH, 'content', content or '', 'rev', '0', 'updated_at', '', 'created_at', '', 'storage_id', ARGV[4])
     if pttl > 0 then
       redis.call('PEXPIRE', newH, pttl)
     end
@@ -460,12 +513,12 @@ export async function readNote(
   const result = await redis.eval<string[], string[] | null>(
     READ_SCRIPT,
     [noteKey(key), legacyKey(key)],
-    [includeComments ? "1" : "0", recordAccess ? "1" : "0", String(Date.now()), storagePrefix()],
+    [includeComments ? "1" : "0", recordAccess ? "1" : "0", String(Date.now()), storagePrefix(), recordAccess ? randomUUID() : ""],
   );
 
   if (!result) return null;
 
-  const [content, rev, updatedAt, createdAt, pttl, comments, responses, lastAccessedAt, cid, tags, creatorName, assetNs, assets, seenRev, seenAt] = result;
+  const [content, rev, updatedAt, createdAt, pttl, comments, responses, lastAccessedAt, cid, tags, creatorName, assetNs, assets, seenRev, seenAt, storageId, legacy] = result;
   return {
     content,
     comments: JSON.parse(comments),
@@ -474,6 +527,8 @@ export async function readNote(
     updatedAt: toNumberOrNull(updatedAt),
     createdAt: toNumberOrNull(createdAt),
     lastAccessedAt: toNumberOrNull(lastAccessedAt),
+    storageId: storageId || null,
+    legacy: legacy === "1",
     expiresAt: expiryFromPttl(Number(pttl), Date.now()),
     cid: cid || null,
     tags: cid ? parseTags(tags) : [],
@@ -521,6 +576,7 @@ async function commitNote(
       ...creatorArgs(creator),
       key,
       actor,
+      randomUUID(),
     ],
   );
   if (result[0] === "missing") return { ok: false, reason: "missing" };
@@ -539,6 +595,7 @@ async function commitNote(
     ok: true,
     rev: Number(result[1]),
     updatedAt: now,
+    content,
     expiresAt: expiryFromPttl(Number(result[2]), now),
     size: Number(result[3]),
     hasCreator: result[4] === "1",
@@ -598,7 +655,7 @@ export async function renameNote(
   const result = await redis.eval<string[], string[]>(
     RENAME_SCRIPT,
     [noteKey(from), legacyKey(from), noteKey(to), legacyKey(to)],
-    [storagePrefix(), from, to],
+    [storagePrefix(), from, to, randomUUID()],
   );
 
   const [status] = result;
@@ -622,7 +679,7 @@ export async function updateNoteMeta(key: string, change: CreatorChange): Promis
   const result = await redis.eval<string[], string[]>(
     META_SCRIPT,
     [noteKey(key), legacyKey(key)],
-    [storagePrefix(), key, ...creatorArgs(change), String(Date.now())],
+    [storagePrefix(), key, ...creatorArgs(change), String(Date.now()), randomUUID()],
   );
   if (result[0] === "not_found" || result[0] === "forbidden" || result[0] === "no_creator")
     return { ok: false, reason: result[0] };
