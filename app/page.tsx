@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { HomeEntry } from "./components/HomeEntry";
+import { homeMetadata } from "./lib/homeMetadata";
 import { cookies, headers } from "next/headers";
 import { NoteView, readPageNote as readNote } from "./components/NoteView";
 import { PERSIST_QUERY, isPersistParam, normalizeKey, persistPath } from "./lib/key";
@@ -8,11 +10,6 @@ import { readRememberedFolders, summarizeFolders, type FolderSummary } from "./l
 import { requestOrigin } from "./lib/origin";
 import { previewFromMarkdown } from "./lib/preview";
 
-const FALLBACK: Metadata = {
-  title: "Marker",
-  description: "Private markdown notes with secret keys",
-};
-
 export async function generateMetadata({
   searchParams,
 }: {
@@ -20,20 +17,20 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const params = await searchParams;
   if (!isPersistParam(params[PERSIST_QUERY])) {
-    return FALLBACK;
+    return homeMetadata;
   }
 
   const key = normalizeKey(params.key);
   if (!key) {
-    return FALLBACK;
+    return homeMetadata;
   }
 
-  const note = await readNote(key, false);
+  const note = await readNote(key);
   const preview = previewFromMarkdown(
     typeof note?.content === "string" ? note.content : ""
   );
   if (!preview) {
-    return FALLBACK;
+    return homeMetadata;
   }
 
   const origin = await requestOrigin();
@@ -103,5 +100,5 @@ export default async function Home({
   } catch {
     // Home must render even if Redis is unavailable; folders are a convenience.
   }
-  return <NoteView noteKey={null} persist={false} folders={folders} />;
+  return <HomeEntry folders={folders} />;
 }

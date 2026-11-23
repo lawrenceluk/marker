@@ -1,9 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   PERSIST_QUERY,
-  generateRandomKey,
   isPersistParam,
   normalizeKey,
   persistPath,
@@ -12,15 +12,13 @@ import {
   apiErrorMessage,
   isNoteExpiredResponse,
   isNoteSwitchedResponse,
-  noteApiHeaders,
   readJsonSafe,
 } from "../lib/noteClient";
 import { useNoteRevision } from "../lib/useNoteRevision";
 import { NoteSessionProvider, useNoteSession } from "./NoteSession";
-import { HomeIdle } from "./HomeIdle";
+import { HomeControls } from "./HomeEntry";
 import { CommentedViewer } from "./CommentedViewer";
 import { frontMatter } from "../lib/frontmatter";
-import { ContentEditor } from "./ContentEditor";
 import { AssetUrlsProvider, urlsFromAssets } from "./NoteImage";
 import { NoteToolbar } from "./NoteToolbar";
 import { RenameKey } from "./RenameKey";
@@ -31,9 +29,12 @@ const DUPLICATE_ARRIVAL_FLAG = "marker:duplicate-arrival";
 const DUPLICATE_ARRIVAL_DISMISS_MS = 6000;
 import { NoteCreator, creatorFromResponse, type NoteCreatorInfo } from "./NoteCreator";
 import type { ResponseEntry } from "../lib/responses";
-import type { FolderSummary } from "../lib/folders";
 
-type AppState = "idle" | "loading" | "viewing" | "editing";
+const ContentEditor = dynamic(() => import("./ContentEditor").then(module => module.ContentEditor), {
+  loading: () => <p role="status" className="text-muted">Loading editor…</p>,
+});
+
+type AppState = "idle" | "viewing" | "editing";
 
 interface NoteAppProps {
   /**
@@ -53,8 +54,6 @@ interface NoteAppProps {
   initialPersist: boolean;
   /** Creator name and tags of the initial note, if it has a creator. */
   initialCreator?: NoteCreatorInfo | null;
-  /** Remembered folders for Home; undefined means Home fetches them itself. */
-  initialFolders?: FolderSummary[];
   /** Whether this deployment has image storage configured. */
   imagesEnabled?: boolean;
   /** View URLs for the initial note's images and embeds, by asset id. */
@@ -63,7 +62,6 @@ interface NoteAppProps {
   initialEmbedShellUrl?: string | null;
 }
 
-const RANDOMIZE_ATTEMPTS = 16;
 const NO_URLS: Record<string, string> = {};
 
 export function NoteApp(props: NoteAppProps) {
@@ -92,7 +90,6 @@ function NoteAppBody({
   initialNote,
   initialPersist,
   initialCreator = null,
-  initialFolders,
   imagesEnabled = false,
   initialAssetUrls = NO_URLS,
   initialEmbedShellUrl = null,
@@ -119,7 +116,6 @@ function NoteAppBody({
   const [origin, setOrigin] = useState("");
   const [isRenaming, setIsRenaming] = useState(false);
   const [isSavingRename, setIsSavingRename] = useState(false);
-  const [isRandomizing, setIsRandomizing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [toast, setToast] = useState<{
@@ -255,78 +251,6 @@ function NoteAppBody({
 
   function showHomeUrl() {
     window.history.replaceState(null, "", "/");
-  }
-
-  async function handleKeySubmit(key: string) {
-    setAppState("loading");
-    setError(null);
-    setForceOverwrite(false);
-    setRawKey(key);
-    setPersist(false);
-
-    try {
-      const session = await fetch("/api/session", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key }),
-      });
-      const sessionData = await session.json();
-      if (!session.ok || typeof sessionData.handle !== "string") {
-        throw new Error("Couldn't open note. Try again.");
-      }
-
-      // Land on `/n/<handle>` so the note is seen once (after-load PATCH /api/meta), not again via GET /api/content.
-      window.location.assign(`/n/${sessionData.handle}`);
-      return;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't open note. Try again.");
-      setRawKey(null);
-      setAppState("idle");
-    }
-  }
-
-  async function handleRandomize() {
-    setIsRandomizing(true);
-    setError(null);
-
-    try {
-      for (let i = 0; i < RANDOMIZE_ATTEMPTS; i++) {
-        const key = generateRandomKey();
-
-        const session = await fetch("/api/session", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key }),
-        });
-        const sessionData = await session.json();
-        if (!session.ok || typeof sessionData.binding !== "string") {
-          throw new Error("Couldn't create note. Try again.");
-        }
-
-        const res = await fetch("/api/content", {
-          headers: noteApiHeaders(sessionData.binding),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || "Couldn't create note. Try again.");
-        }
-
-        if (!data.exists) {
-          window.location.assign(`/n/${sessionData.handle}`);
-          return;
-        }
-      }
-
-      throw new Error("Couldn't find an unused key. Try again.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't create note. Try again.");
-      setRawKey(null);
-      setAppState("idle");
-    } finally {
-      setIsRandomizing(false);
-    }
   }
 
   async function handleSave() {
@@ -635,21 +559,7 @@ function NoteAppBody({
           </div>
         )}
 
-        {appState === "idle" && (
-          <HomeIdle
-            folders={initialFolders}
-            onSubmit={handleKeySubmit}
-            onRandomize={handleRandomize}
-            isLoading={false}
-            isRandomizing={isRandomizing}
-          />
-        )}
-
-        {appState === "loading" && (
-          <div className="flex justify-center">
-            <div className="text-muted">Opening note…</div>
-          </div>
-        )}
+        {appState === "idle" && <HomeControls />}
 
         {appState === "viewing" && (
           <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} rev={rev ?? 0} initialResponses={responses} onChange={handleCommentChange} onRevision={noticeRevision} onComposingChange={setIsComposing} toolbar={commentsButton => <>

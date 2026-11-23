@@ -5,34 +5,31 @@ import { maskKey } from "../lib/key";
 import { readNote as loadNote } from "../lib/notes";
 import { CREATOR_COOKIE, normalizeCreatorId } from "../lib/creatorId";
 import { creatorHash } from "../lib/creators";
-import type { FolderSummary } from "../lib/folders";
 import { noteFolderHref } from "../lib/folders";
 import { r2Config } from "../lib/r2";
 import { assetUrlMap } from "../lib/assets";
 import { shellForNote } from "../lib/embeds";
 import { NoteApp } from "./NoteApp";
 
-/** Shared by metadata and the page body so a request reads the note once. */
-export const readPageNote = cache(async (key: string, recordAccess: boolean) => {
+/** One request-local snapshot for the page and its metadata. The standalone OG
+ * image and note APIs retain their own read paths. */
+export const readPageNote = cache(async (key: string) => {
   await ensurePreviewDemo(key);
-  return recordAccess ? loadNote(key, true, true) : loadNote(key);
+  return loadNote(key, true, true);
 });
 
-/** Home (no key) or a note, server-rendered. */
+/** Server-rendered note. */
 export async function NoteView({
   noteKey,
   persist,
   noteBinding = null,
-  folders,
 }: {
-  noteKey: string | null;
+  noteKey: string;
   persist: boolean;
   /** Per-tab API binding; omitted on Home idle. */
   noteBinding?: string | null;
-  /** Remembered folders for Home; omitted on note pages, where Home loads them on demand. */
-  folders?: FolderSummary[];
 }) {
-  const note = noteKey ? await readPageNote(noteKey, true) : null;
+  const note = await readPageNote(noteKey);
   const r2 = r2Config();
   const jar = await cookies();
   const creatorId = normalizeCreatorId(jar.get(CREATOR_COOKIE)?.value);
@@ -49,13 +46,12 @@ export async function NoteView({
   return (
     <>
       <NoteApp
-        initialKeyLabel={noteKey ? maskKey(noteKey) : null}
+        initialKeyLabel={maskKey(noteKey)}
         noteBinding={noteBinding}
-        persistNoteKey={persist && noteKey ? noteKey : null}
+        persistNoteKey={persist ? noteKey : null}
         initialNote={note ? { content: note.content, rev: note.rev, responses: note.responses } : null}
         initialPersist={persist}
         initialCreator={creator}
-        initialFolders={folders}
         imagesEnabled={r2 !== null}
         initialAssetUrls={assetUrlMap(r2, note)}
         initialEmbedShellUrl={(await shellForNote(r2, note))?.url ?? null}

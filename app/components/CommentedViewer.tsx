@@ -10,7 +10,8 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { Check, MessageCircle, MessageSquarePlus, Minus, Plus, RotateCcw, Search, Send, SmilePlus, X } from "lucide-react";
-import EmojiPicker, { Theme } from "emoji-picker-react";
+import dynamic from "next/dynamic";
+
 import { ContentViewer, type ResponseChange } from "./ContentViewer";
 import { ToolbarButton, toolbarButtonClass } from "./ToolbarButton";
 import { SelectionActionButton } from "./SelectionActionButton";
@@ -23,6 +24,10 @@ import { DEFAULT_EMOJI } from "../lib/emoji-suggestions";
 import { apiErrorMessage, isNoteSwitchedResponse, readJsonSafe } from "../lib/noteClient";
 import { useNoteSession } from "./NoteSession";
 
+const NoteEmojiPicker = dynamic(() => import("./NoteEmojiPicker"), {
+  ssr: false,
+  loading: () => <p role="status" className="text-muted">Loading emoji…</p>,
+});
 type Snapshot = { rev: number; content: string; comments: LocatedThread[]; responses: ResponseEntry[] };
 type RankAnswer = { ranking: number[]; emojis?: string[]; suggested?: boolean };
 type AutoSelection = { candidates: TapCandidate[]; ranking: number[]; index: number; requestId: number };
@@ -729,7 +734,7 @@ export function CommentedViewer({
                   {react}{comment}
                 </div>}
             {emojiOpen && showEmojiPicker && <div className="emoji-picker-panel" style={{ left: 8, bottom: bottom + 72, width: pickerWidth }}>
-              <EmojiPicker theme={Theme.AUTO} width="100%" height={pickerHeight} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />
+              <NoteEmojiPicker height={pickerHeight} onSelect={sendEmoji} />
             </div>}
             {emojiOpen && error && <p className="emoji-reactor-error" role="alert" style={{ left: 16, right: 16, bottom: bottom + 72 }}>{error}</p>}
           </>;
@@ -746,7 +751,7 @@ export function CommentedViewer({
                 {comment}{react}
               </div>}
           {emojiOpen && showEmojiPicker && <div className="emoji-picker-panel" style={{ left, top: pickerTop, width: pickerWidth }}>
-            <EmojiPicker theme={Theme.AUTO} width="100%" height={pickerHeight} autoFocusSearch onEmojiClick={data => sendEmoji(data.emoji)} />
+            <NoteEmojiPicker height={pickerHeight} onSelect={sendEmoji} />
           </div>}
           {emojiOpen && error && <p className="emoji-reactor-error" role="alert" style={{ left: selection.x, top: below, maxWidth: 272 }}>{error}</p>}
         </>;

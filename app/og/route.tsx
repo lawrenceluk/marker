@@ -9,6 +9,7 @@ import { ROBOTS_TAG } from "@/app/lib/robots";
 
 export const runtime = "nodejs";
 
+const PRIVATE_CACHE = "private, no-store";
 const SIZE = { width: 1200, height: 630 };
 
 // ImageResponse can't read woff2, so this uses the package's TTF (see outputFileTracingIncludes).
@@ -21,7 +22,7 @@ const GEIST_REGULAR = join(process.cwd(), "node_modules/geist/dist/fonts/geist-s
 export async function GET(request: NextRequest) {
   const key = normalizeKey(request.nextUrl.searchParams.get("key"));
   if (!key) {
-    return new Response("Key is required", { status: 400 });
+    return new Response("Key is required", { status: 400, headers: { "Cache-Control": PRIVATE_CACHE } });
   }
 
   const note = await readNote(key);
@@ -66,9 +67,6 @@ export async function GET(request: NextRequest) {
   );
 
   image.headers.set("X-Robots-Tag", ROBOTS_TAG);
-  image.headers.set(
-    "Cache-Control",
-    "public, s-maxage=300, stale-while-revalidate=86400"
-  );
+  image.headers.set("Cache-Control", PRIVATE_CACHE);
   return image;
 }
