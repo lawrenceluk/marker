@@ -10,6 +10,8 @@ test("reads throttle access, preserve revisions and expiry, and migrate legacy n
   process.env.VERCEL_ENV = "preview";
   try {
     const notes = await import("../app/lib/notes");
+    const { duplicateNote } = await import("../app/lib/duplicate");
+    const { ensurePreviewDemo, METADATA_DEMO_KEY } = await import("../app/lib/demo");
     const contentApi = await import("../app/api/content/route");
     const commentsApi = await import("../app/api/comments/route");
     const key = "marker-commenting-preview-v1:note:accessed";
@@ -88,6 +90,24 @@ test("reads throttle access, preserve revisions and expiry, and migrate legacy n
       assert.equal((await notes.readNote(collisionKey))?.lastAccessedAt, null);
       await notes.recordPageNoteAccess(collisionKey, replacement);
       assert.equal((await notes.readNote(collisionKey))?.lastAccessedAt, fixedTime);
+
+      const duplicateKey = "duplicated-in-same-millisecond";
+      const createDuplicate = () => duplicateNote(collisionKey, duplicateKey, null, replacement, { copyCreator: false });
+      const creationPaths = [
+        [duplicateKey, async () => assert.equal((await createDuplicate()).ok, true)],
+        [METADATA_DEMO_KEY, () => ensurePreviewDemo(METADATA_DEMO_KEY)],
+      ] as const;
+      for (const [createdKey, create] of creationPaths) {
+        await create();
+        const beforeDelete = (await notes.readNote(createdKey))!;
+        assert.ok(beforeDelete.storageId);
+        await notes.deleteNote(createdKey);
+        await create();
+        const recreated = (await notes.readNote(createdKey))!;
+        assert.notEqual(recreated.storageId, beforeDelete.storageId);
+        await notes.recordPageNoteAccess(createdKey, beforeDelete);
+        assert.equal((await notes.readNote(createdKey))?.lastAccessedAt, null);
+      }
     } finally {
       clock.mock.restore();
     }

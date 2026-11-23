@@ -19,6 +19,7 @@ import { GROUP_HEIGHT, SELECTION_BAR_CLEARANCE, marginSpot, plainQuote, selectio
 import { selectSourceRange, sourceSelection, tapSourceOffset } from "../lib/comment-markup";
 import { adjacentSizeCandidate, heuristicRanking, tapCandidates, tapContext, type TapCandidate } from "../lib/tap-select";
 import type { CommentOperation, LocatedThread } from "../lib/comments";
+import type { FrontMatter } from "../lib/frontmatterBody";
 import { reactionBlocksFromMarkdown, type ResponseEntry } from "../lib/reactionBlocks";
 import { DEFAULT_EMOJI } from "../lib/emoji-suggestions";
 import { apiErrorMessage, isNoteSwitchedResponse, readJsonSafe } from "../lib/noteClient";
@@ -28,7 +29,6 @@ const NoteEmojiPicker = dynamic(() => import("./NoteEmojiPicker"), {
   ssr: false,
   loading: () => <p role="status" className="text-muted">Loading emoji…</p>,
 });
-import type { FrontMatter } from "../lib/frontmatterBody";
 
 type Snapshot = {
   rev: number;

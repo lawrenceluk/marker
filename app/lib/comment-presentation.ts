@@ -1,8 +1,8 @@
-import { ogBodyText } from "./preview";
+import { markdownExcerpt } from "./markdownPlainText";
 
-/** Display only: selections can cut off a closing Markdown delimiter. */
+/** Selections come from the Markdown body and can cut off a closing delimiter. */
 export function plainQuote(source: string): string {
-  return ogBodyText(source.replace(/^[ \t]*(?:>[ \t]*)+/gm, ""), 8000)
+  return markdownExcerpt(source.replace(/^[ \t]*(?:>[ \t]*)+/gm, ""), 8000)
     .replace(/(^|\s)[*_~`\[]+(?=\S)/g, "$1")
     .replace(/[*_~`\]]+$/g, "")
     .replace(/\s+/g, " ")

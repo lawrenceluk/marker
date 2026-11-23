@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   ASSET_LIB,
   ASSET_REF_PATTERN,
@@ -64,7 +64,7 @@ return {'ok'}
 
 /**
  * KEYS: dest hash, dest legacy, source hash. ARGV: prefix, source key, dest key,
- * content, now, title, asset_ns, assets json, copy_creator ('1' or '').
+ * content, now, title, asset_ns, assets json, copy_creator ('1' or ''), new storage id.
  */
 const DUPLICATE_SCRIPT = `
 local PREFIX = ARGV[1]
@@ -91,6 +91,7 @@ redis.call('HSET', destH,
   'rev', '1',
   'updated_at', now,
   'created_at', now,
+  'storage_id', ARGV[10],
   'title', title,
   'seen_rev', '1',
   'seen_at', now
@@ -324,6 +325,7 @@ export async function duplicateNote(
       assetNs,
       JSON.stringify(assets),
       options.copyCreator ? "1" : "",
+      randomUUID(),
     ],
   );
 
