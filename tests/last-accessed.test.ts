@@ -51,6 +51,27 @@ test("reads throttle access, preserve revisions and expiry, and migrate legacy n
     assert.ok((await notes.readNote("comment-access"))!.lastAccessedAt);
     assert.equal(await notes.readRevision("comment-access"), 1);
 
+    const legacyView = "marker-commenting-preview-v1:content:legacy-view";
+    const viewHash = "marker-commenting-preview-v1:note:legacy-view";
+    await fixture.client.set(legacyView, "Legacy view", { PX: 90_000 });
+    const viewSnapshot = await notes.readNote("legacy-view", true);
+    assert.equal(viewSnapshot?.content, "Legacy view");
+    assert.equal(await fixture.client.exists(viewHash), 0);
+    const viewTime = Date.now();
+    await notes.recordPageNoteAccess("legacy-view", viewSnapshot!, viewTime);
+    assert.equal(await fixture.client.exists(legacyView), 0);
+    assert.equal(await fixture.client.hGet(viewHash, "last_accessed_at"), String(viewTime));
+    assert.equal(await notes.readRevision("legacy-view"), 0);
+    assert.ok((await fixture.client.pTTL(viewHash)) > 0);
+    await notes.recordPageNoteAccess("legacy-view", viewSnapshot!, viewTime + 1);
+    assert.equal(await fixture.client.hGet(viewHash, "last_accessed_at"), String(viewTime));
+    await notes.deleteNote("legacy-view");
+    await notes.recordPageNoteAccess("legacy-view", viewSnapshot!, viewTime + 2);
+    assert.equal(await fixture.client.exists(viewHash), 0);
+    await notes.writeNote("legacy-view", "Replacement", { ifRev: 0 });
+    await notes.recordPageNoteAccess("legacy-view", viewSnapshot!, viewTime + 3);
+    assert.equal(await fixture.client.hGet(viewHash, "last_accessed_at"), null);
+
     const legacy = "marker-commenting-preview-v1:content:legacy-access";
     const hash = "marker-commenting-preview-v1:note:legacy-access";
     await fixture.client.set(legacy, "Old content", { PX: 90_000 });

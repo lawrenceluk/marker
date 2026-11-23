@@ -212,21 +212,35 @@ local function creator_result(h)
 end
 `;
 
+const ACCESS_SCRIPT_HELPERS = `
+local function record_access(h, accessed, now)
+  if accessed == '' or tonumber(now) - (tonumber(accessed) or 0) >= ${ACCESS_THROTTLE_MS} then
+    redis.call('HSET', h, 'last_accessed_at', now)
+    return now
+  end
+  return accessed
+end
+
+local function promote_legacy(h, legacy, old, pttl, now)
+  redis.call('HSET', h, 'content', old, 'rev', '0', 'updated_at', '', 'created_at', '', 'last_accessed_at', now)
+  if pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
+  redis.call('DEL', legacy)
+end
+`;
+
 /**
  * KEYS: note hash, legacy string. ARGV: comments?, access?, now, prefix.
  * Returns [content, rev, updated_at, created_at, pttl, comments, responses,
  * last_accessed_at, cid, tags, creator_name, asset_ns, assets, seen_rev, seen_at] or nil.
  */
 const READ_SCRIPT = `
+${ACCESS_SCRIPT_HELPERS}
 local h, legacy = KEYS[1], KEYS[2]
 
 if redis.call('EXISTS', h) == 1 then
   local f = redis.call('HMGET', h, 'content', 'rev', 'updated_at', 'created_at', 'last_accessed_at', 'cid', 'tags', 'asset_ns', 'assets', 'seen_rev', 'seen_at')
   local accessed = f[5] or ''
-  if ARGV[2] == '1' and (accessed == '' or tonumber(ARGV[3]) - (tonumber(accessed) or 0) >= ${ACCESS_THROTTLE_MS}) then
-    redis.call('HSET', h, 'last_accessed_at', ARGV[3])
-    accessed = ARGV[3]
-  end
+  if ARGV[2] == '1' then accessed = record_access(h, accessed, ARGV[3]) end
   local name = f[6] and redis.call('HGET', ARGV[4] .. 'cidx:' .. f[6] .. ':meta', 'name') or ''
   return { f[1] or '', f[2] or '0', f[3] or '', f[4] or '', tostring(redis.call('PTTL', h)), ARGV[1] == '1' and (redis.call('HGET', h, 'comments') or '[]') or '[]', ARGV[1] == '1' and (redis.call('HGET', h, 'responses') or '[]') or '[]', accessed, f[6] or '', f[7] or '', name or '', f[8] or '', f[9] or '', f[10] or '', f[11] or '' }
 end
@@ -235,9 +249,7 @@ local old = redis.call('GET', legacy)
 if old then
   local pttl = redis.call('PTTL', legacy)
   if ARGV[2] == '1' then
-    redis.call('HSET', h, 'content', old, 'rev', '0', 'updated_at', '', 'created_at', '', 'last_accessed_at', ARGV[3])
-    if pttl >= 0 then redis.call('PEXPIRE', h, pttl) end
-    redis.call('DEL', legacy)
+    promote_legacy(h, legacy, old, pttl, ARGV[3])
     return { old, '0', '', '', tostring(pttl), '[]', '[]', ARGV[3], '', '', '', '', '', '', '' }
   end
   return { old, '0', '', '', tostring(pttl), '[]', '[]', '', '', '', '', '', '', '', '' }
@@ -245,6 +257,35 @@ end
 
 return nil
 `;
+
+/** Page-view access only. No note snapshot is assembled or returned. */
+const PAGE_ACCESS_SCRIPT = `
+${ACCESS_SCRIPT_HELPERS}
+local h, legacy = KEYS[1], KEYS[2]
+if redis.call('EXISTS', h) == 1 then
+  local created = redis.call('HGET', h, 'created_at') or ''
+  if created ~= ARGV[2] then return 0 end
+  if created == '' and redis.call('HGET', h, 'content') ~= ARGV[3] then return 0 end
+  record_access(h, redis.call('HGET', h, 'last_accessed_at') or '', ARGV[1])
+elseif ARGV[2] == '' then
+  local old = redis.call('GET', legacy)
+  if old and old == ARGV[3] then
+    promote_legacy(h, legacy, old, redis.call('PTTL', legacy), ARGV[1])
+  end
+end
+return 1
+`;
+
+export async function recordPageNoteAccess(
+  key: string,
+  { lastAccessedAt, createdAt, content }: Pick<Note, "lastAccessedAt" | "createdAt" | "content">,
+  viewedAt = Date.now(),
+) {
+  if (lastAccessedAt !== null && viewedAt - lastAccessedAt < ACCESS_THROTTLE_MS) return;
+  await redis.eval(PAGE_ACCESS_SCRIPT, [noteKey(key), legacyKey(key)], [
+    String(viewedAt), createdAt === null ? "" : String(createdAt), createdAt === null ? content : "",
+  ]);
+}
 
 /**
  * All writes commit content + anchors under the snapshot revision. TTL stays

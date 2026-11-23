@@ -37,9 +37,18 @@ function forward(request: NextRequest, mutate?: (headers: Headers) => void) {
 }
 
 function isAnonymousHome(request: NextRequest): boolean {
+  const destination = request.headers.get("sec-fetch-dest");
+  const mode = request.headers.get("sec-fetch-mode");
+  const accept = request.headers.get("accept");
   return request.method === "GET"
     && request.nextUrl.pathname === "/"
     && !request.url.includes("?")
+    && (destination === null || destination === "document")
+    && (mode === null || mode === "navigate")
+    && (accept === null || accept.split(",").some(part => {
+      const mime = part.split(";")[0].trim();
+      return mime === "text/html" || mime === "*/*";
+    }))
     && !request.headers.has(PAGE_HANDLE_HEADER)
     && !privateHomeHeaders.some(name => request.headers.has(name));
 }

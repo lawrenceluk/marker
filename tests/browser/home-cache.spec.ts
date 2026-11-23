@@ -43,6 +43,9 @@ test("Home and private variants stay isolated across requests", async ({ baseURL
     await checkPrivate("/", { "Next-Router-Prefetch": "1" });
     await checkPrivate("/", { "Next-Router-Segment-Prefetch": "/_tree" });
     await checkPrivate("/", { "Sec-Purpose": "prefetch" });
+    await checkPrivate("/", { "Sec-Fetch-Dest": "iframe" });
+    await checkPrivate("/", { "Sec-Fetch-Mode": "cors" });
+    await checkPrivate("/", { Accept: "application/json" });
     await checkPrivate("/?_rsc=synthetic", { RSC: "1" });
     await checkPrivate("/", { "Next-Router-State-Tree": encodeURIComponent('["",{}]'), RSC: "1" });
     await checkPrivate("/", { "x-nextjs-data": "1" });

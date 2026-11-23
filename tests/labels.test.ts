@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { bodyMarkdown } from "../app/lib/frontmatter";
+import { reactionBlocksFromMarkdown } from "../app/lib/reactionBlocks";
 import { ContentViewer } from "../app/components/ContentViewer";
 import { NoteCreator } from "../app/components/NoteCreator";
 import { frontMatter } from "../app/lib/frontmatter";
@@ -68,7 +70,9 @@ owner: design
 });
 
 test("the note body no longer carries a metadata disclosure or an ask hint", () => {
-  const html = renderToStaticMarkup(createElement(ContentViewer, { content: "---\nstatus: draft\n---\n# Plan\n\n```ask\nid: ship\nquestion: When should we ship?\ntype: single\noptions:\n- Friday\n- Next week\n```\n" }));
+  const content = "---\nstatus: draft\n---\n# Plan\n\n```ask\nid: ship\nquestion: When should we ship?\ntype: single\noptions:\n- Friday\n- Next week\n```\n";
+  const markdown = bodyMarkdown(content);
+  const html = renderToStaticMarkup(createElement(ContentViewer, { content, markdown, reactionBlocks: reactionBlocksFromMarkdown(markdown) }));
   assert.doesNotMatch(html, /metadata-callout|<summary|reaction-hint|Choose one/);
   assert.match(html, /<h1[^>]*>Plan<\/h1>/);
   assert.match(html, /<fieldset class="reaction-ask" aria-label="When should we ship\?">/);

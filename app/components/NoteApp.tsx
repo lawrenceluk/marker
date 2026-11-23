@@ -18,7 +18,7 @@ import { useNoteRevision } from "../lib/useNoteRevision";
 import { NoteSessionProvider, useNoteSession } from "./NoteSession";
 import { HomeControls } from "./HomeEntry";
 import { CommentedViewer } from "./CommentedViewer";
-import { frontMatter } from "../lib/frontmatter";
+import { bodyWithoutFrontMatter, frontMatterOpening, type FrontMatter } from "../lib/frontmatterBody";
 import { AssetUrlsProvider, urlsFromAssets } from "./NoteImage";
 import { NoteToolbar } from "./NoteToolbar";
 import { RenameKey } from "./RenameKey";
@@ -50,6 +50,7 @@ interface NoteAppProps {
   persistNoteKey?: string | null;
   /** The note that key names, or null if it doesn't exist yet. */
   initialNote: { content: string; rev: number; responses: ResponseEntry[] } | null;
+  initialMetadata: FrontMatter | null;
   /** Whether this session is a persistent document link. */
   initialPersist: boolean;
   /** Creator name and tags of the initial note, if it has a creator. */
@@ -63,6 +64,18 @@ interface NoteAppProps {
 }
 
 const NO_URLS: Record<string, string> = {};
+
+async function parseEditedFrontMatter(content: string) {
+  if (!frontMatterOpening(content)) return null;
+  try {
+    const { frontMatter } = await import("../lib/frontmatter");
+    return frontMatter(content);
+  } catch {
+    // Recover the server-rendered snapshot if the on-demand chunk cannot load.
+    window.location.reload();
+    return null;
+  }
+}
 
 export function NoteApp(props: NoteAppProps) {
   return (
@@ -88,6 +101,7 @@ function NoteAppBody({
   noteBinding = null,
   persistNoteKey = null,
   initialNote,
+  initialMetadata,
   initialPersist,
   initialCreator = null,
   imagesEnabled = false,
@@ -128,7 +142,8 @@ function NoteAppBody({
   const [deleteResetKey, setDeleteResetKey] = useState(0);
   const [isComposing, setIsComposing] = useState(false);
   const [creator, setCreator] = useState<NoteCreatorInfo | null>(initialCreator);
-  const metadata = useMemo(() => frontMatter(content), [content]);
+  const [metadata, setMetadata] = useState(initialMetadata);
+  const markdown = useMemo(() => bodyWithoutFrontMatter(content, metadata), [content, metadata]);
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [isSavingTags, setIsSavingTags] = useState(false);
   const { updated, noticeRevision } = useNoteRevision(
@@ -233,12 +248,13 @@ function NoteAppBody({
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const handleCommentChange = useCallback((next: string, revision: number, nextResponses: ResponseEntry[]) => {
+  const handleCommentChange = useCallback(async (next: string, revision: number, nextResponses: ResponseEntry[]) => {
+    if (next !== content) setMetadata(await parseEditedFrontMatter(next));
     setContent(next);
     setOriginalContent(next);
     setRev(revision);
     setResponses(nextResponses);
-  }, []);
+  }, [content]);
 
   function showPersistUrl(key: string) {
     window.history.replaceState(null, "", persistPath(key));
@@ -284,6 +300,7 @@ function NoteAppBody({
         throw new Error(apiErrorMessage(data, "Couldn't save note. Try again."));
       }
 
+      if (content !== originalContent) setMetadata(await parseEditedFrontMatter(content));
       setOriginalContent(content);
       setRev(typeof data.rev === "number" ? data.rev : null);
       setForceOverwrite(false);
@@ -322,6 +339,7 @@ function NoteAppBody({
 
       if (data.exists) {
         const nextContent = typeof data.content === "string" ? data.content : "";
+        setMetadata(await parseEditedFrontMatter(nextContent));
         setContent(nextContent);
         setOriginalContent(nextContent);
         setResponses(Array.isArray(data.responses) ? data.responses : []);
@@ -331,6 +349,7 @@ function NoteAppBody({
         setAppState("viewing");
       } else {
         setContent("");
+        setMetadata(null);
         setOriginalContent("");
         setResponses([]);
         setRev(0);
@@ -365,6 +384,7 @@ function NoteAppBody({
     setRawKey(null);
     setPersist(false);
     setContent("");
+    setMetadata(null);
     setOriginalContent("");
     setResponses([]);
     setRev(null);
@@ -425,6 +445,7 @@ function NoteAppBody({
       setRawKey(null);
       setPersist(false);
       setContent("");
+      setMetadata(null);
       setOriginalContent("");
       setResponses([]);
       setRev(null);
@@ -562,7 +583,7 @@ function NoteAppBody({
         {appState === "idle" && <HomeControls />}
 
         {appState === "viewing" && (
-          <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} rev={rev ?? 0} initialResponses={responses} onChange={handleCommentChange} onRevision={noticeRevision} onComposingChange={setIsComposing} toolbar={commentsButton => <>
+          <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} markdown={markdown} rev={rev ?? 0} initialResponses={responses} onChange={handleCommentChange} onRevision={noticeRevision} onComposingChange={setIsComposing} toolbar={commentsButton => <>
             <NoteToolbar
               commentsButton={commentsButton}
               key={deleteResetKey}
