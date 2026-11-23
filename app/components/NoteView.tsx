@@ -9,7 +9,7 @@ import { creatorHash } from "../lib/creators";
 import { noteFolderHref } from "../lib/folders";
 import { r2Config } from "../lib/r2";
 import { assetUrlMap } from "../lib/assets";
-import { frontMatter } from "../lib/frontmatter";
+import { displayFrontMatter } from "../lib/frontmatter";
 import { shellForNote } from "../lib/embeds";
 import { NoteApp } from "./NoteApp";
 
@@ -55,7 +55,7 @@ export async function NoteView({
         noteBinding={noteBinding}
         persistNoteKey={persist ? noteKey : null}
         initialNote={note ? { content: note.content, rev: note.rev, responses: note.responses } : null}
-        initialMetadata={note ? frontMatter(note.content) : null}
+        initialMetadata={note ? displayFrontMatter(note.content) : null}
         initialPersist={persist}
         initialCreator={creator}
         imagesEnabled={r2 !== null}

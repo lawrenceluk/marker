@@ -19,7 +19,7 @@ import { GROUP_HEIGHT, SELECTION_BAR_CLEARANCE, marginSpot, plainQuote, selectio
 import { selectSourceRange, sourceSelection, tapSourceOffset } from "../lib/comment-markup";
 import { adjacentSizeCandidate, heuristicRanking, tapCandidates, tapContext, type TapCandidate } from "../lib/tap-select";
 import type { CommentOperation, LocatedThread } from "../lib/comments";
-import type { FrontMatter } from "../lib/frontmatterBody";
+import type { DisplayFrontMatter } from "../lib/frontmatterBody";
 import { reactionBlocksFromMarkdown, type ResponseEntry } from "../lib/reactionBlocks";
 import { DEFAULT_EMOJI } from "../lib/emoji-suggestions";
 import { apiErrorMessage, isNoteSwitchedResponse, readJsonSafe } from "../lib/noteClient";
@@ -35,7 +35,7 @@ type Snapshot = {
   content: string;
   comments: LocatedThread[];
   responses: ResponseEntry[];
-  front_matter?: FrontMatter | null;
+  front_matter?: DisplayFrontMatter | null;
 };
 type RankAnswer = { ranking: number[]; emojis?: string[]; suggested?: boolean };
 type AutoSelection = { candidates: TapCandidate[]; ranking: number[]; index: number; requestId: number };
@@ -64,7 +64,7 @@ export function CommentedViewer({
   markdown: string;
   rev: number;
   initialResponses: ResponseEntry[];
-  onChange: (content: string, rev: number, responses: ResponseEntry[], frontMatter?: FrontMatter | null) => Promise<void>;
+  onChange: (content: string, rev: number, responses: ResponseEntry[], frontMatter?: DisplayFrontMatter | null) => Promise<void>;
   onRevision: (rev: number) => void;
   onComposingChange: (composing: boolean) => void;
   toolbar: (commentsButton: ReactNode) => ReactNode;

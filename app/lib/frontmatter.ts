@@ -1,6 +1,7 @@
 import { isMap, parseDocument } from "yaml";
 
-import { bodyWithoutFrontMatter, frontMatterOpening, type FrontMatter } from "./frontmatterBody";
+import { bodyWithoutFrontMatter, frontMatterOpening, type DisplayFrontMatter, type FrontMatter } from "./frontmatterBody";
+import { summarizeMetadata } from "./metadataSummary";
 export type { FrontMatter, MetadataValue } from "./frontmatterBody";
 
 /** Only a leading, closed YAML block is metadata. Keep body offsets unchanged. */
@@ -25,6 +26,13 @@ export function frontMatter(content: string): FrontMatter | null {
   } catch {
     return { raw, fields: null, end };
   }
+}
+
+export function displayFrontMatter(content: string): DisplayFrontMatter | null {
+  const metadata = frontMatter(content);
+  if (!metadata) return null;
+  const { fields, raw, end } = metadata;
+  return { raw, end, summary: fields ? summarizeMetadata(fields) : null };
 }
 
 export function bodyMarkdown(content: string, metadata = frontMatter(content)): string {

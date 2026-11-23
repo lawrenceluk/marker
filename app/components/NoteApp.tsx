@@ -18,7 +18,7 @@ import { useNoteRevision } from "../lib/useNoteRevision";
 import { NoteSessionProvider, useNoteSession } from "./NoteSession";
 import { HomeControls } from "./HomeEntry";
 import { CommentedViewer } from "./CommentedViewer";
-import { bodyWithoutFrontMatter, FRONT_MATTER_HEADER, type FrontMatter } from "../lib/frontmatterBody";
+import { bodyWithoutFrontMatter, FRONT_MATTER_HEADER, type DisplayFrontMatter } from "../lib/frontmatterBody";
 import { AssetUrlsProvider, urlsFromAssets } from "./NoteImage";
 import { NoteToolbar } from "./NoteToolbar";
 import { RenameKey } from "./RenameKey";
@@ -50,7 +50,7 @@ interface NoteAppProps {
   persistNoteKey?: string | null;
   /** The note that key names, or null if it doesn't exist yet. */
   initialNote: { content: string; rev: number; responses: ResponseEntry[] } | null;
-  initialMetadata: FrontMatter | null;
+  initialMetadata: DisplayFrontMatter | null;
   /** Whether this session is a persistent document link. */
   initialPersist: boolean;
   /** Creator name and tags of the initial note, if it has a creator. */
@@ -236,7 +236,7 @@ function NoteAppBody({
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const handleCommentChange = useCallback(async (next: string, revision: number, nextResponses: ResponseEntry[], frontMatter?: FrontMatter | null) => {
+  const handleCommentChange = useCallback(async (next: string, revision: number, nextResponses: ResponseEntry[], frontMatter?: DisplayFrontMatter | null) => {
     if (next !== content) setMetadata(frontMatter ?? null);
     setContent(next);
     setOriginalContent(next);
@@ -288,7 +288,7 @@ function NoteAppBody({
         throw new Error(apiErrorMessage(data, "Couldn't save note. Try again."));
       }
 
-      if (content !== originalContent) setMetadata((data.front_matter as FrontMatter | null | undefined) ?? null);
+      if (content !== originalContent) setMetadata((data.front_matter as DisplayFrontMatter | null | undefined) ?? null);
       setOriginalContent(content);
       setRev(typeof data.rev === "number" ? data.rev : null);
       setForceOverwrite(false);
@@ -327,7 +327,7 @@ function NoteAppBody({
 
       if (data.exists) {
         const nextContent = typeof data.content === "string" ? data.content : "";
-        setMetadata((data.front_matter as FrontMatter | null | undefined) ?? null);
+        setMetadata((data.front_matter as DisplayFrontMatter | null | undefined) ?? null);
         setContent(nextContent);
         setOriginalContent(nextContent);
         setResponses(Array.isArray(data.responses) ? data.responses : []);

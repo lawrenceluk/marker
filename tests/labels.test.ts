@@ -8,7 +8,7 @@ import { bodyMarkdown } from "../app/lib/frontmatter";
 import { reactionBlocksFromMarkdown } from "../app/lib/reactionBlocks";
 import { ContentViewer } from "../app/components/ContentViewer";
 import { NoteCreator } from "../app/components/NoteCreator";
-import { frontMatter } from "../app/lib/frontmatter";
+import { displayFrontMatter, frontMatter } from "../app/lib/frontmatter";
 import { flattenMetadata, INLINE_CHARS, INLINE_MAX, summarizeMetadata } from "../app/lib/metadataSummary";
 
 const figma: { Removed: string[] } = JSON.parse(readFileSync("tests/fixtures/figma-labels.json", "utf8"));
@@ -80,7 +80,7 @@ test("the note body no longer carries a metadata disclosure or an ask hint", () 
 
 test("the byline renders a folder with no front matter, front matter with no folder, and neither", () => {
   const byline = (info: Parameters<typeof NoteCreator>[0]["info"], content: string) =>
-    renderToStaticMarkup(createElement(NoteCreator, { info, metadata: frontMatter(content), editing: false, isSaving: false, onSave: () => {}, onCancel: () => {} }));
+    renderToStaticMarkup(createElement(NoteCreator, { info, metadata: displayFrontMatter(content), editing: false, isSaving: false, onSave: () => {}, onCancel: () => {} }));
   const folder = { hasCreator: true, name: "Design notes", tags: ["planning"], linked: true, folderHref: "/c" };
   const plain = byline(folder, "# No front matter");
   assert.match(plain, /class="byline-folder">Design notes</);
