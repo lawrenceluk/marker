@@ -10,8 +10,10 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "iphone-webkit", use: { ...devices["iPhone 13"] } },
+    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: /ink\.spec/ },
+    { name: "iphone-webkit", use: { ...devices["iPhone 13"] }, testIgnore: /ink\.spec/ },
+    // Pencil ink: iPad viewport with touch, synthetic pen pointer events, rotated in-test.
+    { name: "ipad-webkit", use: { ...devices["iPad Pro 11"] }, testMatch: /ink\.spec/ },
   ],
   webServer: {
     command: "npx tsx tests/helpers/browser-server.mts",

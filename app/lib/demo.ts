@@ -7,6 +7,22 @@ import { applyComments } from "./comments";
 export const DEMO_KEY = "commenting-demo-v1";
 export const REACTION_DEMO_KEY = "reaction-demo-v1";
 export const METADATA_DEMO_KEY = "metadata-demo-v1";
+export const INK_DEMO_KEY = "ink-demo-v1";
+export const INK_CONTENT = `# Ink review — synthetic plan
+
+Tap the pen in the toolbar, then circle, strike through or underline words with Apple Pencil or a finger. Rotate the iPad: the ink stays on its words. This is synthetic test material shared on this Preview.
+
+## The plan
+
+The first milestone ships a small reader that loads quickly on slow networks, keeps the original Markdown as the source of truth, and lets a reviewer mark the exact sentence that needs another pass before anyone writes code for the second milestone.
+
+We will invite five reviewers in the first week and measure how long each review takes from opening the link to the last comment.
+
+## Open questions
+
+- Should the export include an image crop of each mark?
+- Is a red pen too loud for routine notes?
+`;
 const METADATA_CONTENT = `---
 title: A small launch plan
 status: draft
@@ -86,6 +102,10 @@ export async function ensurePreviewDemo(key: string) {
   if (process.env.VERCEL_ENV !== "preview") return;
   if (key === METADATA_DEMO_KEY) {
     await seedPreviewNote(key, METADATA_CONTENT, []);
+    return;
+  }
+  if (key === INK_DEMO_KEY) {
+    await seedPreviewNote(key, INK_CONTENT, []);
     return;
   }
   if (key === REACTION_DEMO_KEY) {

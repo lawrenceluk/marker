@@ -19,6 +19,7 @@
     "geist": "^1.7.2",
     "lucide-react": "^0.560.0",
     "next": "16.0.10",
+    "perfect-freehand": "^1.2.2",
     "react": "19.2.1",
     "react-dom": "19.2.1",
     "react-markdown": "^10.1.0",

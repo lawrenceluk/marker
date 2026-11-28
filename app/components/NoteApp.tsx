@@ -571,9 +571,10 @@ function NoteAppBody({
         {appState === "idle" && <HomeControls />}
 
         {appState === "viewing" && (
-          <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} markdown={markdown} rev={rev ?? 0} initialResponses={responses} onChange={handleCommentChange} onRevision={noticeRevision} onComposingChange={setIsComposing} toolbar={commentsButton => <>
+          <CommentedViewer key={rawKey ?? initialKeyLabel} content={content} markdown={markdown} rev={rev ?? 0} initialResponses={responses} onChange={handleCommentChange} onRevision={noticeRevision} onComposingChange={setIsComposing} toolbar={(commentsButton, drawItem) => <>
             <NoteToolbar
               commentsButton={commentsButton}
+              moreItems={drawItem}
               key={deleteResetKey}
               onHome={() => void handleReset()}
               showNoteTools

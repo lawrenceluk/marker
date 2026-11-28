@@ -9,11 +9,12 @@ import {
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
-import { Check, MessageCircle, MessageSquarePlus, Minus, Plus, RotateCcw, Search, Send, SmilePlus, X } from "lucide-react";
+import { Check, MessageCircle, Highlighter, MessageSquarePlus, Minus, Plus, RotateCcw, Search, Send, SmilePlus, X } from "lucide-react";
 import dynamic from "next/dynamic";
 
 import { ContentViewer, type ResponseChange } from "./ContentViewer";
 import { ToolbarButton, toolbarButtonClass } from "./ToolbarButton";
+import { closeMenu } from "./ToolbarMenu";
 import { SelectionActionButton } from "./SelectionActionButton";
 import { GROUP_HEIGHT, SELECTION_BAR_CLEARANCE, marginSpot, plainQuote, selectionBubble, selectionRevealScroll } from "../lib/comment-presentation";
 import { selectSourceRange, sourceSelection, tapSourceOffset } from "../lib/comment-markup";
@@ -24,7 +25,10 @@ import { reactionBlocksFromMarkdown, type ResponseEntry } from "../lib/reactionB
 import { DEFAULT_EMOJI } from "../lib/emoji-suggestions";
 import { apiErrorMessage, isNoteSwitchedResponse, readJsonSafe } from "../lib/noteClient";
 import { useNoteSession } from "./NoteSession";
+import type { InkSnapshot } from "./InkLayer";
 
+// Loaded only when a note has ink or draw mode is turned on, so plain notes ship no ink code.
+const InkLayer = dynamic(() => import("./InkLayer"), { ssr: false });
 const NoteEmojiPicker = dynamic(() => import("./NoteEmojiPicker"), {
   ssr: false,
   loading: () => <p role="status" className="text-muted">Loading emoji…</p>,
@@ -67,7 +71,7 @@ export function CommentedViewer({
   onChange: (content: string, rev: number, responses: ResponseEntry[], frontMatter?: DisplayFrontMatter | null) => Promise<void>;
   onRevision: (rev: number) => void;
   onComposingChange: (composing: boolean) => void;
-  toolbar: (commentsButton: ReactNode) => ReactNode;
+  toolbar: (commentsButton: ReactNode, drawItem?: ReactNode) => ReactNode;
 }) {
   const { noteFetch } = useNoteSession();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -99,6 +103,9 @@ export function CommentedViewer({
   const reactionSaveDelay = useRef(0);
   const readVersion = useRef(0);
   const root = useRef<HTMLDivElement>(null);
+  const [rootElement, setRootElement] = useState<HTMLDivElement | null>(null);
+  const [drawing, setDrawing] = useState(false);
+  const [ink, setInk] = useState<InkSnapshot | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const threads = snapshot?.rev === rev ? snapshot.comments : [];
@@ -141,6 +148,18 @@ export function CommentedViewer({
     void load(controller.signal);
     return () => controller.abort();
   }, [load, rev]);
+  useEffect(() => {
+    // Ink has its own ink_rev; re-read it when the content changes so anchors re-locate.
+    const controller = new AbortController();
+    void noteFetch("/api/annotations", { cache: "no-store", signal: controller.signal })
+      .then(async response => {
+        const data = await readJsonSafe(response);
+        if (!controller.signal.aborted && response.ok && Array.isArray(data.strokes))
+          setInk({ ink_rev: data.ink_rev as number, strokes: data.strokes as InkSnapshot["strokes"] });
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [noteFetch, rev]);
 
   useEffect(() => {
     if (selectionStart === undefined || selectionEnd === undefined) return;
@@ -622,7 +641,7 @@ export function CommentedViewer({
   }, [blocks, reactionBusy, reactionError, reactionDrafts, snapshot, rev, writeResponses]);
   return (
     <>
-      {toolbar(
+      {toolbar(<>
         <ToolbarButton
           label={`Comments (${openCount} open)`}
           onClick={(e) => {
@@ -636,15 +655,23 @@ export function CommentedViewer({
               {openCount}
             </span>
           )}
-        </ToolbarButton>,
-      )}
+        </ToolbarButton>
+      </>, (
+        // The note toolbar is capped at five actions; drawing lives in More (the ink toolbar has Done).
+        <button type="button" className="toolbar-menu-item" aria-pressed={drawing} onClick={event => {
+          closeMenu(event.currentTarget);
+          setDrawing(value => !value);
+          setSelection(null);
+          window.getSelection()?.removeAllRanges();
+        }}><Highlighter size={18} aria-hidden="true" />{drawing ? "Stop drawing" : "Draw on note"}</button>
+      ))}
       {error && !active && (
         <p role="alert" className="mb-3 text-sm text-danger">
           {error}
         </p>
       )}
       <div
-        ref={root}
+        ref={element => { root.current = element; setRootElement(element); }}
         className="tap-select"
         onMouseDownCapture={(e) => {
           if ((e.target as HTMLElement).closest(TAP_IGNORE)) return;
@@ -687,6 +714,9 @@ export function CommentedViewer({
         }}
       >
         <ContentViewer content={content} markdown={markdown} reactionBlocks={blocks} comments={threads} responses={visibleResponses} drafts={reactionDrafts} onReaction={changeReaction} onTextFocus={setReactionTextFocused} busy={!snapshot || snapshot.rev !== rev} />
+        {rootElement && (drawing || !!ink?.strokes.length) && (
+          <InkLayer root={rootElement} content={content} drawing={drawing} snapshot={ink ?? { ink_rev: 0, strokes: [] }} onSnapshot={setInk} onDone={() => setDrawing(false)} />
+        )}
       </div>
       {/* Saving is silent on screen (screen readers still hear it); only a failure shows. */}
       {blocks.length > 0 && (reactionError
