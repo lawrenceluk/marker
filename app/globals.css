@@ -518,7 +518,21 @@ body:has(.selection-group, .selection-bar) .scroll-actions { visibility: hidden;
 .update-nudge:disabled, .update-nudge[aria-busy="true"] { color: var(--foreground); background: var(--accent-soft); }
 .update-nudge:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
-.tap-select { touch-action: manipulation; }
+.tap-select { position: relative; touch-action: manipulation; }
+
+/* Ink ("pseudo canvas"). The layer never takes hit testing; draw mode listens on .tap-select.
+ * Pencil draws and fingers keep scroll, pinch, double tap and long press, unless "Finger draws". */
+.ink-layer { position: absolute; left: 0; top: 0; z-index: 1; overflow: visible; pointer-events: none; }
+.ink-layer path { opacity: .85; }
+.ink-drawing { cursor: crosshair; -webkit-touch-callout: none; }
+.ink-drawing.ink-finger { touch-action: none; user-select: none; -webkit-user-select: none; }
+.ink-toolbar { position: fixed; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 23; display: flex; align-items: center; gap: 4px; padding: 6px; transform: translateX(-50%); border: 1px solid var(--rule-ink); border-radius: 999px; background: var(--background); color: var(--foreground); touch-action: none; user-select: none; -webkit-user-select: none; }
+.ink-toolbar button { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 999px; }
+.ink-toolbar button:disabled { opacity: .35; }
+.ink-toolbar button[aria-pressed="true"], .ink-toolbar button[aria-checked="true"] { background: var(--accent-soft); }
+.ink-toolbar button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.ink-swatch span { width: 18px; height: 18px; border-radius: 50%; background: currentColor; }
+.ink-done { color: var(--background); background: var(--foreground) !important; }
 
 .tap-pending { position: fixed; z-index: 21; display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; color: var(--foreground); background: var(--background); outline: 1px solid var(--hairline); pointer-events: none; }
 .tap-pending::after { content: ""; width: 9px; height: 9px; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; opacity: .55; animation: tap-spin .65s linear infinite; }

@@ -756,3 +756,34 @@ export async function markSeen(key: string, options: { rev?: number; now?: numbe
   const at = Number(seenAt);
   return { rev: Number(rev) || 0, seenAt: at > 0 ? at : now };
 }
+
+/**
+ * Ink annotations live in the note hash as `ink` (JSON) with their own `ink_rev`, so they follow
+ * rename, delete and expiry, but a stroke never bumps the note's `rev`, `updated_at` or seen
+ * state. READ_SCRIPT and COMMIT_SCRIPT never touch these fields.
+ * KEYS: note hash. Returns [exists, ink, ink_rev].
+ */
+const INK_READ_SCRIPT = `
+if redis.call('EXISTS', KEYS[1]) == 0 then return {'0', '', '0'} end
+local f = redis.call('HMGET', KEYS[1], 'ink', 'ink_rev')
+return {'1', f[1] or '', f[2] or '0'}
+`;
+/** KEYS: note hash. ARGV: expected ink_rev, ink JSON. CAS on ink_rev only; TTL untouched. */
+const INK_WRITE_SCRIPT = `
+if redis.call('EXISTS', KEYS[1]) == 0 then return {'missing'} end
+local rev = tonumber(redis.call('HGET', KEYS[1], 'ink_rev')) or 0
+if rev ~= tonumber(ARGV[1]) then return {'conflict', tostring(rev)} end
+redis.call('HSET', KEYS[1], 'ink', ARGV[2], 'ink_rev', rev + 1)
+return {'ok', tostring(rev + 1)}
+`;
+
+export async function readInk(key: string): Promise<{ inkRev: number; raw: string } | null> {
+  const [exists, raw, rev] = await redis.eval<string[], string[]>(INK_READ_SCRIPT, [noteKey(key)], []);
+  return exists === "1" ? { inkRev: Number(rev) || 0, raw } : null;
+}
+
+export async function commitInk(key: string, ifInkRev: number, json: string): Promise<{ status: "ok"; inkRev: number } | { status: "conflict"; inkRev: number } | { status: "missing" }> {
+  const [status, rev] = await redis.eval<string[], string[]>(INK_WRITE_SCRIPT, [noteKey(key)], [String(ifInkRev), json]);
+  if (status === "missing") return { status: "missing" };
+  return { status: status === "ok" ? "ok" : "conflict", inkRev: Number(rev) || 0 };
+}

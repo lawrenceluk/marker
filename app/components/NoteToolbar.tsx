@@ -10,6 +10,8 @@ import { PreviewTag } from "./Preview";
 
 interface NoteToolbarProps {
   commentsButton?: ReactNode;
+  /** Note-surface items (e.g. Draw on note), listed above Delete in More. */
+  moreItems?: ReactNode;
   onHome: () => void;
   showNoteTools?: boolean;
   persist?: boolean;
@@ -29,7 +31,7 @@ interface NoteToolbarProps {
 }
 
 export function NoteToolbar({
-  commentsButton, onHome, showNoteTools = true, persist = false, shareUrl = null,
+  commentsButton, moreItems, onHome, showNoteTools = true, persist = false, shareUrl = null,
   onPersistToggle, persistDisabled = false, onRename, onChangeKey, onDuplicate, duplicateDisabled = false, content = "",
   onEdit, onDelete, deleteDisabled = false, onEditTags,
 }: NoteToolbarProps) {
@@ -51,6 +53,7 @@ export function NoteToolbar({
         {onDuplicate && <button type="button" className="toolbar-menu-item" disabled={duplicateDisabled} onClick={event => { closeMenu(event.currentTarget); onDuplicate(); }}><CopyPlus size={18} aria-hidden="true" />Duplicate note</button>}
         <button type="button" className="toolbar-menu-item" onClick={event => { closeMenu(event.currentTarget); onRename?.(); }}><KeyRound size={18} aria-hidden="true" />Change key</button>
         {onEditTags && <button type="button" className="toolbar-menu-item" onClick={event => { closeMenu(event.currentTarget); onEditTags(); }}><Tags size={18} aria-hidden="true" />Edit tags</button>}
+        {moreItems}
         {onDelete && <><hr className="toolbar-menu-rule" /><DeleteButton onDelete={onDelete} disabled={deleteDisabled} menu /></>}
       </ToolbarMenu>
     </>}
